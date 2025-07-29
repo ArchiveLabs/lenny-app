@@ -34,7 +34,7 @@ This Lenny-app is maintained by the ArchiveLabs. which is client app example for
 2. Make sure you have your own Lenny setup running on your machine [Link](https://github.com/ArchiveLabs/lenny?tab=readme-ov-file#installation)
    
    ```bash
-  curl -fsSL https://raw.githubusercontent.com/ArchiveLabs/lenny/refs/heads/main/install.sh | sudo sh
+   curl -fsSL https://raw.githubusercontent.com/ArchiveLabs/lenny/refs/heads/main/install.sh | sudo sh
    ```
    This will add 800+ books inside your [Lenny](https://github.com/ArchiveLabs/lenny). Feel free to check the Github Docs for Lenny.
 
