@@ -4,6 +4,7 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY turbo.json ./
 COPY apps/ ./apps/
 COPY packages/ ./packages/
 RUN npm install -g pnpm
@@ -14,10 +15,7 @@ RUN pnpm install --frozen-lockfile
 
 # --- Build stage ---
 FROM deps AS builder
-ARG APP
-RUN if [ -z "$APP" ]; then echo "ERROR: APP build argument not set" && exit 1; fi
-WORKDIR /app/apps/$APP
-RUN pnpm install --frozen-lockfile
+WORKDIR /app
 RUN pnpm build
 
 # --- Production image ---
@@ -25,11 +23,14 @@ FROM node:20-alpine AS runner
 ARG APP
 WORKDIR /app/apps/$APP
 ENV NODE_ENV=production
-# Copy the built app directory (includes .next, package.json, app-specific node_modules symlinks)
-COPY --from=builder /app/apps/$APP ./
-# Copy pnpm global store to satisfy symlinks inside app node_modules
-COPY --from=builder /root/.local/share/pnpm /root/.local/share/pnpm
-# Also copy root node_modules so pnpm symlinks resolve (provides next binary)
+COPY --from=builder /app/apps/$APP .
 COPY --from=deps /app/node_modules /app/node_modules
-EXPOSE 3000
-CMD ["npm", "start"]
+# Install pnpm and Nginx
+RUN npm install -g pnpm && apk add --no-cache nginx
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+
+# Expose only port 80 for Nginx
+EXPOSE 80
+
+# Start Next.js in the background, then Nginx in the foreground
+CMD pnpm start & sleep 5 && nginx -g 'daemon off;'
