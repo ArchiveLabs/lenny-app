@@ -3,46 +3,79 @@
 This Lenny-app is maintained by the ArchiveLabs. which is client app example for [Lenny](https://lennyforlibraries.org)
 
 ## Technologies
-* [`Turborepo`](https://turborepo.com/) for deployment. 
+* [`Turborepo`](https://turborepo.com/) for monorepo management. 
 * [`Nextjs`](https://nextjs.org) inside Turborepo.
 * [`Tailwindcss`](https://tailwindcss.com) for styling.
-* [`docker`](https://www.docker.com/) for deployment and containerization (Coming soon).
-  
+* [`Docker`](https://www.docker.com/) for deployment and containerization.
+* [`Nginx`](https://nginx.org/) for reverse proxy.
+
+## Architecture
+
+This monorepo contains two Next.js applications:
+- **Web** (`apps/web/`) - Main web application
+- **Docs** (`apps/docs/`) - Documentation site
+
+Each app has its own Dockerfile and runs independently. A single Nginx reverse proxy routes traffic to both apps on separate ports.
+
 ## Endpoints
 
-Without Docker (dev)
+### Development (without Docker)
 
-* Web: [http://localhost:3000/](http://localhost:3000/)
-* Docs: [http://localhost:3001/](http://localhost:3001/)
+* **Web:** [http://localhost:3000/](http://localhost:3000/)
+* **Docs:** [http://localhost:3001/](http://localhost:3001/)
 
-With Docker (via Nginx reverse proxy)
+### Production (with Docker via Nginx reverse proxy)
 
-* Web: [http://localhost:8080/](http://localhost:8080/)
-* Docs: [http://localhost:8081/](http://localhost:8081/)
+* **Web:** [http://localhost:8080/](http://localhost:8080/)
+* **Docs:** [http://localhost:8081/](http://localhost:8081/)
 
-Notes
+## Docker Architecture
 
-* Each app runs its own Nginx inside the container on port 80 and proxies to the Next.js server on 127.0.0.1:3000.
-* The docker compose file maps host ports 8080 (web) and 8081 (docs) to container port 80.
-* To serve web on plain [http://localhost/](http://localhost/), change the web service ports mapping to `80:80` in `docker-compose.yml`.
+### Container Structure
+- **web** - Next.js app running on port 3000 inside container
+- **docs** - Next.js app running on port 3001 inside container
+- **nginx** - Reverse proxy with two server blocks:
+  - Port 80 → proxies to `web:3000` (exposed as host port 8080)
+  - Port 81 → proxies to `docs:3001` (exposed as host port 8081)
 
-## Nginx (in short)
+### Nginx Configuration
 
-* Location: `docker/nginx.conf` (shared by both app containers).
-* Purpose: simple reverse proxy to Next.js on 127.0.0.1:3000 with standard headers and upgrade support.
-* No path prefixes; each app is served at `/` in its own container.
-* A debug response header `X-Proxy` is added to show which Nginx responded; remove the `add_header X-Proxy ...` line if you don’t need it.
+* **Location:** `docker/nginx.conf`
+* **Purpose:** Reverse proxy with two separate server blocks for web and docs apps
+* **Features:** 
+  - Standard proxy headers for proper request forwarding
+  - WebSocket upgrade support for Next.js hot reload
+  - Each app served at root path `/` on its own port
+  - Debug header `X-Proxy` to identify the Nginx instance
+
+### Dockerfiles
+
+Each app has its own optimized multi-stage Dockerfile:
+* **Web:** `apps/web/Dockerfile`
+* **Docs:** `apps/docs/Dockerfile`
+
 
 ## Development Setup
 
-1. Start your Development enviroment by running the below command, for more check [Lenny-app Wiki](https://github.com/ArchiveLabs/lenny-app/wiki/Setup)
+### Local Development (without Docker)
+
+1. Install dependencies:
+   
+   ```bash
+   pnpm install
+   ```
+
+2. Start the development servers:
    
    ```bash
    pnpm run dev
    ```
 
-   
-2. Make sure you have your own Lenny setup running on your machine ([installation guide](https://github.com/ArchiveLabs/lenny?tab=readme-ov-file#installation))
+   This will start both apps:
+   - Web: [http://localhost:3000/](http://localhost:3000/)
+   - Docs: [http://localhost:3001/](http://localhost:3001/)
+
+3. Make sure you have your own Lenny setup running on your machine ([installation guide](https://github.com/ArchiveLabs/lenny?tab=readme-ov-file#installation))
 
    ```bash
    git clone git@github.com:ArchiveLabs/lenny.git
@@ -52,22 +85,109 @@ Notes
    
    This will add 800+ books inside your [Lenny](https://github.com/ArchiveLabs/lenny). Feel free to check the Github Docs for Lenny.
 
-## Production Setup
+## Docker Setup
 
-1. Start your Production enviroment by running the below command, for more check [Lenny-app Wiki](https://github.com/ArchiveLabs/lenny-app/wiki/Setup)
-   
-   ```bash
-   pnpm run build
-   ```
+### Prerequisites
 
-   
-2. Make sure you have your own Lenny setup running on your machine ([installation guide](https://github.com/ArchiveLabs/lenny?tab=readme-ov-file#installation))
+- Docker Engine 20.10+
+- Docker Compose v2.0+
 
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/ArchiveLabs/lenny/refs/heads/main/install.sh | sudo sh
-   ```
-   
-   This will add 800+ books inside your [Lenny](https://github.com/ArchiveLabs/lenny). Feel free to check the Github Docs for Lenny.
+### Quick Start
+
+Build and start all services (web, docs, and nginx):
+
+```bash
+docker compose up --build
+```
+
+Or run in detached mode:
+
+```bash
+docker compose up --build -d
+```
+
+### Docker Commands
+
+#### Build containers
+
+```bash
+# Build all services
+docker compose build
+
+# Build specific service
+docker compose build web
+docker compose build docs
+```
+
+#### Start/Stop services
+
+```bash
+# Start all services
+docker compose up
+
+# Start in detached mode (background)
+docker compose up -d
+
+# Stop all services
+docker compose down
+
+# Stop and remove volumes
+docker compose down -v
+```
+
+#### View logs
+
+```bash
+# View all logs
+docker compose logs
+
+# Follow logs in real-time
+docker compose logs -f
+
+# View logs for specific service
+docker compose logs web
+docker compose logs docs
+docker compose logs nginx
+```
+
+
+### Testing Docker Endpoints
+
+Once the containers are running, test the endpoints:
+
+```bash
+# Test web app
+curl http://localhost:8080/
+
+# Test docs app
+curl http://localhost:8081/
+
+# Or open in browser
+open http://localhost:8080/
+open http://localhost:8081/
+```
+
+### Customizing Ports
+
+To change the exposed ports, edit `compose.yaml`:
+
+```yaml
+nginx:
+  ports:
+    - "8080:80"
+    - "8081:81"
+```
+
+
+### Lenny Backend Setup
+
+Make sure you have your own Lenny setup running on your machine ([installation guide](https://github.com/ArchiveLabs/lenny?tab=readme-ov-file#installation))
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ArchiveLabs/lenny/refs/heads/main/install.sh | sudo sh
+```
+
+This will add 800+ books inside your [Lenny](https://github.com/ArchiveLabs/lenny). Feel free to check the Github Docs for Lenny.
 
 
 ## Pilot
