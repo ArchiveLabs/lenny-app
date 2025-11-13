@@ -1,0 +1,40 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+    networks:
+      - app-network
+
+  docs:
+    build:
+      context: .
+      dockerfile: apps/docs/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - HOSTNAME=0.0.0.0
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - web
+      - docs
+    ports:
+      - "8080:80"
+      - "8081:81"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
