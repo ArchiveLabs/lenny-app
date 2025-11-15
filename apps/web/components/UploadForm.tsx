@@ -28,18 +28,18 @@ export default function UploadForm() {
                             <UploadIcon className="w-5 h-5 text-muted-foreground shrink-0" />
                             <Input
                                 className="
-                file:mr-4 
-                file:px-4
-                file:rounded-md
-                file:text-sm
-                file:font-semibold
-                file:bg-primary
-                file:text-primary-foreground
-                file:cursor-pointer
-                hover:file:bg-primary/90
-                cursor-pointer
-                border-dotted
-                "
+                                    file:mr-4 
+                                    file:px-4
+                                    file:rounded-md
+                                    file:text-sm
+                                    file:font-semibold
+                                    file:bg-primary
+                                    file:text-primary-foreground
+                                    file:cursor-pointer
+                                    hover:file:bg-primary/90
+                                    cursor-pointer
+                                    border-dotted
+                                    "
                                 id="file"
                                 type="file"
                                 accept=".epub"
