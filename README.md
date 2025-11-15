@@ -189,6 +189,19 @@ curl -fsSL https://raw.githubusercontent.com/ArchiveLabs/lenny/refs/heads/main/i
 
 This will add 800+ books inside your [Lenny](https://github.com/ArchiveLabs/lenny). Feel free to check the Github Docs for Lenny.
 
+### Using Lenny Web App Outside Docker Container
+
+If you want to use the Lenny web app outside the Docker container (for local development), you need to allow local network IP addresses to upload files.
+
+Add the following code inside the `is_allowed_uploader` function in `code/api.py` within your Lenny instance:
+
+```python
+if client_ip.startswith("172.") or client_ip.startswith("192.168."):
+    return True
+```
+
+This allows upload requests from Docker networks (172.x.x.x) and local networks (192.168.x.x) to bypass the uploader IP restrictions during development.
+
 
 ## Pilot
 
