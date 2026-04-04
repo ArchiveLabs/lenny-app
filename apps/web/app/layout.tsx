@@ -20,12 +20,12 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: "/lenny-transparent.png" },
-      { url: "/lenny-transparent.png", sizes: "32x32", type: "image/png" },
-      { url: "/lenny-transparent.png", sizes: "16x16", type: "image/png" },
+      { url: "/admin/favicon.png", sizes: "48x48", type: "image/png" },
+      { url: "/admin/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/admin/favicon-16.png", sizes: "16x16", type: "image/png" },
     ],
-    apple: "/lenny-transparent.png",
-    shortcut: "/lenny-transparent.png",
+    apple: "/admin/apple-touch-icon.png",
+    shortcut: "/admin/favicon.png",
   },
   appleWebApp: {
     capable: true,
@@ -48,7 +48,9 @@ export default function RootLayout({
       <body
         className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased `}
       >
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   )
