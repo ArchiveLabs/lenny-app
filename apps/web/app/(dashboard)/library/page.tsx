@@ -199,7 +199,7 @@ export default function LibraryPage() {
             All books currently available in this Lenny instance, enriched with OpenLibrary metadata.
           </p>
         </div>
-        <Button variant="outline" className="font-semibold shadow-sm w-fit" onClick={load} disabled={loading}>
+        <Button variant="outline" className="font-semibold shadow-sm w-fit" onClick={() => load()} disabled={loading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </Button>
@@ -224,7 +224,7 @@ export default function LibraryPage() {
           <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900/40 px-4 py-2.5 text-sm font-mono text-red-700 dark:text-red-400 w-full text-left">
             {error}
           </div>
-          <Button onClick={load} className="font-semibold">
+          <Button onClick={() => load()} className="font-semibold">
             <RefreshCw className="mr-2 h-4 w-4" />
             Try Again
           </Button>
