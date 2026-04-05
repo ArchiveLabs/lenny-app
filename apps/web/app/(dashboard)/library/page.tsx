@@ -1,10 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { BookOpen, Lock, Unlock, RefreshCw, Library, WifiOff } from "lucide-react"
+import { useState } from "react"
+import { useQuery, keepPreviousData } from "@tanstack/react-query"
+import { BookOpen, Lock, Unlock, RefreshCw, Library, WifiOff, ChevronLeft, ChevronRight, Search } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent, CardFooter } from "@workspace/ui/components/card"
+import { Input } from "@workspace/ui/components/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@workspace/ui/components/select"
 import { Skeleton } from "@workspace/ui/components/skeleton"
+import { queryClient, LIBRARY_QUERY_KEY } from "@/lib/query-client"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,7 +33,7 @@ interface LennyBook {
   lenny: LennyRecord
 }
 
-// ── API URL resolution (same logic as use-upload-jobs) ───────────────────────
+// ── API URL resolution ───────────────────────────────────────────────────────
 
 function getApiBase(): string {
   const envApi = process.env.NEXT_PUBLIC_API_URL
@@ -47,11 +51,9 @@ function getApiBase(): string {
 
 // ── Data fetching ─────────────────────────────────────────────────────────────
 
-async function fetchLibrary(signal?: AbortSignal): Promise<LennyBook[]> {
-  const res = await fetch(`${getApiBase()}/v1/api/items`, { signal })
-  if (!res.ok) throw new Error(`Failed to fetch library: ${res.status}`)
-  const data: Record<string, any> = await res.json()
+const PAGE_SIZE = 20
 
+function parseItems(data: Record<string, any>): LennyBook[] {
   return Object.entries(data)
     .filter(([, item]) => item.lenny != null)
     .map(([rawId, item]) => ({
@@ -61,6 +63,25 @@ async function fetchLibrary(signal?: AbortSignal): Promise<LennyBook[]> {
       cover_i: item.editions?.docs?.[0]?.cover_i,
       lenny: item.lenny,
     }))
+}
+
+type AccessFilter = "all" | "open" | "encrypted"
+
+async function fetchPage(page: number, accessFilter: AccessFilter): Promise<LennyBook[]> {
+  const offset = (page - 1) * PAGE_SIZE
+  const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) })
+  if (accessFilter === "encrypted") params.set("encrypted", "true")
+  if (accessFilter === "open") params.set("encrypted", "false")
+  const res = await fetch(`${getApiBase()}/v1/api/items?${params}`)
+  if (!res.ok) throw new Error(`Failed to fetch library: ${res.status}`)
+  return parseItems(await res.json())
+}
+
+// Only used when free-text search is active
+async function fetchAllBooks(): Promise<LennyBook[]> {
+  const res = await fetch(`${getApiBase()}/v1/api/items?limit=500`)
+  if (!res.ok) throw new Error(`Failed to fetch library: ${res.status}`)
+  return parseItems(await res.json())
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -112,7 +133,9 @@ function BookCard({ book }: { book: LennyBook }) {
             <div className="absolute inset-0 bg-background/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10" />
             <img
               src={coverUrl}
-              alt={book.title}
+              alt={`${book.title} cover`}
+              loading="lazy"
+              decoding="async"
               className="relative z-0 h-full w-auto object-contain drop-shadow-xl transition-transform duration-500 ease-out group-hover:scale-105"
             />
           </>
@@ -163,34 +186,103 @@ function BookCard({ book }: { book: LennyBook }) {
   )
 }
 
+// ── Error state ───────────────────────────────────────────────────────────────
+
+function ErrorState({ error, onRetry }: { error: Error; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-center max-w-lg mx-auto gap-6">
+      <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center">
+        <WifiOff className="w-9 h-9 text-red-500/60" />
+      </div>
+      <div className="space-y-2">
+        <h3 className="text-2xl font-bold">Lenny is unreachable</h3>
+        <p className="text-muted-foreground text-base leading-relaxed">
+          The admin UI couldn't connect to the Lenny backend. Make sure the FastAPI server is running and reachable.
+        </p>
+      </div>
+      <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900/40 px-4 py-2.5 text-sm font-mono text-red-700 dark:text-red-400 w-full text-left">
+        {error.message}
+      </div>
+      <Button onClick={onRetry} className="font-semibold">
+        <RefreshCw className="mr-2 h-4 w-4" />
+        Try Again
+      </Button>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LibraryPage() {
-  const [books, setBooks] = useState<LennyBook[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState("")
+  const [accessFilter, setAccessFilter] = useState<AccessFilter>("all")
+  const [browsePage, setBrowsePage] = useState(1)
+  const [searchPage, setSearchPage] = useState(1)
 
-  const load = async (signal?: AbortSignal) => {
-    setLoading(true)
-    setError(null)
-    try {
-      setBooks(await fetchLibrary(signal))
-    } catch (err: any) {
-      if (err.name === "AbortError") return
-      setError(err.message ?? "Failed to load library")
-    } finally {
-      setLoading(false)
+  const q = query.toLowerCase().trim()
+  const isSearching = q.length > 0
+
+  // Paginated query — includes server-side filter; changes to filter/page fetch a fresh page
+  const pageQuery = useQuery({
+    queryKey: [...LIBRARY_QUERY_KEY, "page", browsePage, accessFilter] as const,
+    queryFn: () => fetchPage(browsePage, accessFilter),
+    enabled: !isSearching,
+    placeholderData: keepPreviousData,
+  })
+
+  // Full fetch — only when free-text search is active; cached after first use
+  const allQuery = useQuery({
+    queryKey: [...LIBRARY_QUERY_KEY, "all"] as const,
+    queryFn: fetchAllBooks,
+    enabled: isSearching,
+  })
+
+  const isLoading = isSearching ? allQuery.isLoading : pageQuery.isLoading
+  const isFetching = isSearching ? allQuery.isFetching : pageQuery.isFetching
+  const activeError = isSearching ? (allQuery.error ?? pageQuery.error) : pageQuery.error
+
+  // Search filters client-side on top of access filter
+  const searchFiltered = allQuery.data
+    ? allQuery.data.filter(b => {
+        const matchesQuery =
+          b.title.toLowerCase().includes(q) ||
+          b.author_name.some(a => a.toLowerCase().includes(q)) ||
+          b.olid.toLowerCase().includes(q)
+        const matchesAccess =
+          accessFilter === "all" ||
+          (accessFilter === "encrypted" && b.lenny.encrypted) ||
+          (accessFilter === "open" && !b.lenny.encrypted)
+        return matchesQuery && matchesAccess
+      })
+    : null
+
+  const searchTotalPages = searchFiltered ? Math.max(1, Math.ceil(searchFiltered.length / PAGE_SIZE)) : 1
+  const searchBooks = searchFiltered?.slice((searchPage - 1) * PAGE_SIZE, searchPage * PAGE_SIZE) ?? []
+
+  const browseBooks = pageQuery.data ?? []
+  const hasMore = browseBooks.length === PAGE_SIZE
+
+  const displayBooks = isSearching ? searchBooks : browseBooks
+
+  const handleQueryChange = (v: string) => { setQuery(v); setSearchPage(1) }
+  const handleFilterChange = (v: string) => {
+    const newFilter = v as AccessFilter
+    // Invalidate the cache for the new filter so the global staleTime:Infinity
+    // doesn't serve stale cached data when switching back to a previously-viewed filter
+    queryClient.invalidateQueries({ queryKey: [...LIBRARY_QUERY_KEY, "page", 1, newFilter] })
+    setAccessFilter(newFilter)
+    setBrowsePage(1)
+  }
+  const handleRefetch = async () => {
+    if (isSearching) {
+      await allQuery.refetch()
+    } else {
+      await pageQuery.refetch()
     }
   }
 
-  useEffect(() => {
-    const controller = new AbortController()
-    load(controller.signal)
-    return () => controller.abort()
-  }, [])
-
   return (
-    <div className="flex flex-col h-full animate-in fade-in duration-500 space-y-10 p-2 md:p-6 lg:p-8">
+    <div className="flex flex-col h-full space-y-10 p-2 md:p-6 lg:p-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div className="flex flex-col space-y-2">
@@ -199,48 +291,132 @@ export default function LibraryPage() {
             All books currently available in this Lenny instance, enriched with OpenLibrary metadata.
           </p>
         </div>
-        <Button variant="outline" className="font-semibold shadow-sm w-fit" onClick={() => load()} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={accessFilter} onValueChange={handleFilterChange}>
+            <SelectTrigger className="w-[150px] rounded-lg font-semibold">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Books</SelectItem>
+              <SelectItem value="open">Open Access</SelectItem>
+              <SelectItem value="encrypted">Encrypted</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              className="pl-9 w-[220px] rounded-lg"
+              placeholder="Search title, author, edition…"
+              value={query}
+              onChange={e => handleQueryChange(e.target.value)}
+            />
+          </div>
+
+          <Button variant="outline" className="font-semibold shadow-sm" onClick={handleRefetch} disabled={isFetching}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Grid */}
-      {loading ? (
+      {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-          {Array.from({ length: 10 }).map((_, i) => <BookCardSkeleton key={i} />)}
+          {Array.from({ length: PAGE_SIZE }).map((_, i) => <BookCardSkeleton key={i} />)}
         </div>
-      ) : error ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center max-w-lg mx-auto gap-6">
-          <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center">
-            <WifiOff className="w-9 h-9 text-red-500/60" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-2xl font-bold">Lenny is unreachable</h3>
-            <p className="text-muted-foreground text-base leading-relaxed">
-              The admin UI couldn't connect to the Lenny backend. Make sure the FastAPI server is running and reachable.
-            </p>
-          </div>
-          <div className="rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900/40 px-4 py-2.5 text-sm font-mono text-red-700 dark:text-red-400 w-full text-left">
-            {error}
-          </div>
-          <Button onClick={() => load()} className="font-semibold">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Try Again
-          </Button>
-        </div>
-      ) : books.length === 0 ? (
+      ) : activeError ? (
+        <ErrorState error={activeError as Error} onRetry={handleRefetch} />
+      ) : !isSearching && browseBooks.length === 0 && browsePage === 1 ? (
         <div className="py-24 flex flex-col items-center justify-center text-center max-w-md mx-auto">
           <Library className="w-20 h-20 text-muted-foreground/20 mb-6" />
-          <h3 className="text-2xl font-bold mb-2">No books yet</h3>
+          <h3 className="text-2xl font-bold mb-2">
+            {accessFilter === "all" ? "No books yet" : "No books match this filter"}
+          </h3>
           <p className="text-muted-foreground">
-            Upload EPUBs via the Upload page and they'll appear here once processed.
+            {accessFilter === "all"
+              ? "Upload EPUBs via the Upload page and they'll appear here once processed."
+              : "Try switching to \"All Books\" to see everything."}
           </p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 pb-10">
-          {books.map((book) => <BookCard key={book.olid} book={book} />)}
+      ) : isSearching && searchFiltered !== null && searchFiltered.length === 0 ? (
+        <div className="py-24 flex flex-col items-center justify-center text-center max-w-md mx-auto">
+          <Search className="w-16 h-16 text-muted-foreground/20 mb-6" />
+          <h3 className="text-xl font-bold mb-2">No results for "{query}"</h3>
+          <p className="text-muted-foreground text-sm">Try a different title, author, or edition ID.</p>
         </div>
+      ) : (
+        <>
+        <div className="relative">
+          {isFetching && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/5 backdrop-blur-[1px]">
+              <div className="flex flex-col items-center gap-3">
+                <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+                <span className="text-sm font-medium text-muted-foreground animate-pulse">Loading items…</span>
+              </div>
+            </div>
+          )}
+          <div className={`transition-opacity duration-300 ${isFetching ? "opacity-40 pointer-events-none" : "opacity-100"}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+              {displayBooks.map((book) => <BookCard key={book.olid} book={book} />)}
+            </div>
+          </div>
+        </div>
+
+          {/* Browse pagination (server-side, includes filter) */}
+          {!isSearching && (browsePage > 1 || hasMore) && (
+            <div className="flex items-center justify-center gap-6 pb-10">
+              <Button
+                variant="outline"
+                className="font-semibold shadow-sm transition-transform hover:scale-[1.02]"
+                disabled={browsePage <= 1 || isFetching}
+                onClick={() => setBrowsePage(p => p - 1)}
+              >
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Previous
+              </Button>
+              <span className="text-sm font-medium text-muted-foreground w-16 text-center">
+                Page {browsePage}
+              </span>
+              <Button
+                variant="outline"
+                className="font-semibold shadow-sm transition-transform hover:scale-[1.02]"
+                disabled={!hasMore || isFetching}
+                onClick={() => setBrowsePage(p => p + 1)}
+              >
+                Next
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
+          {/* Search pagination (client-side) */}
+          {isSearching && searchTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-6 pb-10">
+              <Button
+                variant="outline"
+                className="font-semibold shadow-sm transition-transform hover:scale-[1.02]"
+                disabled={searchPage <= 1}
+                onClick={() => setSearchPage(p => p - 1)}
+              >
+                <ChevronLeft className="mr-2 h-4 w-4" />
+                Previous
+              </Button>
+              <span className="text-sm font-medium text-muted-foreground w-28 text-center">
+                Page {searchPage} of {searchTotalPages}
+              </span>
+              <Button
+                variant="outline"
+                className="font-semibold shadow-sm transition-transform hover:scale-[1.02]"
+                disabled={searchPage >= searchTotalPages}
+                onClick={() => setSearchPage(p => p + 1)}
+              >
+                Next
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

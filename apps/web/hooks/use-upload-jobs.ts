@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { invalidateLibraryCache } from "@/lib/query-client"
 
 export type JobStatus = "queued" | "uploading" | "success" | "failed" | "cancelled"
 
@@ -105,6 +106,11 @@ export function useUploadJobs() {
 
     if (newJobs.length === 0) return
 
+    if (isUploading) {
+      console.warn("Upload already in progress")
+      return
+    }
+
     // Prepend new jobs (latest first), keep up to 50 historical jobs
     const existing = loadJobs().filter(j => j.status !== "queued" && j.status !== "uploading")
     const allJobs = [...newJobs, ...existing].slice(0, 50)
@@ -136,7 +142,16 @@ export function useUploadJobs() {
       setProcessingKey(job.editionKey)
 
       const file = attachments[job.editionKey]
-      if (!file) continue
+      if (!file) {
+        const afterJobs = loadJobs()
+        const failed = afterJobs.map(j =>
+          j.id === job.id ? { ...j, status: "failed" as JobStatus, error: "File not found", completedAt: Date.now() } : j
+        )
+        persistJobs(failed)
+        setJobs(failed)
+        setProcessingKey(null)
+        continue
+      }
 
       const numericId = job.editionKey.replace(/\D/g, "")
       if (!numericId) {
@@ -167,6 +182,7 @@ export function useUploadJobs() {
           )
           persistJobs(done)
           setJobs(done)
+          invalidateLibraryCache()
           callbacks?.onBookDone?.(job.editionKey)
         } else {
           const errText = await response.text().catch(() => "Unknown error")

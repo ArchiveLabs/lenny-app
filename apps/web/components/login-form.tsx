@@ -128,8 +128,7 @@ export function LoginForm({
               </Button>
 
               <p className="text-center text-xs text-muted-foreground pt-1">
-                Credentials are generated during setup.<br />
-                Check your <code className="text-foreground/70 font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">.env</code> for <code className="text-foreground/70 font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">ADMIN_USERNAME</code> and <code className="text-foreground/70 font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">ADMIN_PASSWORD</code>
+                Contact your service provider or administrator for access credentials.
               </p>
             </div>
           </form>

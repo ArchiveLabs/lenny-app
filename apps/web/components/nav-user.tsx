@@ -23,7 +23,8 @@ import {
 
 function getCookieValue(name: string): string {
   if (typeof document === "undefined") return ""
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const match = document.cookie.match(new RegExp(`(?:^|; )${escapedName}=([^;]*)`))
   return match ? decodeURIComponent(match[1]!) : ""
 }
 
@@ -75,7 +76,12 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={async () => {
-              await fetch("/admin/api/auth/logout", { method: "POST" })
+              try {
+                const res = await fetch("/admin/api/auth/logout", { method: "POST" })
+                if (!res.ok) console.error("Logout failed:", res.status)
+              } catch (err) {
+                console.error("Logout request failed:", err)
+              }
               window.location.href = "/admin/login"
             }}>
               <IconLogout />

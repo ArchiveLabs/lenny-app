@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, Book, Loader2, Link as LinkIcon, ExternalLink, ChevronLeft, ChevronRight, Plus, Check, Layers } from "lucide-react"
 import { Input } from "@workspace/ui/components/input"
 import { Button } from "@workspace/ui/components/button"
@@ -39,6 +39,7 @@ export default function AddBookPage() {
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const { queue, addBook, removeBook } = useBookQueue()
+    const searchAbortRef = useRef<AbortController | null>(null)
 
     const executeSearch = async (pageNum: number, searchQuery: string = query) => {
         if (!searchQuery.trim()) {
@@ -46,11 +47,18 @@ export default function AddBookPage() {
             setSearched(false)
             return
         }
+        // Cancel any in-flight request
+        searchAbortRef.current?.abort()
+        searchAbortRef.current = new AbortController()
+
         setLoading(true)
         if (pageNum === 1) setSearched(true)
         try {
             // Using limit=24 as a comfortable over-fetch buffer to account for filtering invalid editions
-            const res = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery)}&limit=24&page=${pageNum}`)
+            const res = await fetch(
+                `https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery)}&limit=24&page=${pageNum}`,
+                { signal: searchAbortRef.current.signal }
+            )
             if (!res.ok) throw new Error(`Search failed: ${res.status}`)
             const data = await res.json()
             const docs = data.docs || []
@@ -58,6 +66,7 @@ export default function AddBookPage() {
             setResults(validDocs)
             setTotalPages(Math.max(1, Math.ceil((data.numFound || 0) / 24)))
         } catch (error) {
+            if (error instanceof DOMException && error.name === "AbortError") return
             console.error("Failed to search Open Library", error)
             setResults([])
             setTotalPages(1)
@@ -116,9 +125,10 @@ export default function AddBookPage() {
             <form onSubmit={handleSearch} className="flex items-center gap-3 w-full max-w-3xl relative">
                 <div className="relative flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
-                    <Input 
+                    <Input
+                        aria-label="Search by title, author, or ISBN"
                         className="pl-12 h-14 bg-background border-muted-foreground/30 text-lg shadow-sm focus-visible:ring-primary/40 rounded-xl"
-                        placeholder="Search by title, author, or ISBN..." 
+                        placeholder="Search by title, author, or ISBN..."
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                     />
