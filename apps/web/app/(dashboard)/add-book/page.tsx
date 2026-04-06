@@ -34,6 +34,7 @@ function BookCardSkeleton() {
 export default function AddBookPage() {
     const [query, setQuery] = useState("")
     const [results, setResults] = useState<any[]>([])
+    const [searchError, setSearchError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
     const [searched, setSearched] = useState(false)
     const [page, setPage] = useState(1)
@@ -52,14 +53,26 @@ export default function AddBookPage() {
         searchAbortRef.current = new AbortController()
 
         setLoading(true)
+        setSearchError(null)
         if (pageNum === 1) setSearched(true)
         try {
             // Using limit=24 as a comfortable over-fetch buffer to account for filtering invalid editions
             const res = await fetch(
-                `https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery)}&limit=24&page=${pageNum}`,
+                `https://openlibrary.org/search.json?q=${encodeURIComponent(searchQuery.trim())}&limit=24&page=${pageNum}`,
                 { signal: searchAbortRef.current.signal }
             )
-            if (!res.ok) throw new Error(`Search failed: ${res.status}`)
+            if (res.status === 422) {
+                // OpenLibrary rejects the query semantically — treat as no results
+                setResults([])
+                setTotalPages(1)
+                return
+            }
+            if (!res.ok) {
+                setSearchError(`Open Library returned an error (${res.status}). Try again.`)
+                setResults([])
+                setTotalPages(1)
+                return
+            }
             const data = await res.json()
             const docs = data.docs || []
             const validDocs = docs.filter((book: any) => book.cover_edition_key || (book.edition_key && book.edition_key.length > 0))
@@ -67,7 +80,7 @@ export default function AddBookPage() {
             setTotalPages(Math.max(1, Math.ceil((data.numFound || 0) / 24)))
         } catch (error) {
             if (error instanceof DOMException && error.name === "AbortError") return
-            console.error("Failed to search Open Library", error)
+            setSearchError("Could not reach Open Library. Check your connection and try again.")
             setResults([])
             setTotalPages(1)
         } finally {
@@ -84,6 +97,7 @@ export default function AddBookPage() {
             } else {
                 setResults([])
                 setSearched(false)
+                setSearchError(null)
             }
         }, 600)
         
@@ -140,7 +154,11 @@ export default function AddBookPage() {
 
             {/* Results Section */}
             <div className="flex-1 pb-10">
-                {loading && results.length === 0 ? (
+                {searchError ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center max-w-md mx-auto gap-3">
+                        <p className="text-sm font-medium text-destructive">{searchError}</p>
+                    </div>
+                ) : loading && results.length === 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                         {Array.from({ length: 10 }).map((_, i) => (
                             <BookCardSkeleton key={i} />
@@ -205,9 +223,9 @@ export default function AddBookPage() {
                                                 <span className="text-xs font-bold text-foreground/80">{book.first_publish_year || "Unknown"}</span>
                                             </div>
                                             
-                                            {editionKey ? (
+                                            {editionKey && (
                                                 queue.some(q => q.editionKey === editionKey) ? (
-                                                    <Button 
+                                                    <Button
                                                         variant="ghost"
                                                         onClick={() => removeBook(editionKey)}
                                                         className="h-7 rounded-full px-3.5 text-[11px] font-bold shadow-sm border border-border bg-muted/30 transition-transform hover:scale-[1.04]"
@@ -216,7 +234,7 @@ export default function AddBookPage() {
                                                         Queued
                                                     </Button>
                                                 ) : (
-                                                    <Button 
+                                                    <Button
                                                         onClick={() => addBook({ editionKey, title: book.title, author: book.author_name ? book.author_name.join(", ") : "Unknown Author", year: book.first_publish_year, coverUrl, addedAt: Date.now() })}
                                                         className="h-7 rounded-full px-3.5 text-[11px] font-bold shadow-sm transition-transform hover:scale-[1.04]"
                                                     >
@@ -224,10 +242,6 @@ export default function AddBookPage() {
                                                         Queue Book
                                                     </Button>
                                                 )
-                                            ) : (
-                                                <Button disabled variant="secondary" className="h-7 rounded-full px-3.5 text-[11px] font-bold">
-                                                    No Match
-                                                </Button>
                                             )}
                                         </div>
                                     </div>

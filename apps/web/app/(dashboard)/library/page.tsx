@@ -69,7 +69,8 @@ type AccessFilter = "all" | "open" | "encrypted"
 
 async function fetchPage(page: number, accessFilter: AccessFilter): Promise<LennyBook[]> {
   const offset = (page - 1) * PAGE_SIZE
-  const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) })
+  // Fetch one extra item to detect if there's a next page (avoids empty last-page navigation)
+  const params = new URLSearchParams({ limit: String(PAGE_SIZE + 1), offset: String(offset) })
   if (accessFilter === "encrypted") params.set("encrypted", "true")
   if (accessFilter === "open") params.set("encrypted", "false")
   const res = await fetch(`${getApiBase()}/v1/api/items?${params}`)
@@ -259,8 +260,9 @@ export default function LibraryPage() {
   const searchTotalPages = searchFiltered ? Math.max(1, Math.ceil(searchFiltered.length / PAGE_SIZE)) : 1
   const searchBooks = searchFiltered?.slice((searchPage - 1) * PAGE_SIZE, searchPage * PAGE_SIZE) ?? []
 
-  const browseBooks = pageQuery.data ?? []
-  const hasMore = browseBooks.length === PAGE_SIZE
+  const rawBrowseBooks = pageQuery.data ?? []
+  const hasMore = rawBrowseBooks.length > PAGE_SIZE
+  const browseBooks = hasMore ? rawBrowseBooks.slice(0, PAGE_SIZE) : rawBrowseBooks
 
   const displayBooks = isSearching ? searchBooks : browseBooks
 

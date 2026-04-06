@@ -67,7 +67,13 @@ export function useBookQueue() {
       const stored = localStorage.getItem("lenny-book-queue")
       if (stored) {
         try {
-          setQueue(JSON.parse(stored))
+          const parsed = JSON.parse(stored)
+          if (!Array.isArray(parsed)) {
+            console.warn("Invalid book queue data in localStorage")
+            return
+          }
+          const now = Date.now()
+          setQueue(parsed.filter((b: QueuedBook) => now - b.addedAt < QUEUE_TTL_MS))
         } catch (e) {
           console.error("Failed to parse book queue on sync", e)
         }

@@ -86,7 +86,12 @@ function sanitizeCSSIdentifier(str: string): string {
 }
 
 function sanitizeCSSValue(str: string): string {
-  return str.replace(/[;{}]/g, "")
+  return str
+    .replace(/<[^>]*>/gi, "")
+    .replace(/[;{}]/g, "")
+    .replace(/[\n\r]/g, "")
+    .replace(/url\s*\(/gi, "")
+    .replace(/expression\s*\(/gi, "")
 }
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
@@ -329,7 +334,7 @@ function ChartLegendContent({
                   }}
                 />
               )}
-              {itemConfig?.label}
+              {itemConfig?.label ?? item.value}
             </div>
           )
         })}

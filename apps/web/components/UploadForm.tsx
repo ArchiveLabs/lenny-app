@@ -122,13 +122,17 @@ export default function UploadForm() {
         if (targetKeys.length === 0) return
 
         const booksToUpload = queue.filter(b => attachments[b.editionKey])
-        await startUpload(booksToUpload, attachments, encryptionMap, {
-            onBookDone: (editionKey) => {
-                removeBook(editionKey)
-                setAttachments(prev => { const next = { ...prev }; delete next[editionKey]; return next })
-            }
-        })
-        router.push("/processing")
+        try {
+            await startUpload(booksToUpload, attachments, encryptionMap, {
+                onBookDone: (editionKey) => {
+                    removeBook(editionKey)
+                    setAttachments(prev => { const next = { ...prev }; delete next[editionKey]; return next })
+                }
+            })
+            router.push("/processing")
+        } catch (err) {
+            console.error("Upload failed:", err)
+        }
     }
 
     const attachedCount = Object.keys(attachments).length
@@ -322,7 +326,7 @@ export default function UploadForm() {
                       <div className="xl:sticky xl:top-8 space-y-8">
                         {/* Summary */}
                         <div className="space-y-5">
-                            <Label className="text-base font-semibold">Book's Queue Overview</Label>
+                            <Label className="text-base font-semibold">Queue Overview</Label>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="rounded-xl border bg-card p-4 text-center shadow-sm">
                                     <p className="text-3xl font-bold text-primary">{queue.length}</p>

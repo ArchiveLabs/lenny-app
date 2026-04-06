@@ -1,12 +1,18 @@
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@workspace/ui/components/sidebar"
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const cookieStore = await cookies()
+  if (!cookieStore.get("admin_token")) {
+    redirect("/login")
+  }
   return (
     <SidebarProvider
       style={

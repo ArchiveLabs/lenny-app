@@ -17,8 +17,9 @@ import { Loader2, User, KeyRound, ShieldAlert } from "lucide-react"
 
 export function LoginForm({
   className,
+  redirectTo = "/",
   ...props
-}: React.ComponentProps<"div">) {
+}: React.ComponentProps<"div"> & { redirectTo?: string }) {
   const router = useRouter()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -38,7 +39,7 @@ export function LoginForm({
       })
 
       if (res.ok) {
-        router.push("/")
+        router.push(redirectTo)
         router.refresh()
       } else {
         const data = await res.json().catch(() => ({}))
