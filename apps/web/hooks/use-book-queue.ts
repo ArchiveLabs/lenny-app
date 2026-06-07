@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useCallback, useSyncExternalStore } from "react"
 
 export interface QueuedBook {
   editionKey: string
@@ -10,86 +10,97 @@ export interface QueuedBook {
 }
 
 const QUEUE_TTL_MS = 6 * 60 * 60 * 1000 // 6 hours
+const STORAGE_KEY = "lenny-book-queue"
+const emptyQueue: QueuedBook[] = []
+
+// Global memory cache to prevent parsing JSON on every render and ensure referential equality
+let memoryCache: QueuedBook[] | null = null
+
+function getSnapshot() {
+  if (memoryCache !== null) return memoryCache
+
+  if (typeof window === "undefined") {
+    memoryCache = emptyQueue
+    return memoryCache
+  }
+
+  const stored = localStorage.getItem(STORAGE_KEY)
+  if (!stored) {
+    memoryCache = emptyQueue
+    return memoryCache
+  }
+
+  try {
+    const parsed = JSON.parse(stored)
+    if (!Array.isArray(parsed)) {
+      console.warn("Invalid book queue data in localStorage")
+      memoryCache = emptyQueue
+      return memoryCache
+    }
+    
+    const now = Date.now()
+    const fresh = parsed.filter((b: QueuedBook) => now - b.addedAt < QUEUE_TTL_MS)
+    
+    if (fresh.length !== parsed.length) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh))
+    }
+    
+    memoryCache = fresh
+    return memoryCache
+  } catch (e) {
+    console.error("Failed to parse book queue from localStorage", e)
+    memoryCache = emptyQueue
+    return memoryCache
+  }
+}
+
+function getServerSnapshot() {
+  return emptyQueue
+}
+
+function subscribe(callback: () => void) {
+  if (typeof window === "undefined") return () => {}
+  
+  const handler = (e: Event) => {
+    if (e.type === "storage" && (e as StorageEvent).key !== STORAGE_KEY) return
+    memoryCache = null // Invalidate cache so getSnapshot re-reads from storage
+    callback()
+  }
+  
+  window.addEventListener("book-queue-updated", handler)
+  window.addEventListener("storage", handler)
+  
+  return () => {
+    window.removeEventListener("book-queue-updated", handler)
+    window.removeEventListener("storage", handler)
+  }
+}
 
 export function useBookQueue() {
-  const [queue, setQueue] = useState<QueuedBook[]>([])
-  
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    const stored = localStorage.getItem("lenny-book-queue")
-    if (stored) {
-      try {
-        const parsed: QueuedBook[] = JSON.parse(stored)
-        if (!Array.isArray(parsed)) {
-          console.warn("Invalid book queue data in localStorage")
-          return
-        }
-        const now = Date.now()
-        const fresh = parsed.filter(b => now - b.addedAt < QUEUE_TTL_MS)
-        // If expired items were pruned, update storage
-        if (fresh.length !== parsed.length) {
-          localStorage.setItem("lenny-book-queue", JSON.stringify(fresh))
-        }
-        setQueue(fresh)
-      } catch (e) {
-        console.error("Failed to parse book queue from localStorage", e)
-      }
-    }
-  }, [])
+  const queue = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 
   const addBook = useCallback((book: QueuedBook) => {
-    setQueue(prev => {
-      if (prev.find(b => b.editionKey === book.editionKey)) return prev
-      const newQueue = [...prev, book]
-      localStorage.setItem("lenny-book-queue", JSON.stringify(newQueue))
-      window.dispatchEvent(new Event("book-queue-updated"))
-      return newQueue
-    })
-  }, [])
-
-  const removeBook = useCallback((editionKey: string) => {
-    setQueue(prev => {
-      const newQueue = prev.filter(b => b.editionKey !== editionKey)
-      localStorage.setItem("lenny-book-queue", JSON.stringify(newQueue))
-      window.dispatchEvent(new Event("book-queue-updated"))
-      return newQueue
-    })
-  }, [])
-
-  const clearQueue = useCallback(() => {
-    setQueue([])
-    localStorage.removeItem("lenny-book-queue")
+    const current = getSnapshot()
+    if (current.find(b => b.editionKey === book.editionKey)) return
+    
+    const newQueue = [...current, book]
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newQueue))
+    memoryCache = newQueue // Optimistically update cache
     window.dispatchEvent(new Event("book-queue-updated"))
   }, [])
 
-  useEffect(() => {
-    const handleSync = () => {
-      const stored = localStorage.getItem("lenny-book-queue")
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored)
-          if (!Array.isArray(parsed)) {
-            console.warn("Invalid book queue data in localStorage")
-            return
-          }
-          const now = Date.now()
-          setQueue(parsed.filter((b: QueuedBook) => now - b.addedAt < QUEUE_TTL_MS))
-        } catch (e) {
-          console.error("Failed to parse book queue on sync", e)
-        }
-      } else {
-        setQueue([])
-      }
-    }
-    const handleStorageEvent = (e: StorageEvent) => {
-      if (e.key === "lenny-book-queue") handleSync()
-    }
-    window.addEventListener("book-queue-updated", handleSync)
-    window.addEventListener("storage", handleStorageEvent)
-    return () => {
-      window.removeEventListener("book-queue-updated", handleSync)
-      window.removeEventListener("storage", handleStorageEvent)
-    }
+  const removeBook = useCallback((editionKey: string) => {
+    const current = getSnapshot()
+    const newQueue = current.filter(b => b.editionKey !== editionKey)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newQueue))
+    memoryCache = newQueue // Optimistically update cache
+    window.dispatchEvent(new Event("book-queue-updated"))
+  }, [])
+
+  const clearQueue = useCallback(() => {
+    localStorage.removeItem(STORAGE_KEY)
+    memoryCache = emptyQueue // Optimistically update cache
+    window.dispatchEvent(new Event("book-queue-updated"))
   }, [])
 
   return { queue, addBook, removeBook, clearQueue }

@@ -15,42 +15,44 @@ import {
   StopCircle,
 } from "lucide-react"
 import Link from "next/link"
+import { useTranslation } from "react-i18next"
 
 function StatusBadge({ status, error }: { status: JobStatus; error?: string }) {
+  const { t } = useTranslation()
   switch (status) {
     case "queued":
       return (
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
           <Clock className="w-3 h-3" />
-          Queued
+          {t("Queued")}
         </span>
       )
     case "uploading":
       return (
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 dark:text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full">
           <Loader2 className="w-3 h-3 animate-spin" />
-          Uploading
+          {t("Uploading")}
         </span>
       )
     case "success":
       return (
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-700 dark:text-green-400 bg-green-500/10 px-2.5 py-1 rounded-full">
           <CheckCircle2 className="w-3 h-3" />
-          Done
+          {t("Done")}
         </span>
       )
     case "failed":
       return (
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-700 dark:text-red-400 bg-red-500/10 px-2.5 py-1 rounded-full" title={error}>
           <XCircle className="w-3 h-3" />
-          Failed
+          {t("Failed")}
         </span>
       )
     case "cancelled":
       return (
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full">
           <Ban className="w-3 h-3" />
-          Cancelled
+          {t("Cancelled")}
         </span>
       )
   }
@@ -65,17 +67,18 @@ function StatCard({ label, value, color }: { label: string; value: number; color
   )
 }
 
-function timeAgo(ts?: number): string {
+function timeAgo(ts: number | undefined, t: (key: string, options?: any) => string): string {
   if (!ts) return ""
   const diff = Math.floor((Date.now() - ts) / 1000)
-  if (diff < 0) return "just now"
-  if (diff < 60) return `${diff}s ago`
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-  return `${Math.floor(diff / 86400)}d ago`
+  if (diff < 0) return t("just now")
+  if (diff < 60) return t("{{diff}}s ago", { diff })
+  if (diff < 3600) return t("{{diff}}m ago", { diff: Math.floor(diff / 60) })
+  if (diff < 86400) return t("{{diff}}h ago", { diff: Math.floor(diff / 3600) })
+  return t("{{diff}}d ago", { diff: Math.floor(diff / 86400) })
 }
 
 export default function ProcessingQueuePage() {
+  const { t } = useTranslation()
   const { jobs, stats, isUploading, cancelUpload, clearJobs } = useUploadJobs()
 
   return (
@@ -83,9 +86,9 @@ export default function ProcessingQueuePage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div className="flex flex-col space-y-2">
-          <h2 className="text-3xl font-bold tracking-tight">Processing Queue</h2>
+          <h2 className="text-3xl font-bold tracking-tight">{t("Processing Queue")}</h2>
           <p className="text-muted-foreground text-base max-w-2xl">
-            Track the status of your book uploads in real-time.
+            {t("Track the status of your book uploads in real-time.")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -97,7 +100,7 @@ export default function ProcessingQueuePage() {
               className="font-semibold shadow-sm"
             >
               <StopCircle className="w-3.5 h-3.5 mr-1.5" />
-              Cancel Remaining
+              {t("Cancel Remaining")}
             </Button>
           )}
           {!isUploading && jobs.length > 0 && (
@@ -108,7 +111,7 @@ export default function ProcessingQueuePage() {
               className="font-semibold shadow-sm"
             >
               <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-              Clear History
+              {t("Clear History")}
             </Button>
           )}
         </div>
@@ -117,11 +120,11 @@ export default function ProcessingQueuePage() {
       {/* Stats Bar */}
       {jobs.length > 0 && (
         <div className="flex flex-wrap gap-3">
-          {stats.uploading > 0 && <StatCard label="Uploading" value={stats.uploading} color="text-blue-600 dark:text-blue-400" />}
-          {stats.queued > 0 && <StatCard label="Queued" value={stats.queued} color="text-muted-foreground" />}
-          <StatCard label="Done" value={stats.success} color="text-green-600 dark:text-green-400" />
-          {stats.failed > 0 && <StatCard label="Failed" value={stats.failed} color="text-red-600 dark:text-red-400" />}
-          {stats.cancelled > 0 && <StatCard label="Cancelled" value={stats.cancelled} color="text-amber-600 dark:text-amber-400" />}
+          {stats.uploading > 0 && <StatCard label={t("Uploading")} value={stats.uploading} color="text-blue-600 dark:text-blue-400" />}
+          {stats.queued > 0 && <StatCard label={t("Queued")} value={stats.queued} color="text-muted-foreground" />}
+          <StatCard label={t("Done")} value={stats.success} color="text-green-600 dark:text-green-400" />
+          {stats.failed > 0 && <StatCard label={t("Failed")} value={stats.failed} color="text-red-600 dark:text-red-400" />}
+          {stats.cancelled > 0 && <StatCard label={t("Cancelled")} value={stats.cancelled} color="text-amber-600 dark:text-amber-400" />}
         </div>
       )}
 
@@ -138,11 +141,11 @@ export default function ProcessingQueuePage() {
             </colgroup>
             <TableHeader className="bg-muted/50 border-b">
               <TableRow className="hover:bg-transparent cursor-default">
-                <TableHead className="text-center pl-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">#</TableHead>
-                <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">Book</TableHead>
-                <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">Edition</TableHead>
-                <TableHead className="hidden md:table-cell text-center font-semibold text-muted-foreground text-xs uppercase tracking-wider">Time</TableHead>
-                <TableHead className="text-center font-semibold text-muted-foreground text-xs uppercase tracking-wider pr-3">Status</TableHead>
+                <TableHead className="text-center pl-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider">{t("#")}</TableHead>
+                <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">{t("Book")}</TableHead>
+                <TableHead className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">{t("Edition")}</TableHead>
+                <TableHead className="hidden md:table-cell text-center font-semibold text-muted-foreground text-xs uppercase tracking-wider">{t("Time")}</TableHead>
+                <TableHead className="text-center font-semibold text-muted-foreground text-xs uppercase tracking-wider pr-3">{t("Status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -188,7 +191,7 @@ export default function ProcessingQueuePage() {
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-center">
                     <span className="text-[11px] text-muted-foreground">
-                      {job.status === "uploading" ? "now" : timeAgo(job.completedAt || job.startedAt)}
+                      {job.status === "uploading" ? t("now") : timeAgo(job.completedAt || job.startedAt, t)}
                     </span>
                   </TableCell>
                   <TableCell className="text-center pr-3">
@@ -206,14 +209,14 @@ export default function ProcessingQueuePage() {
             <div className="w-16 h-16 rounded-full bg-muted/40 flex items-center justify-center mb-2">
               <UploadCloud className="w-8 h-8 text-muted-foreground/40" />
             </div>
-            <h3 className="text-lg font-semibold">No uploads yet</h3>
+            <h3 className="text-lg font-semibold">{t("No uploads yet")}</h3>
             <p className="text-sm text-muted-foreground max-w-[300px] leading-relaxed">
-              Head to the Upload page to attach files to your books and start uploading.
+              {t("Head to the Upload page to attach files to your books and start uploading.")}
             </p>
             <Button variant="secondary" className="mt-4 font-semibold" asChild>
               <Link href="/">
                 <UploadCloud className="w-4 h-4 mr-2" />
-                Go to Upload
+                {t("Go to Upload")}
               </Link>
             </Button>
           </div>

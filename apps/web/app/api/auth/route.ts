@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     response.cookies.set("admin_token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: "strict",
         path: "/",
         maxAge: 60 * 60 * 24,
     })
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     response.cookies.set("admin_user", username, {
         httpOnly: false,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: "strict",
         path: "/",
         maxAge: 60 * 60 * 24,
     })

@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useSyncExternalStore } from "react"
 import { invalidateLibraryCache } from "@/lib/query-client"
+import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 
 export type JobStatus = "queued" | "uploading" | "success" | "failed" | "cancelled"
 
@@ -19,66 +20,65 @@ export interface UploadJob {
 }
 
 const STORAGE_KEY = "lenny-upload-jobs"
-const EVENT_KEY = "upload-jobs-updated"
 
-function loadJobs(): UploadJob[] {
-  if (typeof window === "undefined") return []
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
-  } catch {
-    return []
+let memoryJobs: UploadJob[] = []
+let initialized = false
+
+function getSnapshot() {
+  if (!initialized && typeof window !== "undefined") {
+    try {
+      memoryJobs = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+    } catch {
+      memoryJobs = []
+    }
+    initialized = true
+  }
+  return memoryJobs
+}
+
+const listeners = new Set<() => void>()
+
+function subscribe(callback: () => void) {
+  listeners.add(callback)
+  
+  const handleStorageEvent = (e: StorageEvent) => {
+    if (e.key === STORAGE_KEY) {
+      initialized = false // Force re-read
+      getSnapshot()
+      callback()
+    }
+  }
+  
+  if (typeof window !== "undefined") {
+    window.addEventListener("storage", handleStorageEvent)
+  }
+  
+  return () => {
+    listeners.delete(callback)
+    if (typeof window !== "undefined") {
+      window.removeEventListener("storage", handleStorageEvent)
+    }
   }
 }
 
 function persistJobs(jobs: UploadJob[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs))
-  window.dispatchEvent(new Event(EVENT_KEY))
+  memoryJobs = jobs
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(jobs))
+  }
+  listeners.forEach(l => l())
 }
 
-function getUploadUrl(): string {
-  const envApi = process.env.NEXT_PUBLIC_API_URL
-  let apiBase = "http://localhost:8080"
-  if (envApi) {
-    const isInternalDockerHost = envApi.includes("lenny_api") || envApi.includes("127.0.0.1")
-    if (!isInternalDockerHost) {
-      apiBase = envApi
-    } else if (typeof window !== "undefined") {
-      apiBase = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
-        ? "http://localhost:8080" : window.location.origin
-    }
-  } else if (typeof window !== "undefined") {
-    apiBase = window.location.origin
-  }
-  if (typeof window !== "undefined" && apiBase === window.location.origin) {
-    return "/v1/api/upload"
-  }
-  return `${apiBase}/v1/api/upload`
+const EMPTY_JOBS: UploadJob[] = []
+function getServerSnapshot() {
+  return EMPTY_JOBS
 }
 
 export function useUploadJobs() {
-  const [jobs, setJobs] = useState<UploadJob[]>([])
+  const jobs = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
   const [isUploading, setIsUploading] = useState(false)
   const [processingKey, setProcessingKey] = useState<string | null>(null)
   const cancelledRef = useRef(false)
-
-  // Load on mount
-  useEffect(() => {
-    setJobs(loadJobs())
-  }, [])
-
-  // Sync across components
-  useEffect(() => {
-    const handleSync = () => setJobs(loadJobs())
-    const handleStorageEvent = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) handleSync()
-    }
-    window.addEventListener(EVENT_KEY, handleSync)
-    window.addEventListener("storage", handleStorageEvent)
-    return () => {
-      window.removeEventListener(EVENT_KEY, handleSync)
-      window.removeEventListener("storage", handleStorageEvent)
-    }
-  }, [])
 
   const startUpload = useCallback(async (
     books: { editionKey: string; title: string; author: string; coverUrl: string }[],
@@ -112,17 +112,16 @@ export function useUploadJobs() {
     }
 
     // Prepend new jobs (latest first), keep up to 50 historical jobs
-    const existing = loadJobs().filter(j => j.status !== "queued" && j.status !== "uploading")
+    const existing = getSnapshot().filter(j => j.status !== "queued" && j.status !== "uploading")
     const allJobs = [...newJobs, ...existing].slice(0, 50)
     persistJobs(allJobs)
-    setJobs(allJobs)
     setIsUploading(true)
 
     // Process sequentially
     for (const job of newJobs) {
       if (cancelledRef.current) {
         // Mark remaining as cancelled
-        const current = loadJobs()
+        const current = getSnapshot()
         const updated = current.map(j =>
           j.id === job.id && j.status === "queued"
             ? { ...j, status: "cancelled" as JobStatus, completedAt: Date.now() }
@@ -133,34 +132,31 @@ export function useUploadJobs() {
       }
 
       // Mark as uploading
-      const currentJobs = loadJobs()
+      const currentJobs = getSnapshot()
       const updatedJobs = currentJobs.map(j =>
         j.id === job.id ? { ...j, status: "uploading" as JobStatus } : j
       )
       persistJobs(updatedJobs)
-      setJobs(updatedJobs)
       setProcessingKey(job.editionKey)
 
       const file = attachments[job.editionKey]
       if (!file) {
-        const afterJobs = loadJobs()
+        const afterJobs = getSnapshot()
         const failed = afterJobs.map(j =>
           j.id === job.id ? { ...j, status: "failed" as JobStatus, error: "File not found", completedAt: Date.now() } : j
         )
         persistJobs(failed)
-        setJobs(failed)
         setProcessingKey(null)
         continue
       }
 
       const numericId = job.editionKey.replace(/\D/g, "")
       if (!numericId) {
-        const afterJobs = loadJobs()
+        const afterJobs = getSnapshot()
         const failed = afterJobs.map(j =>
           j.id === job.id ? { ...j, status: "failed" as JobStatus, error: "Invalid edition key: no numeric ID found", completedAt: Date.now() } : j
         )
         persistJobs(failed)
-        setJobs(failed)
         setProcessingKey(null)
         continue
       }
@@ -170,18 +166,17 @@ export function useUploadJobs() {
       formData.append("encrypted", job.encrypted ? "true" : "false")
 
       try {
-        const response = await fetch(getUploadUrl(), {
+        const response = await fetchAdmin("upload", {
           method: "POST",
           body: formData,
         })
 
-        const afterJobs = loadJobs()
+        const afterJobs = getSnapshot()
         if (response.ok) {
           const done = afterJobs.map(j =>
             j.id === job.id ? { ...j, status: "success" as JobStatus, completedAt: Date.now() } : j
           )
           persistJobs(done)
-          setJobs(done)
           invalidateLibraryCache()
           callbacks?.onBookDone?.(job.editionKey)
         } else {
@@ -190,38 +185,34 @@ export function useUploadJobs() {
             j.id === job.id ? { ...j, status: "failed" as JobStatus, error: errText, completedAt: Date.now() } : j
           )
           persistJobs(failed)
-          setJobs(failed)
         }
       } catch (error: any) {
-        const afterJobs = loadJobs()
+        const afterJobs = getSnapshot()
         const failed = afterJobs.map(j =>
           j.id === job.id
             ? { ...j, status: "failed" as JobStatus, error: error?.message || "Network error", completedAt: Date.now() }
             : j
         )
         persistJobs(failed)
-        setJobs(failed)
       } finally {
         setProcessingKey(null)
       }
     }
 
     setIsUploading(false)
-  }, [])
+  }, [isUploading])
 
   const cancelUpload = useCallback(() => {
     cancelledRef.current = true
-    const current = loadJobs()
+    const current = getSnapshot()
     const updated = current.map(j =>
       j.status === "queued" ? { ...j, status: "cancelled" as JobStatus, completedAt: Date.now() } : j
     )
     persistJobs(updated)
-    setJobs(updated)
   }, [])
 
   const clearJobs = useCallback(() => {
     persistJobs([])
-    setJobs([])
   }, [])
 
   // Computed stats

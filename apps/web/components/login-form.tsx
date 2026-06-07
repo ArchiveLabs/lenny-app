@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useRouter } from "next/navigation"
+import { z } from "zod"
 import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -23,6 +25,7 @@ export function LoginForm({
   const router = useRouter()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const { t } = useTranslation()
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
@@ -32,10 +35,21 @@ export function LoginForm({
     setIsLoading(true)
 
     try {
+      const parsed = z.object({
+        username: z.string().min(1, "Username is required"),
+        password: z.string().min(1, "Password is required")
+      }).safeParse({ username, password })
+
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message || "Invalid input")
+        setIsLoading(false)
+        return
+      }
+
       const res = await fetch("/admin/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(parsed.data),
       })
 
       if (res.ok) {
@@ -63,10 +77,8 @@ export function LoginForm({
               className="h-20 w-20 mx-auto drop-shadow-md"
             />
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">Lenny Admin</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Sign in with your admin credentials
-          </CardDescription>
+          <CardTitle className="text-2xl font-bold tracking-tight">{t("Lenny Admin")}</CardTitle>
+          <CardDescription className="text-muted-foreground">{t("Sign in with your admin credentials")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
@@ -124,12 +136,12 @@ export function LoginForm({
                     Authenticating…
                   </>
                 ) : (
-                  "Sign In"
+                  t("Sign In")
                 )}
               </Button>
 
               <p className="text-center text-xs text-muted-foreground pt-1">
-                Contact your service provider or administrator for access credentials.
+                {t("Contact your service provider or administrator for access credentials.")}
               </p>
             </div>
           </form>

@@ -22,6 +22,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
+import { useTranslation } from "react-i18next"
 
 const data = {
   navMain: [
@@ -45,6 +46,11 @@ const data = {
       url: "/library",
       icon: IconBook,
     },
+    {
+      title: "Active Loans",
+      url: "/loans",
+      icon: IconServer, // Actually maybe replace this icon, but IconServer or IconBook is fine. I'll use IconBook or import a better one.
+    },
   ],
   navSecondary: [
     {
@@ -61,6 +67,7 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { t } = useTranslation()
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -74,7 +81,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <div className="flex h-6 w-6 items-center justify-center p-0.5 rounded-sm bg-white dark:bg-black overflow-hidden ring-1 ring-border">
                   <img src="/admin/lenny-transparent.png" className="w-full h-full object-contain" alt="Lenny Admin" />
                 </div>
-                <span className="text-base font-semibold">Lenny Admin</span>
+                <span className="text-base font-semibold">{t("Lenny Admin")}</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

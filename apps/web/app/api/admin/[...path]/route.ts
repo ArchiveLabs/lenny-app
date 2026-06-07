@@ -22,12 +22,23 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
         headers["X-Admin-Internal-Secret"] = internalSecret
     }
 
-    let body: BodyInit | null = null
+    let body: BodyInit | null | undefined = undefined
     if (request.method !== "GET" && request.method !== "HEAD") {
-        const text = await request.text()
-        if (text) {
-            body = text
-            headers["Content-Type"] = request.headers.get("Content-Type") || "application/json"
+        const contentType = request.headers.get("Content-Type") || ""
+        if (contentType.includes("multipart/form-data")) {
+            // Pass the FormData natively so boundaries are preserved.
+            // We do not set the Content-Type header manually here; 
+            // fetch will automatically set it with the correct boundary when passing FormData.
+            // Wait, since we are proxying, we can actually just pass the raw request.body
+            // and keep the original Content-Type which already has the boundary!
+            body = request.body
+            headers["Content-Type"] = contentType
+        } else {
+            const text = await request.text()
+            if (text) {
+                body = text
+                headers["Content-Type"] = contentType || "application/json"
+            }
         }
     }
 
@@ -35,6 +46,8 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
         method: request.method,
         headers,
         body,
+        // @ts-ignore - Required for Node.js fetch with stream body
+        duplex: "half",
     })
 
     const responseBody = await upstream.text()

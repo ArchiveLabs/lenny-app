@@ -17,7 +17,7 @@ const fontMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Lenny App",
   description: "Lenny Admin Application",
-  manifest: "/manifest.json",
+  manifest: "/admin/manifest.json",
   icons: {
     icon: [
       { url: "/admin/favicon.png", sizes: "48x48", type: "image/png" },
