@@ -41,11 +41,11 @@ export class ApiError extends Error {
 
 export const OLStatusSchema = z.object({
   logged_in: z.boolean(),
-  username: z.string().optional(),
-  email: z.string().optional(),
-  s3_key_status: z.string().optional(),
-  last_auth: z.string().optional(),
-  lending_mode: z.string().optional()
+  username: z.string().nullish(),
+  email: z.string().nullish(),
+  s3_key_status: z.string().nullish(),
+  last_auth: z.string().nullish(),
+  lending_mode: z.string().nullish()
 })
 export type OLStatus = z.infer<typeof OLStatusSchema>
 
