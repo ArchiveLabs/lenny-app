@@ -39,6 +39,9 @@ export function proxy(request: NextRequest) {
     }
 
     if (!token) {
+        if (pathname.startsWith("/api/")) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        }
         // Redirect to login, preserving full path+query for post-login redirect
         const loginUrl = request.nextUrl.clone()
         loginUrl.pathname = "/login"

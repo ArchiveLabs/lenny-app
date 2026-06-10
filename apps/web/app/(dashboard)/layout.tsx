@@ -11,7 +11,7 @@ export default async function DashboardLayout({
 }) {
   const cookieStore = await cookies()
   if (!cookieStore.get("admin_token")) {
-    redirect("/login")
+    redirect("/admin/login")
   }
   return (
     <SidebarProvider
