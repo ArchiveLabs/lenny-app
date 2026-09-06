@@ -8,6 +8,7 @@ import {
   IconBook,
   IconUpload,
   IconServer,
+  IconTicket,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -40,6 +41,11 @@ const data = {
       title: "Processing Queue",
       url: "/processing",
       icon: IconServer,
+    },
+    {
+      title: "Redeem a Bundle",
+      url: "/redeem",
+      icon: IconTicket,
     },
     {
       title: "Lenny Library",

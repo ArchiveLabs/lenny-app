@@ -119,3 +119,33 @@ export const PaginatedAdminLoansSchema = z.object({
   offset: z.number()
 })
 export type PaginatedAdminLoans = z.infer<typeof PaginatedAdminLoansSchema>
+
+export const BrietBookSchema = z.object({
+  olid: z.number(),
+  url: z.string(),
+  title: z.string().nullable().optional()
+})
+export type BrietBook = z.infer<typeof BrietBookSchema>
+
+export const BrietRedeemResultSchema = z.object({
+  code: z.string(),
+  count: z.number(),
+  books: z.array(BrietBookSchema)
+})
+export type BrietRedeemResult = z.infer<typeof BrietRedeemResultSchema>
+
+// Server-side ingestion progress, written by whichever importer produced the
+// book. Distinct from the browser-side upload queue in use-upload-jobs.
+export const ImportJobSchema = z.object({
+  source: z.string(),
+  olid: z.number(),
+  status: z.enum(["pending", "downloading", "done", "failed"]),
+  error: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional()
+})
+export type ImportJob = z.infer<typeof ImportJobSchema>
+
+export const ImportsResponseSchema = z.object({
+  imports: z.array(ImportJobSchema)
+})
+export type ImportsResponse = z.infer<typeof ImportsResponseSchema>
