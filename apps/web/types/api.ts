@@ -10,7 +10,8 @@ export const LennyRecordSchema = z.object({
   is_borrowable: z.boolean(),
   is_readable: z.boolean(),
   is_lendable: z.boolean(),
-  available_copies: z.number()
+  available_copies: z.number(),
+  loan_duration_days: z.number().nullable().optional()
 })
 export type LennyRecord = z.infer<typeof LennyRecordSchema>
 
@@ -112,6 +113,22 @@ export const ProvidersConfigSchema = z.object({
 })
 export type ProvidersConfig = z.infer<typeof ProvidersConfigSchema>
 
+export const BulkDeleteResponseSchema = z.object({
+  deleted: z.array(z.number()),
+  not_found: z.array(z.number()),
+  failed: z.record(z.string(), z.string()),
+  invalid: z.array(z.string())
+})
+export type BulkDeleteResponse = z.infer<typeof BulkDeleteResponseSchema>
+
+export const CreateLoanResponseSchema = z.object({
+  id: z.number(),
+  item_id: z.number(),
+  openlibrary_edition: z.number(),
+  due_date: z.string().nullable().optional()
+})
+export type CreateLoanResponse = z.infer<typeof CreateLoanResponseSchema>
+
 export const PaginatedAdminLoansSchema = z.object({
   items: z.array(AdminLoanSchema),
   total: z.number(),
@@ -139,6 +156,7 @@ export type BrietRedeemResult = z.infer<typeof BrietRedeemResultSchema>
 export const ImportJobSchema = z.object({
   source: z.string(),
   olid: z.number(),
+  title: z.string().nullable().optional(),
   status: z.enum(["pending", "downloading", "done", "failed"]),
   error: z.string().nullable().optional(),
   updated_at: z.string().nullable().optional()

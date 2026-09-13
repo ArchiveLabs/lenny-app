@@ -68,13 +68,13 @@ export function LoginForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card className="shadow-xl border-border/60">
+      <Card className="shadow-lg border-border/60">
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto mb-4">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-card p-2.5 shadow-sm ring-1 ring-border">
             <img
               src="/admin/lenny-transparent.png"
               alt="Lenny"
-              className="h-20 w-20 mx-auto drop-shadow-md"
+              className="h-full w-full object-contain"
             />
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight">{t("Lenny Admin")}</CardTitle>
@@ -119,7 +119,7 @@ export function LoginForm({
               </div>
 
               {error && (
-                <div role="alert" className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div role="alert" className="flex items-center gap-2 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-lg px-3 py-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
                   <ShieldAlert className="w-4 h-4 shrink-0" />
                   {error}
                 </div>

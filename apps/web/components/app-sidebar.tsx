@@ -33,17 +33,12 @@ const data = {
       icon: IconSearch,
     },
     {
-      title: "Upload EPUB",
+      title: "Uploads",
       url: "/",
       icon: IconUpload,
     },
     {
-      title: "Processing Queue",
-      url: "/processing",
-      icon: IconServer,
-    },
-    {
-      title: "Redeem a Bundle",
+      title: "Redeem",
       url: "/redeem",
       icon: IconTicket,
     },

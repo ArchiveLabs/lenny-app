@@ -86,6 +86,7 @@ export function useUploadJobs() {
     encryptionMap: Record<string, boolean>,
     callbacks?: {
       onBookDone?: (editionKey: string) => void
+      onBookError?: (editionKey: string, error: string) => void
     }
   ) => {
     cancelledRef.current = false
@@ -185,15 +186,18 @@ export function useUploadJobs() {
             j.id === job.id ? { ...j, status: "failed" as JobStatus, error: errText, completedAt: Date.now() } : j
           )
           persistJobs(failed)
+          callbacks?.onBookError?.(job.editionKey, errText)
         }
       } catch (error: any) {
+        const message = error?.message || "Network error"
         const afterJobs = getSnapshot()
         const failed = afterJobs.map(j =>
           j.id === job.id
-            ? { ...j, status: "failed" as JobStatus, error: error?.message || "Network error", completedAt: Date.now() }
+            ? { ...j, status: "failed" as JobStatus, error: message, completedAt: Date.now() }
             : j
         )
         persistJobs(failed)
+        callbacks?.onBookError?.(job.editionKey, message)
       } finally {
         setProcessingKey(null)
       }

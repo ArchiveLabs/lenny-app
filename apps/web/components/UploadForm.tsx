@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { UploadCloud, Loader2, FileType, Search, Shield, ShieldAlert, X, Trash2, Layers, Plus } from "lucide-react"
 import { useUploadJobs } from "@/hooks/use-upload-jobs"
 import { Label } from "@workspace/ui/components/label"
@@ -29,7 +30,7 @@ function savePersistedEncryptionMap(map: Record<string, boolean>) {
     try { localStorage.setItem("lenny-encryption-map", JSON.stringify(map)) } catch { /* quota or private browsing */ }
 }
 
-export default function UploadForm() {
+export default function UploadForm({ onUploadComplete }: { onUploadComplete?: () => void }) {
     const searchParams = useSearchParams()
     const router = useRouter()
     const { queue, removeBook, addBook } = useBookQueue()
@@ -125,16 +126,30 @@ export default function UploadForm() {
         if (targetKeys.length === 0) return
 
         const booksToUpload = queue.filter(b => attachments[b.editionKey])
+        let succeeded = 0
+        let failed = 0
         try {
             await startUpload(booksToUpload, attachments, encryptionMap, {
                 onBookDone: (editionKey) => {
+                    succeeded++
                     removeBook(editionKey)
                     setAttachments(prev => { const next = { ...prev }; delete next[editionKey]; return next })
+                },
+                onBookError: () => {
+                    failed++
                 }
             })
-            router.push("/processing")
+            if (failed === 0) {
+                toast.success(succeeded === 1 ? t("Book uploaded") : t("{{count}} books uploaded", { count: succeeded }))
+            } else if (succeeded === 0) {
+                toast.error(failed === 1 ? t("Upload failed") : t("{{count}} uploads failed", { count: failed }))
+            } else {
+                toast.warning(t("{{succeeded}} uploaded, {{failed}} failed", { succeeded, failed }))
+            }
+            onUploadComplete?.()
         } catch (err) {
             console.error("Upload failed:", err)
+            toast.error(t("Upload failed"))
         }
     }
 
@@ -145,13 +160,7 @@ export default function UploadForm() {
     // ═══════════════════════════════════════════════
 
     return (
-        <div className="flex flex-col h-full animate-in fade-in duration-500 space-y-10 p-2 md:p-6 lg:p-8">
-            {/* Page Header */}
-            <div className="flex flex-col space-y-2">
-                <h2 className="text-3xl font-bold tracking-tight">{t("Upload EPUB")}</h2>
-                <p className="text-muted-foreground text-base max-w-2xl">{t("Attach files to your queued books and process them in batch. Each book can be individually configured with encryption settings.")}</p>
-            </div>
-
+        <div className="flex flex-col h-full animate-in fade-in duration-500">
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-10 pb-10">
                 {/* ── Left: Queue Table ── */}
                 <div className="xl:col-span-2 space-y-6">
@@ -196,6 +205,7 @@ export default function UploadForm() {
 
                     {/* The Table */}
                     <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+                      <div className="overflow-x-auto">
                         <Table className="table-fixed">
                                 <colgroup>
                                     <col className="w-[50px]" />
@@ -292,6 +302,7 @@ export default function UploadForm() {
                                     })}
                                 </TableBody>
                             </Table>
+                        </div>
                         </div>
                     </div>
 
