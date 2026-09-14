@@ -14,6 +14,18 @@ export function getApiBase(): string {
   return "http://localhost:8080"
 }
 
+// getApiBase() can return a bare origin, an origin with a path (e.g. .../v1/api),
+// or (client-side) a relative path — callers building a public URL for a
+// server-pinned route need just the origin, not whatever path happens to be
+// baked into NEXT_PUBLIC_API_URL.
+export function apiOrigin(apiBase: string): string {
+  try {
+    return new URL(apiBase).origin
+  } catch {
+    return typeof window !== "undefined" ? window.location.origin : apiBase
+  }
+}
+
 /**
  * Wrapper for calling admin endpoints.
  * Routes through the Next.js API proxy (/admin/api/admin) so auth headers are injected.
