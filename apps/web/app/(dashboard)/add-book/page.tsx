@@ -1,15 +1,159 @@
 "use client"
-import { useState, useEffect, useRef } from "react"
-import { Search, Book, Loader2, Link as LinkIcon, ExternalLink, ChevronLeft, ChevronRight, Plus, Check, Layers } from "lucide-react"
+import { ReactNode, useState, useEffect, useRef } from "react"
+import { Search, Book, BookOpen, Loader2, ExternalLink, ChevronLeft, ChevronRight, Plus, Check, Layers } from "lucide-react"
 import { Input } from "@workspace/ui/components/input"
 import { Button } from "@workspace/ui/components/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@workspace/ui/components/card"
-import { Skeleton } from "@workspace/ui/components/skeleton"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+  SheetTrigger,
+} from "@workspace/ui/components/sheet"
 import Link from "next/link"
 import { useBookQueue } from "@/hooks/use-book-queue"
 
 import { BaseBookCard, BookCardSkeleton } from "@/components/BookCard"
 import { useTranslation } from "react-i18next"
+
+function SearchResultDetail({
+  book,
+  editionKey,
+  coverUrl,
+  queued,
+  onQueue,
+  onUnqueue,
+  t,
+  children,
+}: {
+  book: any
+  editionKey: string | null
+  coverUrl: string | null
+  queued: boolean
+  onQueue: () => void
+  onUnqueue: () => void
+  t: (key: string, options?: any) => string
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <div className="cursor-pointer">{children}</div>
+      </SheetTrigger>
+      <SheetContent className="w-full sm:max-w-md">
+        <SheetHeader>
+          <div className="flex items-start gap-3">
+            <div className="h-20 w-14 shrink-0 overflow-hidden rounded-md bg-muted/50">
+              {coverUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={coverUrl} alt={`${book.title} cover`} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center">
+                  <BookOpen className="h-5 w-5 text-muted-foreground/30" />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 pt-0.5">
+              <SheetTitle className="line-clamp-2 text-left">{book.title}</SheetTitle>
+              <SheetDescription className="line-clamp-1 text-left">
+                {book.author_name ? book.author_name.join(", ") : t("Unknown Author")}
+              </SheetDescription>
+              {editionKey && (
+                <span className="mt-1.5 inline-block rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {editionKey}
+                </span>
+              )}
+            </div>
+          </div>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-4 space-y-4">
+          {book.first_sentence?.[0] && (
+            <p className="rounded-lg border bg-muted/20 p-3 text-sm italic leading-relaxed text-muted-foreground">
+              “{book.first_sentence[0]}”
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t("Publish Year")}</p>
+              <p className="text-sm font-bold">{book.first_publish_year || t("Unknown")}</p>
+            </div>
+            {typeof book.edition_count === "number" && (
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t("Editions")}</p>
+                <p className="text-sm font-bold">{book.edition_count}</p>
+              </div>
+            )}
+            {typeof book.ratings_average === "number" && (
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t("Rating")}</p>
+                <p className="text-sm font-bold">
+                  {book.ratings_average.toFixed(1)}
+                  <span className="ml-1 text-[11px] font-medium text-muted-foreground">
+                    ({t("{{count}} ratings", { count: book.ratings_count ?? 0 })})
+                  </span>
+                </p>
+              </div>
+            )}
+            {Array.isArray(book.language) && book.language.length > 0 && (
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t("Language")}</p>
+                <p className="text-sm font-bold uppercase">{book.language.slice(0, 3).join(", ")}</p>
+              </div>
+            )}
+            {editionKey && (
+              <a
+                href={`https://openlibrary.org/books/${editionKey}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col justify-center rounded-lg border bg-muted/30 p-3 text-primary transition-colors hover:border-primary/40"
+              >
+                <span className="inline-flex items-center gap-1.5 text-sm font-bold">
+                  {t("Open Library")}
+                  <ExternalLink className="h-3 w-3" />
+                </span>
+                <span className="text-[10px] font-medium text-muted-foreground">{t("View full record")}</span>
+              </a>
+            )}
+          </div>
+
+          {Array.isArray(book.subject) && book.subject.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t("Subjects")}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {book.subject.slice(0, 8).map((s: string) => (
+                  <span key={s} className="rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-foreground/80">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {editionKey && (
+          <SheetFooter>
+            {queued ? (
+              <Button variant="outline" className="w-full font-semibold" onClick={onUnqueue}>
+                <Check className="mr-2 h-4 w-4 text-green-500" />
+                {t("Queued — tap to remove")}
+              </Button>
+            ) : (
+              <Button className="w-full font-semibold" onClick={onQueue}>
+                <Plus className="mr-2 h-4 w-4" />
+                {t("Queue Book")}
+              </Button>
+            )}
+          </SheetFooter>
+        )}
+      </SheetContent>
+    </Sheet>
+  )
+}
 
 export default function AddBookPage() {
     const { t } = useTranslation()
@@ -117,18 +261,18 @@ export default function AddBookPage() {
             </div>
 
             {/* Search Bar Section */}
-            <form onSubmit={handleSearch} className="flex items-center gap-3 w-full max-w-3xl relative">
+            <form onSubmit={handleSearch} className="flex flex-col sm:flex-row sm:items-center gap-3 w-full max-w-3xl relative">
                 <div className="relative flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                     <Input
                         aria-label={t("Search by title, author, or ISBN")}
-                        className="pl-12 h-14 bg-background border-muted-foreground/30 text-lg shadow-sm focus-visible:ring-primary/40 rounded-xl"
+                        className="pl-12 h-12 sm:h-14 bg-background border-muted-foreground/30 text-base sm:text-lg shadow-sm focus-visible:ring-primary/40 rounded-xl"
                         placeholder={t("Search by title, author, or ISBN...")}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                     />
                 </div>
-                <Button type="submit" disabled={loading} size="lg" className="h-14 px-8 rounded-xl font-bold shadow-sm hover:scale-[1.02] transition-transform text-lg">
+                <Button type="submit" disabled={loading} size="lg" className="h-12 sm:h-14 px-8 rounded-xl font-bold shadow-sm hover:scale-[1.02] transition-transform text-base sm:text-lg">
                     {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : t("Search")}
                 </Button>
             </form>
@@ -140,19 +284,32 @@ export default function AddBookPage() {
                         <p className="text-sm font-medium text-destructive">{searchError}</p>
                     </div>
                 ) : loading && results.length === 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
                         {Array.from({ length: 10 }).map((_, i) => (
                             <BookCardSkeleton key={i} />
                         ))}
                     </div>
                 ) : (
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 transition-opacity duration-200 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
+                    <div className={`grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3 transition-opacity duration-200 ${loading ? "opacity-50 pointer-events-none" : "opacity-100"}`}>
                         {results.map((book, idx) => {
                             const editionKey = book.cover_edition_key || (book.edition_key ? book.edition_key[0] : null)
                             const coverUrl = book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null
                             
+                            const isQueued = editionKey ? queue.some(q => q.editionKey === editionKey) : false
+                            const queueThisBook = () => editionKey && addBook({ editionKey, title: book.title, author: book.author_name ? book.author_name.join(", ") : t("Unknown Author"), year: book.first_publish_year, coverUrl: coverUrl || "", addedAt: Date.now() })
+                            const unqueueThisBook = () => editionKey && removeBook(editionKey)
+
                             return (
-                                <div key={editionKey ?? idx}>
+                                <SearchResultDetail
+                                    key={editionKey ?? idx}
+                                    book={book}
+                                    editionKey={editionKey}
+                                    coverUrl={coverUrl}
+                                    queued={isQueued}
+                                    onQueue={queueThisBook}
+                                    onUnqueue={unqueueThisBook}
+                                    t={t}
+                                >
                                   <BaseBookCard
                                     title={book.title}
                                     author={book.author_name ? book.author_name.join(", ") : t("Unknown Author")}
@@ -160,14 +317,15 @@ export default function AddBookPage() {
                                     idBadge={editionKey}
                                     contentMiddle={
                                       editionKey && (
-                                          <a 
-                                              href={`https://openlibrary.org/books/${editionKey}`} 
-                                              target="_blank" 
+                                          <a
+                                              href={`https://openlibrary.org/books/${editionKey}`}
+                                              target="_blank"
                                               rel="noopener noreferrer"
-                                              className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary/60 transition-colors hover:text-primary hover:underline"
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="flex min-w-0 items-center gap-1 text-[11px] font-semibold text-primary/60 transition-colors hover:text-primary hover:underline"
                                           >
-                                              {t("View it in Open Library")}
-                                              <ExternalLink className="h-2.5 w-2.5" />
+                                              <span className="truncate">{t("View on OL")}</span>
+                                              <ExternalLink className="h-2.5 w-2.5 shrink-0" />
                                           </a>
                                       )
                                     }
@@ -177,12 +335,12 @@ export default function AddBookPage() {
                                               <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-0.5">{t("Publish Year")}</span>
                                               <span className="text-xs font-bold text-foreground/80">{book.first_publish_year || t("Unknown")}</span>
                                           </div>
-                                          
+
                                           {editionKey && (
-                                              queue.some(q => q.editionKey === editionKey) ? (
+                                              isQueued ? (
                                                   <Button
                                                       variant="ghost"
-                                                      onClick={() => removeBook(editionKey)}
+                                                      onClick={(e) => { e.stopPropagation(); unqueueThisBook() }}
                                                       className="h-7 rounded-full px-3.5 text-[11px] font-bold shadow-sm border border-border bg-muted/30 transition-transform hover:scale-[1.04]"
                                                   >
                                                       <Check className="mr-1.5 h-3 w-3 text-green-500" />
@@ -190,7 +348,7 @@ export default function AddBookPage() {
                                                   </Button>
                                               ) : (
                                                   <Button
-                                                      onClick={() => addBook({ editionKey, title: book.title, author: book.author_name ? book.author_name.join(", ") : t("Unknown Author"), year: book.first_publish_year, coverUrl: coverUrl || "", addedAt: Date.now() })}
+                                                      onClick={(e) => { e.stopPropagation(); queueThisBook() }}
                                                       className="h-7 rounded-full px-3.5 text-[11px] font-bold shadow-sm transition-transform hover:scale-[1.04]"
                                                   >
                                                       <Plus className="mr-1 h-3 w-3" />
@@ -201,7 +359,7 @@ export default function AddBookPage() {
                                       </>
                                     }
                                   />
-                                </div>
+                                </SearchResultDetail>
                             )
                         })}
                     </div>
@@ -219,7 +377,7 @@ export default function AddBookPage() {
                             <ChevronLeft className="mr-2 h-4 w-4" />
                             {t("Previous")}
                         </Button>
-                        <span className="text-sm font-medium text-muted-foreground w-24 text-center">
+                        <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
                             {t("Page {{page}} of {{totalPages}}", { page, totalPages })}
                         </span>
                         <Button 

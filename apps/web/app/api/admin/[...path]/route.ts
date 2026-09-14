@@ -51,7 +51,15 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
     })
 
     const responseBody = await upstream.text()
-    return new NextResponse(responseBody, {
+
+    // Null-body statuses (204/205/304) must not carry a body on the Response we
+    // construct here - passing even an empty string throws inside this route handler
+    // ("Response with null body status cannot have body"), which Next.js turns into a
+    // 500 that looks like the delete itself failed, even though the upstream call
+    // (e.g. DELETE /admin/items/{id}, which correctly returns 204) already succeeded.
+    const isNullBodyStatus = upstream.status === 204 || upstream.status === 205 || upstream.status === 304
+
+    return new NextResponse(isNullBodyStatus ? null : responseBody, {
         status: upstream.status,
         headers: {
             "Content-Type": upstream.headers.get("Content-Type") || "application/json",

@@ -10,7 +10,8 @@ export const LennyRecordSchema = z.object({
   is_borrowable: z.boolean(),
   is_readable: z.boolean(),
   is_lendable: z.boolean(),
-  available_copies: z.number()
+  available_copies: z.number(),
+  loan_duration_days: z.number().nullable().optional()
 })
 export type LennyRecord = z.infer<typeof LennyRecordSchema>
 
@@ -22,6 +23,29 @@ export const LennyBookSchema = z.object({
   lenny: LennyRecordSchema
 })
 export type LennyBook = z.infer<typeof LennyBookSchema>
+
+// GET /admin/items/search — a deliberately lean, live-only result (no cover,
+// no copies/loan-duration, no offset/sort). Good for a live-as-you-type search
+// box; full detail/edit still goes through the regular LennyBook shape.
+export const AdminItemSearchResultSchema = z.object({
+  id: z.number(),
+  edition_key: z.string(),
+  title: z.string(),
+  author: z.string().nullable().optional(),
+  encrypted: z.boolean(),
+  formats: z.string(),
+  created_at: z.string()
+})
+export type AdminItemSearchResult = z.infer<typeof AdminItemSearchResultSchema>
+
+export const AdminItemSearchResponseSchema = z.object({
+  items: z.array(AdminItemSearchResultSchema),
+  total: z.number(),
+  limit: z.number(),
+  // true = OL didn't actually respond, empty items can't be trusted as "no matches".
+  ol_unavailable: z.boolean().optional().default(false)
+})
+export type AdminItemSearchResponse = z.infer<typeof AdminItemSearchResponseSchema>
 
 export const ApiErrorSchema = z.object({
   message: z.string(),
@@ -112,6 +136,22 @@ export const ProvidersConfigSchema = z.object({
 })
 export type ProvidersConfig = z.infer<typeof ProvidersConfigSchema>
 
+export const BulkDeleteResponseSchema = z.object({
+  deleted: z.array(z.number()),
+  not_found: z.array(z.number()),
+  failed: z.record(z.string(), z.string()),
+  invalid: z.array(z.string())
+})
+export type BulkDeleteResponse = z.infer<typeof BulkDeleteResponseSchema>
+
+export const CreateLoanResponseSchema = z.object({
+  id: z.number(),
+  item_id: z.number(),
+  openlibrary_edition: z.number(),
+  due_date: z.string().nullable().optional()
+})
+export type CreateLoanResponse = z.infer<typeof CreateLoanResponseSchema>
+
 export const PaginatedAdminLoansSchema = z.object({
   items: z.array(AdminLoanSchema),
   total: z.number(),
@@ -119,3 +159,34 @@ export const PaginatedAdminLoansSchema = z.object({
   offset: z.number()
 })
 export type PaginatedAdminLoans = z.infer<typeof PaginatedAdminLoansSchema>
+
+export const BrietBookSchema = z.object({
+  olid: z.number(),
+  url: z.string(),
+  title: z.string().nullable().optional()
+})
+export type BrietBook = z.infer<typeof BrietBookSchema>
+
+export const BrietRedeemResultSchema = z.object({
+  code: z.string(),
+  count: z.number(),
+  books: z.array(BrietBookSchema)
+})
+export type BrietRedeemResult = z.infer<typeof BrietRedeemResultSchema>
+
+// Server-side ingestion progress, written by whichever importer produced the
+// book. Distinct from the browser-side upload queue in use-upload-jobs.
+export const ImportJobSchema = z.object({
+  source: z.string(),
+  olid: z.number(),
+  title: z.string().nullable().optional(),
+  status: z.enum(["pending", "downloading", "done", "failed"]),
+  error: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional()
+})
+export type ImportJob = z.infer<typeof ImportJobSchema>
+
+export const ImportsResponseSchema = z.object({
+  imports: z.array(ImportJobSchema)
+})
+export type ImportsResponse = z.infer<typeof ImportsResponseSchema>
