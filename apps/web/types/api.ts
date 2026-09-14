@@ -24,6 +24,29 @@ export const LennyBookSchema = z.object({
 })
 export type LennyBook = z.infer<typeof LennyBookSchema>
 
+// GET /admin/items/search — a deliberately lean, live-only result (no cover,
+// no copies/loan-duration, no offset/sort). Good for a live-as-you-type search
+// box; full detail/edit still goes through the regular LennyBook shape.
+export const AdminItemSearchResultSchema = z.object({
+  id: z.number(),
+  edition_key: z.string(),
+  title: z.string(),
+  author: z.string().nullable().optional(),
+  encrypted: z.boolean(),
+  formats: z.string(),
+  created_at: z.string()
+})
+export type AdminItemSearchResult = z.infer<typeof AdminItemSearchResultSchema>
+
+export const AdminItemSearchResponseSchema = z.object({
+  items: z.array(AdminItemSearchResultSchema),
+  total: z.number(),
+  limit: z.number(),
+  // true = OL didn't actually respond, empty items can't be trusted as "no matches".
+  ol_unavailable: z.boolean().optional().default(false)
+})
+export type AdminItemSearchResponse = z.infer<typeof AdminItemSearchResponseSchema>
+
 export const ApiErrorSchema = z.object({
   message: z.string(),
   code: z.string().optional(),

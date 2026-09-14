@@ -5,9 +5,9 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { z } from "zod"
 import { toast } from "sonner"
 import { fetchAdmin, handleApiResponse, getApiBase } from "@/lib/api-client"
-import { parseItems, fetchAllLibraryItems, sameEdition } from "@/lib/library-utils"
+import { fetchAllLibraryItems, fetchItemSearch, sameEdition } from "@/lib/library-utils"
 import { LIBRARY_QUERY_KEY } from "@/lib/query-client"
-import { AdminLoan, ApiError, CreateLoanResponse, CreateLoanResponseSchema, LennyBook, PaginatedAdminLoans, PaginatedAdminLoansSchema } from "@/types/api"
+import { AdminItemSearchResult, AdminLoan, ApiError, CreateLoanResponse, CreateLoanResponseSchema, LennyBook, PaginatedAdminLoans, PaginatedAdminLoansSchema } from "@/types/api"
 import { Loader2, Search, Calendar, User, BookOpen, RefreshCw, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Undo2, Plus, Copy, CheckCircle2, Clock, AlertTriangle } from "lucide-react"
 import { ErrorState } from "@/components/ErrorState"
 import { BookEditSheet } from "@/components/BookEditSheet"
@@ -33,35 +33,34 @@ function CreateLoanSheet() {
     const queryClient = useQueryClient()
     const [open, setOpen] = useState(false)
     const [query, setQuery] = useState("")
-    const [selected, setSelected] = useState<LennyBook | null>(null)
+    const [debouncedQuery, setDebouncedQuery] = useState("")
+    const [selectedBook, setSelectedBook] = useState<AdminItemSearchResult | null>(null)
     const [email, setEmail] = useState("")
     const [created, setCreated] = useState<CreateLoanResponse | null>(null)
     const [copied, setCopied] = useState(false)
 
-    const { data: books, isLoading: booksLoading } = useQuery({
-        queryKey: ["admin-loans", "book-picker"],
-        queryFn: async () => {
-            const res = await fetchAdmin("items?limit=200")
-            return handleApiResponse<Record<string, any>>(res).then(parseItems)
-        },
-        enabled: open,
-        staleTime: 60_000,
-    })
-
-    const results = query.trim()
-        ? (books ?? []).filter(b =>
-            b.title.toLowerCase().includes(query.toLowerCase()) ||
-            b.author_name.some(a => a.toLowerCase().includes(query.toLowerCase()))
-        ).slice(0, 8)
-        : []
-
     const reset = () => {
-        setSelected(null)
         setQuery("")
+        setDebouncedQuery("")
+        setSelectedBook(null)
         setEmail("")
         setCreated(null)
         setCopied(false)
     }
+
+    useEffect(() => {
+        const id = setTimeout(() => setDebouncedQuery(query.trim()), 300)
+        return () => clearTimeout(id)
+    }, [query])
+
+    const bookSearch = useQuery({
+        queryKey: ["admin-item-search", debouncedQuery],
+        queryFn: () => fetchItemSearch(debouncedQuery),
+        enabled: debouncedQuery.length > 0 && !selectedBook,
+        placeholderData: keepPreviousData,
+    })
+
+    const editionDigits = selectedBook?.edition_key.replace(/\D/g, "") ?? ""
 
     const createLoan = useMutation({
         mutationFn: async () => {
@@ -69,7 +68,7 @@ function CreateLoanSheet() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    openlibrary_edition: selected!.lenny.openlibrary_edition,
+                    openlibrary_edition: Number(editionDigits),
                     email: email.trim(),
                 }),
             })
@@ -86,7 +85,7 @@ function CreateLoanSheet() {
     })
 
     const emailValid = /\S+@\S+\.\S+/.test(email.trim())
-    const canSubmit = !!selected && emailValid
+    const canSubmit = editionDigits.length > 0 && emailValid
     const shareLink = created ? `${getApiBase()}/v1/api/items/${created.openlibrary_edition}/borrow` : ""
 
     const copyLink = async () => {
@@ -141,60 +140,76 @@ function CreateLoanSheet() {
                 ) : (
                     <div className="flex-1 overflow-y-auto px-4 space-y-5">
                         <div className="space-y-2">
-                            <Label>{t("Book")}</Label>
-                            {selected ? (
-                                <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-2.5">
-                                    <div className="h-12 w-9 shrink-0 overflow-hidden rounded bg-muted/50">
-                                        {selected.cover_i && (
-                                            /* eslint-disable-next-line @next/next/no-img-element */
-                                            <img
-                                                src={`https://covers.openlibrary.org/b/id/${selected.cover_i}-M.jpg`}
-                                                className="h-full w-full object-cover"
-                                                alt=""
-                                            />
-                                        )}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="line-clamp-1 text-sm font-semibold">{selected.title}</p>
-                                        <p className="line-clamp-1 text-xs text-muted-foreground">
-                                            {selected.author_name.join(", ")}
+                            <Label htmlFor="book-search">{t("Book")}</Label>
+                            {selectedBook ? (
+                                <div className="flex items-start justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2.5">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium truncate">{selectedBook.title}</p>
+                                        <p className="text-xs text-muted-foreground truncate">
+                                            {selectedBook.author || t("Unknown author")} · {selectedBook.edition_key}
                                         </p>
                                     </div>
-                                    <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>{t("Change")}</Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="shrink-0"
+                                        onClick={() => { setSelectedBook(null); setQuery(""); setDebouncedQuery("") }}
+                                    >
+                                        {t("Change")}
+                                    </Button>
                                 </div>
                             ) : (
-                                <div className="relative">
-                                    <Input
-                                        placeholder={booksLoading ? t("Loading your library…") : t("Search your library by title or author…")}
-                                        value={query}
-                                        onChange={(e) => setQuery(e.target.value)}
-                                        disabled={booksLoading}
-                                    />
-                                    {booksLoading && (
-                                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-                                    )}
-                                    {results.length > 0 && (
-                                        <div className="absolute z-10 mt-1 w-full rounded-lg border bg-popover shadow-md max-h-56 overflow-y-auto">
-                                            {results.map((b) => (
-                                                <button
-                                                    key={b.olid}
-                                                    type="button"
-                                                    onClick={() => { setSelected(b); setQuery("") }}
-                                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
-                                                >
-                                                    <span className="font-medium line-clamp-1">{b.title}</span>
-                                                    <span className="text-xs text-muted-foreground line-clamp-1 shrink-0">
-                                                        — {b.author_name.join(", ")}
-                                                    </span>
-                                                </button>
-                                            ))}
+                                <div>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                        <Input
+                                            id="book-search"
+                                            placeholder={t("Search by title, author, or edition key…")}
+                                            value={query}
+                                            onChange={(e) => setQuery(e.target.value)}
+                                            autoComplete="off"
+                                            spellCheck={false}
+                                            className="pl-9"
+                                        />
+                                    </div>
+                                    {debouncedQuery.length > 0 && (
+                                        <div className="mt-1.5 max-h-64 overflow-y-auto rounded-lg border divide-y">
+                                            {bookSearch.isLoading ? (
+                                                <div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    {t("Searching…")}
+                                                </div>
+                                            ) : bookSearch.isError || bookSearch.data?.ol_unavailable ? (
+                                                <div className="px-3 py-3 text-sm text-destructive">
+                                                    {t("Search temporarily unavailable — try again.")}
+                                                </div>
+                                            ) : bookSearch.data && bookSearch.data.items.length > 0 ? (
+                                                bookSearch.data.items.map((item) => (
+                                                    <button
+                                                        key={item.id}
+                                                        type="button"
+                                                        onClick={() => { setSelectedBook(item); setQuery(""); setDebouncedQuery("") }}
+                                                        className="w-full text-left px-3 py-2.5 hover:bg-muted/60 transition-colors"
+                                                    >
+                                                        <p className="text-sm font-medium truncate">{item.title}</p>
+                                                        <p className="text-xs text-muted-foreground truncate">
+                                                            {item.author || t("Unknown author")} · {item.edition_key}
+                                                        </p>
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <div className="px-3 py-3 text-sm text-muted-foreground">
+                                                    {t("No matches.")}
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
-                                    {query.trim() && results.length === 0 && (
-                                        <p className="mt-1.5 text-xs text-muted-foreground">{t("No matches in your library.")}</p>
                                     )}
                                 </div>
                             )}
+                            <p className="text-xs text-muted-foreground">
+                                {t("Search your library, then pick the edition to lend.")}
+                            </p>
                         </div>
 
                         <div className="space-y-2">

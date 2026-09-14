@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useQuery, useMutation, keepPreviousData } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { BookOpen, Lock, Unlock, RefreshCw, Library, WifiOff, ChevronLeft, ChevronRight, Search, Trash2, Loader2, XCircle, AlertCircle, ListChecks, X } from "lucide-react"
@@ -22,9 +22,9 @@ import {
 } from "@workspace/ui/components/alert-dialog"
 import { queryClient, LIBRARY_QUERY_KEY, removeBooksFromLibraryCache } from "@/lib/query-client"
 
-import { ApiError, BulkDeleteResponse, BulkDeleteResponseSchema, LennyBook } from "@/types/api"
+import { AdminItemSearchResponse, AdminItemSearchResponseSchema, ApiError, BulkDeleteResponse, BulkDeleteResponseSchema, LennyBook } from "@/types/api"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
-import { fetchAllLibraryItems, parseItems } from "@/lib/library-utils"
+import { fetchAllLibraryItems, parseItems, sameEdition } from "@/lib/library-utils"
 import { BookCard, BookCardSkeleton } from "@/components/BookCard"
 import { ErrorState } from "@/components/ErrorState"
 import { useTranslation } from "react-i18next"
@@ -53,14 +53,24 @@ async function fetchPage(page: number, accessFilter: AccessFilter): Promise<Lenn
   return handleApiResponse<Record<string, any>>(res).then(parseItems)
 }
 
+const SEARCH_LIMIT = 40
+
+async function fetchSearchResults(q: string, accessFilter: AccessFilter): Promise<AdminItemSearchResponse> {
+  const params = new URLSearchParams({ q, limit: String(SEARCH_LIMIT) })
+  if (accessFilter === "encrypted") params.set("encrypted", "true")
+  if (accessFilter === "open") params.set("encrypted", "false")
+  const res = await fetchAdmin(`items/search?${params}`)
+  return handleApiResponse<AdminItemSearchResponse>(res, AdminItemSearchResponseSchema)
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LibraryPage() {
   const { t } = useTranslation()
   const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [accessFilter, setAccessFilter] = useState<AccessFilter>("all")
   const [browsePage, setBrowsePage] = useState(1)
-  const [searchPage, setSearchPage] = useState(1)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Map<string, LennyBook>>(new Map())
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -68,8 +78,13 @@ export default function LibraryPage() {
 
   const exitSelectMode = () => { setSelectMode(false); setSelected(new Map()) }
 
-  const q = query.toLowerCase().trim()
-  const isSearching = q.length > 0
+  // Debounce the search box — it now hits a live server endpoint per keystroke otherwise
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query.trim()), 350)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  const isSearching = debouncedQuery.length > 0
 
   // Paginated query — includes server-side filter; changes to filter/page fetch a fresh page.
   // /admin/items is slow (multi-second), so don't silently refetch just because the tab
@@ -84,8 +99,18 @@ export default function LibraryPage() {
     refetchOnWindowFocus: false,
   })
 
-  // Full fetch — only when free-text search is active; cached after first use
-  const allQuery = useQuery({
+  // Live search — GET /admin/items/search, no local filtering. Bounded "best matches",
+  // not a paged listing: no sort, no offset, results come back in OL's relevance order.
+  const searchQuery = useQuery({
+    queryKey: [...LIBRARY_QUERY_KEY, "search", debouncedQuery, accessFilter] as const,
+    queryFn: () => fetchSearchResults(debouncedQuery, accessFilter),
+    enabled: isSearching,
+  })
+
+  // Full item list, only fetched while searching — used purely to resolve a lean search
+  // result into the full record (cover, copies, loan-duration override) before opening
+  // its edit sheet, so Save never operates on guessed data. Cheap now (server-cached).
+  const fullItemsQuery = useQuery({
     queryKey: [...LIBRARY_QUERY_KEY, "all"] as const,
     queryFn: fetchAllLibraryItems,
     enabled: isSearching,
@@ -93,28 +118,20 @@ export default function LibraryPage() {
     refetchOnWindowFocus: false,
   })
 
-  const isLoading = isSearching ? allQuery.isLoading : pageQuery.isLoading
-  const isFetching = isSearching ? allQuery.isFetching : pageQuery.isFetching
-  const activeError = isSearching ? (allQuery.error ?? pageQuery.error) : pageQuery.error
+  const isLoading = isSearching ? (searchQuery.isLoading || fullItemsQuery.isLoading) : pageQuery.isLoading
+  const isFetching = isSearching ? (searchQuery.isFetching || fullItemsQuery.isFetching) : pageQuery.isFetching
+  const activeError = isSearching ? (searchQuery.error ?? fullItemsQuery.error) : pageQuery.error
 
-  // Search filters client-side on top of access filter
-  const searchFiltered = useMemo(() => {
-    if (!allQuery.data) return null
-    return allQuery.data.filter(b => {
-        const matchesQuery =
-          b.title.toLowerCase().includes(q) ||
-          b.author_name.some(a => a.toLowerCase().includes(q)) ||
-          b.olid.toLowerCase().includes(q)
-        const matchesAccess =
-          accessFilter === "all" ||
-          (accessFilter === "encrypted" && b.lenny.encrypted) ||
-          (accessFilter === "open" && !b.lenny.encrypted)
-        return matchesQuery && matchesAccess
-      })
-  }, [allQuery.data, q, accessFilter])
+  // Resolve each lean search result to its full record; skip any we can't resolve yet
+  // rather than render a card with guessed/missing data.
+  const searchBooks = useMemo(() => {
+    if (!searchQuery.data || !fullItemsQuery.data) return []
+    return searchQuery.data.items
+      .map(result => fullItemsQuery.data!.find(b => sameEdition(b.olid, result.edition_key)))
+      .filter((b): b is LennyBook => !!b)
+  }, [searchQuery.data, fullItemsQuery.data])
 
-  const searchTotalPages = searchFiltered ? Math.max(1, Math.ceil(searchFiltered.length / PAGE_SIZE)) : 1
-  const searchBooks = searchFiltered?.slice((searchPage - 1) * PAGE_SIZE, searchPage * PAGE_SIZE) ?? []
+  const searchHitLimit = (searchQuery.data?.items.length ?? 0) >= SEARCH_LIMIT
 
   const rawBrowseBooks = pageQuery.data ?? []
   const hasMore = rawBrowseBooks.length > PAGE_SIZE
@@ -174,7 +191,7 @@ export default function LibraryPage() {
     },
   })
 
-  const handleQueryChange = (v: string) => { setQuery(v); setSearchPage(1) }
+  const handleQueryChange = (v: string) => setQuery(v)
   const handleFilterChange = (v: string) => {
     const newFilter = v as AccessFilter
     // Invalidate the cache for the new filter so the global staleTime:Infinity
@@ -185,7 +202,7 @@ export default function LibraryPage() {
   }
   const handleRefetch = async () => {
     if (isSearching) {
-      await allQuery.refetch()
+      await Promise.all([searchQuery.refetch(), fullItemsQuery.refetch()])
     } else {
       await pageQuery.refetch()
     }
@@ -268,11 +285,25 @@ export default function LibraryPage() {
               : t('Try switching to "All Books" to see everything.')}
           </p>
         </div>
-      ) : isSearching && searchFiltered !== null && searchFiltered.length === 0 ? (
+      ) : isSearching && !isFetching && searchBooks.length === 0 ? (
         <div className="py-24 flex flex-col items-center justify-center text-center max-w-md mx-auto">
           <Search className="w-16 h-16 text-muted-foreground/20 mb-6" />
-          <h3 className="text-xl font-bold mb-2">{t('No results for "{{query}}"', { query })}</h3>
-          <p className="text-muted-foreground text-sm">{t("Try a different title, author, or edition ID.")}</p>
+          {searchQuery.data?.ol_unavailable ? (
+            <>
+              <h3 className="text-xl font-bold mb-2">{t("Search temporarily unavailable")}</h3>
+              <p className="text-muted-foreground text-sm">{t("Open Library didn't respond — this isn't necessarily \"no matches\". Try again in a moment.")}</p>
+            </>
+          ) : (searchQuery.data?.items.length ?? 0) > 0 ? (
+            <>
+              <h3 className="text-xl font-bold mb-2">{t("Couldn't load full details for these matches")}</h3>
+              <p className="text-muted-foreground text-sm">{t("Try refreshing — the results found them, but couldn't confirm their full record yet.")}</p>
+            </>
+          ) : (
+            <>
+              <h3 className="text-xl font-bold mb-2">{t('No results for "{{query}}"', { query: debouncedQuery })}</h3>
+              <p className="text-muted-foreground text-sm">{t("Try a different title, author, or edition ID.")}</p>
+            </>
+          )}
         </div>
       ) : (
         <>
@@ -327,31 +358,11 @@ export default function LibraryPage() {
             </div>
           )}
 
-          {/* Search pagination (client-side) */}
-          {isSearching && searchTotalPages > 1 && (
-            <div className="flex items-center justify-center gap-6 pb-10">
-              <Button
-                variant="outline"
-                className="font-semibold shadow-sm transition-transform hover:scale-[1.02]"
-                disabled={searchPage <= 1}
-                onClick={() => setSearchPage(p => p - 1)}
-              >
-                <ChevronLeft className="mr-2 h-4 w-4" />
-                {t("Previous")}
-              </Button>
-              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                {t("Page {{page}} of {{totalPages}}", { page: searchPage, totalPages: searchTotalPages })}
-              </span>
-              <Button
-                variant="outline"
-                className="font-semibold shadow-sm transition-transform hover:scale-[1.02]"
-                disabled={searchPage >= searchTotalPages}
-                onClick={() => setSearchPage(p => p + 1)}
-              >
-                {t("Next")}
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
+          {/* Live search has no real pagination — bounded "best matches", not a paged listing */}
+          {isSearching && searchHitLimit && (
+            <p className="text-center text-sm text-muted-foreground pb-10">
+              {t("Showing the top {{limit}} matches — refine your search to narrow it down.", { limit: SEARCH_LIMIT })}
+            </p>
           )}
         </>
       )}

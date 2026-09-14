@@ -1,4 +1,4 @@
-import { LennyBook } from "@/types/api"
+import { AdminItemSearchResponse, AdminItemSearchResponseSchema, LennyBook } from "@/types/api"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 
 export function parseItems(data: Record<string, any>): LennyBook[] {
@@ -18,6 +18,14 @@ export function parseItems(data: Record<string, any>): LennyBook[] {
 export async function fetchAllLibraryItems(): Promise<LennyBook[]> {
   const res = await fetchAdmin(`items?limit=500`)
   return handleApiResponse<Record<string, any>>(res).then(parseItems)
+}
+
+// Live-as-you-type search against GET /admin/items/search. q is required
+// server-side (422 on blank) — callers must not call this with an empty query.
+export async function fetchItemSearch(q: string, limit = 40): Promise<AdminItemSearchResponse> {
+  const res = await fetchAdmin(`items/search?q=${encodeURIComponent(q)}&limit=${limit}`)
+  const data = await handleApiResponse<unknown>(res)
+  return AdminItemSearchResponseSchema.parse(data)
 }
 
 // loan.edition_key and book.olid aren't guaranteed to share the same
