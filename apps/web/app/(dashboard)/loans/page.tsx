@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useTransition, Suspense } from "react
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { z } from "zod"
 import { toast } from "sonner"
-import { fetchAdmin, handleApiResponse, getApiBase } from "@/lib/api-client"
+import { fetchAdmin, handleApiResponse, getApiBase, apiOrigin } from "@/lib/api-client"
 import { fetchAllLibraryItems, fetchItemSearch, sameEdition } from "@/lib/library-utils"
 import { LIBRARY_QUERY_KEY } from "@/lib/query-client"
 import { AdminItemSearchResult, AdminLoan, ApiError, CreateLoanResponse, CreateLoanResponseSchema, LennyBook, PaginatedAdminLoans, PaginatedAdminLoansSchema } from "@/types/api"
@@ -86,7 +86,13 @@ function CreateLoanSheet() {
 
     const emailValid = /\S+@\S+\.\S+/.test(email.trim())
     const canSubmit = editionDigits.length > 0 && emailValid
-    const shareLink = created ? `${getApiBase()}/v1/api/items/${created.openlibrary_edition}/borrow` : ""
+    // nginx pins the borrow route at /v1/api/items/{id}/borrow on the same origin
+    // as the admin UI in every deployment (see lenny.conf) — but what a self-hoster
+    // puts in NEXT_PUBLIC_API_URL varies (absolute with a path, relative, or unset,
+    // in which case getApiBase() falls back to the browser's own origin). Rather than
+    // guess whether that value already contains /v1/api, take only its origin and
+    // append the one path nginx actually guarantees.
+    const shareLink = created ? `${apiOrigin(getApiBase())}/v1/api/items/${created.openlibrary_edition}/borrow` : ""
 
     const copyLink = async () => {
         try {
