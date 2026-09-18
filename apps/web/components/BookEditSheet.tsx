@@ -63,22 +63,47 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
     !!maxLoanDays && loanDurationValue !== null && loanDurationValue > maxLoanDays
   const loanDurationInvalid = loanDurationIsNegative || loanDurationExceedsMax
 
+  // One button, one mutation: settings (encrypted/loan duration) always
+  // apply; edition key and file reupload are optional add-ons layered onto
+  // the same PATCH + (if a file was chosen) reupload call. Edition change
+  // must land first so a reupload targets the item's final key.
   const save = useMutation({
     mutationFn: async () => {
       const trimmed = loanDuration.trim()
-      const res = await fetchAdmin(`items/${book.lenny.id}`, {
+      const digits = newEdition.replace(/\D/g, "")
+      const body: Record<string, unknown> = {
+        encrypted,
+        loan_duration_days: trimmed === "" ? null : Number(trimmed),
+      }
+      if (digits) body.openlibrary_edition = Number(digits)
+
+      const res = await fetchAdmin(`items/${book.olid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          encrypted,
-          loan_duration_days: trimmed === "" ? null : Number(trimmed),
-        }),
+        body: JSON.stringify(body),
       })
-      return handleApiResponse(res)
+      const updated = await handleApiResponse<{ openlibrary_edition: number }>(res)
+
+      if (reuploadFile) {
+        const formData = new FormData()
+        formData.append("file", reuploadFile)
+        formData.append("encrypted", encrypted ? "true" : "false")
+        const uploadRes = await fetchAdmin(`items/${updated.openlibrary_edition}/reupload`, {
+          method: "POST",
+          body: formData,
+        })
+        if (!uploadRes.ok) {
+          const errText = await uploadRes.text().catch(() => uploadRes.statusText)
+          throw new ApiError(errText, uploadRes.status)
+        }
+      }
     },
     onSuccess: () => {
       toast.success(t("Book updated"))
       queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY })
+      setNewEdition("")
+      setReuploadFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ""
       setOpen(false)
     },
     onError: (err: ApiError) => {
@@ -103,54 +128,6 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
       toast.error(err?.message || t("Failed to delete book"))
       // Here we can't trust the cache either way — re-sync with the backend.
       queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY })
-    },
-  })
-
-  const updateEdition = useMutation({
-    mutationFn: async () => {
-      const digits = newEdition.replace(/\D/g, "")
-      if (!digits) throw new ApiError(t("Enter a valid OpenLibrary edition key"))
-      const res = await fetchAdmin(`items/${book.olid}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ openlibrary_edition: Number(digits) }),
-      })
-      return handleApiResponse(res)
-    },
-    onSuccess: () => {
-      toast.success(t("Edition key updated. The book now lives under its new key."))
-      queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY })
-      setOpen(false)
-    },
-    onError: (err: ApiError) => {
-      toast.error(err?.message || t("Failed to update edition key"))
-    },
-  })
-
-  const reupload = useMutation({
-    mutationFn: async () => {
-      if (!reuploadFile) throw new ApiError(t("Choose a file first"))
-      const formData = new FormData()
-      formData.append("file", reuploadFile)
-      formData.append("encrypted", encrypted ? "true" : "false")
-      const res = await fetchAdmin(`items/${book.olid}/reupload`, {
-        method: "POST",
-        body: formData,
-      })
-      if (!res.ok) {
-        const errText = await res.text().catch(() => res.statusText)
-        throw new ApiError(errText, res.status)
-      }
-    },
-    onSuccess: () => {
-      toast.success(t("File replaced"))
-      queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY })
-      setReuploadFile(null)
-      if (fileInputRef.current) fileInputRef.current.value = ""
-      setOpen(false)
-    },
-    onError: (err: ApiError) => {
-      toast.error(err?.message || t("Failed to replace file"))
     },
   })
 
@@ -255,24 +232,12 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
                 <Label htmlFor="new-edition" className="text-xs font-normal text-muted-foreground">
                   {t("Correct OpenLibrary edition key")}
                 </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="new-edition"
-                    placeholder={book.olid}
-                    value={newEdition}
-                    onChange={(e) => setNewEdition(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="shrink-0 font-semibold"
-                    disabled={!newEdition.trim() || updateEdition.isPending}
-                    onClick={() => updateEdition.mutate()}
-                  >
-                    {updateEdition.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {t("Update")}
-                  </Button>
-                </div>
+                <Input
+                  id="new-edition"
+                  placeholder={book.olid}
+                  value={newEdition}
+                  onChange={(e) => setNewEdition(e.target.value)}
+                />
                 <p className="text-xs text-muted-foreground">
                   {t("Moves this book's files to the new key. The item and its loans stay the same.")}
                 </p>
@@ -282,25 +247,13 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
                 <Label className="text-xs font-normal text-muted-foreground">
                   {t("Replacement file (EPUB or PDF)")}
                 </Label>
-                <div className="flex gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".epub,.pdf"
-                    onChange={(e) => setReuploadFile(e.target.files?.[0] ?? null)}
-                    className="flex-1 min-w-0 rounded-md border border-input bg-transparent text-xs text-muted-foreground file:mr-2 file:h-full file:border-0 file:border-r file:border-input file:bg-muted file:px-3 file:py-2 file:text-xs file:font-semibold file:text-foreground"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="shrink-0 font-semibold"
-                    disabled={!reuploadFile || reupload.isPending}
-                    onClick={() => reupload.mutate()}
-                  >
-                    {reupload.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {t("Replace")}
-                  </Button>
-                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".epub,.pdf"
+                  onChange={(e) => setReuploadFile(e.target.files?.[0] ?? null)}
+                  className="w-full rounded-md border border-input bg-transparent text-xs text-muted-foreground file:mr-2 file:h-full file:border-0 file:border-r file:border-input file:bg-muted file:px-3 file:py-2 file:text-xs file:font-semibold file:text-foreground"
+                />
                 <p className="text-xs text-muted-foreground">
                   {t("Keeps this item's id and loan history. Only the file changes.")}
                 </p>
