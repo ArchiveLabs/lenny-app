@@ -259,7 +259,10 @@ function LoanStatusBadge({ status }: { status: AdminLoan["status"] }) {
     const { t } = useTranslation()
     if (status === "overdue") {
         return (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
+            <span
+                className="inline-flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400"
+                title={t("Patron access is already revoked and the copy is available to others. This row stays until the patron or an admin clicks Return or until someone else borrows the copy, which auto-closes it.")}
+            >
                 <AlertTriangle className="h-3 w-3" />
                 {t("Overdue")}
             </span>
