@@ -81,20 +81,22 @@ export default function UploadForm({ onUploadComplete }: { onUploadComplete?: ()
         setIsAddingManual(true)
         
         try {
-            const res = await fetch(`https://openlibrary.org/api/books?bibkeys=OLID:${encodeURIComponent(normalized)}&format=json&jscmd=data`)
-            const data = await res.json()
-            const bookData = data[`OLID:${normalized}`]
-            
-            if (!bookData) {
+            // ponytail: legacy /api/books?bibkeys= endpoint returns 404 for every
+            // edition right now (confirmed against unrelated OLIDs too, so it's an
+            // Open Library outage, not a bad ID) - use the edition endpoint instead.
+            const res = await fetch(`https://openlibrary.org/books/${encodeURIComponent(normalized)}.json`)
+
+            if (!res.ok) {
                 setManualError(`Edition not found in Open Library.`)
                 return
             }
-            
+            const bookData = await res.json()
+
             const title = bookData.title || `Manual Entry: ${normalized}`
-            const author = bookData.authors && bookData.authors.length > 0 ? bookData.authors.map((a: any) => a.name).join(", ") : "Unknown Author"
+            const author = "Unknown Author" // edition endpoint has no author names, only /works refs
             const year = bookData.publish_date || "Unknown"
-            const coverUrl = bookData.cover?.medium || ""
-            
+            const coverUrl = bookData.covers?.[0] ? `https://covers.openlibrary.org/b/id/${bookData.covers[0]}-M.jpg` : ""
+
             addBook({
                 editionKey: normalized,
                 title,
