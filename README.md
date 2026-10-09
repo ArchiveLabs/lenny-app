@@ -206,3 +206,41 @@ This allows upload requests from Docker networks (172.x.x.x) and local networks 
 ## Pilot
 
 We're seeking partnerships with libraries who would like to try lending digital resources to their patrons.
+
+## Upgrading the admin app (operators)
+
+Notes for anyone upgrading a working install of `apps/web` (the admin UI served under `/admin`).
+
+### What is new
+
+* **App Access** (Settings → *Apps & readers* → App Access, `/admin/settings/app-access`): manage the reading apps and catalogs that may sign patrons in. Add an app, edit its name / redirect URLs / permissions, turn it on or off, reset a server app's secret, and remove an app that is turned off. A *For developers* tab shows the endpoints an app should use. The old `/settings/connected-apps` and `/connected-apps` URLs redirect there.
+* **Patron Sign-in Provider**: the former "External Auth (OIDC)" page, renamed only. Same route (`/settings/external-auth`), same behaviour. It is the opposite direction from App Access: here Lenny signs patrons in with an outside provider; in App Access, apps use Lenny's sign-in.
+* **Density and typography** (`apps/web/app/density.css`): the whole admin is scaled by one root font size that depends on the device. Touch screens: 15px on phones, 14px from 768px up. Mouse devices: 16px below 768px, 15px at 768–1023px, 14px at 1024–1919px, 15px at 1920–2559px, 16px from 2560px. Inputs stay 16px and touch controls stay at least 44px tall. The main column is capped at 84rem. Tune the `--root-size-*` variables in that file; nothing else needs to change.
+* **Security hardening** of the admin proxy and login (see below).
+
+### Behaviour changes that can break an install
+
+* **The admin proxy (`/api/admin/*`) is stricter.** Paths containing `.` or `..` segments, encoded slashes, `?`, `#`, backslashes or control characters are rejected with 400. A request without the `admin_token` cookie gets 401 from the proxy itself (the internal secret is never attached to anonymous requests), including paths that end in `.json`, `.png`, `.svg` or `.ico`. Upstream redirects are not followed (a 3xx from Lenny becomes a 502).
+* **Origin check on state-changing calls.** `POST`/`PUT`/`PATCH`/`DELETE` to `/api/admin/*` and the upload route are rejected with 403 when the browser sends `Sec-Fetch-Site: cross-site`, or an `Origin` whose hostname differs from `X-Forwarded-Host` (or `Host`). Ports are ignored. A reverse proxy in front of the admin app must forward the original `Host` (or `X-Forwarded-Host`). Both known setups do: lenny-app's own `docker/nginx.conf` sends `Host $host` (no port), and Lenny's `docker/nginx/conf.d/lenny.conf` sends `Host $http_host` (with port) for `/admin`; the hostname comparison accepts either. A proxy that rewrites `Host` to an internal name (for example `lenny_admin:4000`) without sending `X-Forwarded-Host` would make every changing call return 403. Login and logout are not covered by this check.
+* **Login fails closed in production.** With `NODE_ENV=production`, if `LENNY_INTERNAL_API_URL` or `ADMIN_INTERNAL_SECRET` is unset or empty, login returns 503. Before, it fell back to the development credentials. This only affects a standalone install of lenny-app that you run with lenny-app's own `compose.yaml` (its `web` service sets neither variable): provide both (for example with `environment:` or an `env_file:`) before upgrading. Installs run through Lenny's own `compose.yaml` already pass both to the admin container (`LENNY_INTERNAL_API_URL` is set there and `ADMIN_INTERNAL_SECRET` comes from `auth.env`), so nothing changes for them.
+* **`AUTH_BYPASS=true` is ignored in production.** It only works when `NODE_ENV` is not `production`.
+* **Cookies.** `admin_token` is HttpOnly and `SameSite=strict`, and is marked `Secure` when `NODE_ENV=production`, so production must be served over HTTPS (browsers do not store Secure cookies from plain HTTP, except on localhost).
+* **Security headers.** All admin responses now send `Content-Security-Policy: frame-ancestors 'none'` (plus `base-uri`, `form-action`, `object-src`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` and a restrictive `Permissions-Policy`. The admin can no longer be embedded in an iframe. There is no script CSP yet.
+* **Session expiry.** On the App Access screen an expired admin session (401) clears the cookie and returns to the login page.
+* **Errors.** Failures that carry no usable message (for example an HTML error page from a proxy) now show a short generic message instead of the raw body.
+
+### Environment variables (names only)
+
+| Variable | Used for |
+| --- | --- |
+| `NEXT_PUBLIC_API_URL` | Public Lenny URL for client-side calls (public catalog). Not secret. |
+| `LENNY_INTERNAL_API_URL` | Lenny API base for the admin proxy and login, e.g. `http://lenny_api:1337/v1/api`. Server-side only. Required in production. |
+| `ADMIN_INTERNAL_SECRET` | Shared secret the proxy sends to Lenny. Server-side only. Required in production. |
+| `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Development login only, used when the two variables above are unset and `NODE_ENV` is not `production`. |
+| `AUTH_BYPASS` | Development only: skips the login check. |
+
+Never put a secret in a `NEXT_PUBLIC_*` variable; those are bundled into the browser.
+
+### Version coupling
+
+App Access needs a Lenny API that provides the `/admin/oauth2/clients` endpoints (list, create, edit, reset secret, enable, disable, remove), that is, the Lenny release that introduced App Access. Against an older Lenny the rest of the admin keeps working and the App Access screen shows "This Lenny server doesn't support App Access yet." The Settings row for App Access then shows no summary. Upgrade Lenny first, then the admin app.
