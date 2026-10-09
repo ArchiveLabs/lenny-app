@@ -18,7 +18,9 @@ export default async function LoginPage({
     next &&
     next.startsWith("/") &&
     !next.startsWith("//") &&
-    !next.includes("\\")
+    !next.includes("\\") &&
+    // browsers strip tabs/newlines inside URLs, so "/\t/evil.com" would become "//evil.com"
+    !/[\u0000-\u001f]/.test(next)
       ? next
       : "/"
 

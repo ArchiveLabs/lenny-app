@@ -43,13 +43,15 @@ export async function fetchAdmin(path: string, options: RequestInit = {}): Promi
 
   // Server-side (RSC / Middleware) must call the backend directly and inject headers
   const token = "" // TODO: Server-side token retrieval if needed
-  const secret = process.env.ADMIN_INTERNAL_SECRET || ""
+  const internalUrl = process.env.LENNY_INTERNAL_API_URL
+  // Only ever send the internal secret to the configured internal URL, never to the public one.
+  const secret = internalUrl ? process.env.ADMIN_INTERNAL_SECRET || "" : ""
   
   const headers = new Headers(options.headers)
   if (token) headers.set("Authorization", `Bearer ${token}`)
   if (secret) headers.set("X-Admin-Internal-Secret", secret)
 
-  const baseUrl = process.env.LENNY_INTERNAL_API_URL || getApiBase()
+  const baseUrl = internalUrl || getApiBase()
   const targetUrl = `${baseUrl}/admin/${cleanPath}`
 
   return fetch(targetUrl, {

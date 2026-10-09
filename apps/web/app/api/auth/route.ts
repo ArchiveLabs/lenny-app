@@ -27,6 +27,7 @@ export async function POST(request: Request) {
         try {
             const res = await fetch(`${internalApiUrl}/admin/auth`, {
                 method: "POST",
+                redirect: "manual",
                 headers: {
                     "Content-Type": "application/json",
                     "X-Admin-Internal-Secret": internalSecret,
@@ -51,6 +52,10 @@ export async function POST(request: Request) {
                 { status: 503 }
             )
         }
+    } else if (process.env.NODE_ENV === "production") {
+        // Misconfigured production must fail closed, never fall back to default credentials.
+        console.error("LENNY_INTERNAL_API_URL / ADMIN_INTERNAL_SECRET not set")
+        return NextResponse.json({ error: "Authentication service unavailable" }, { status: 503 })
     } else {
         // Dev fallback: accept hardcoded credentials when no backend is available
         const devUsername = process.env.ADMIN_USERNAME || "admin"
