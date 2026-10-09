@@ -218,7 +218,7 @@ export default function LibraryPage() {
             {t("All books currently available in this Lenny instance, enriched with OpenLibrary metadata.")}
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 w-full shrink-0 sm:w-auto">
+        <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto sm:min-w-0 sm:flex-1">
           {selectMode ? (
             <>
               <label className="flex items-center gap-2 text-sm font-medium mr-1 cursor-pointer select-none">

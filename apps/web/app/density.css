@@ -1,0 +1,86 @@
+/*
+ * Density: the one place that sets the UI scale for the whole admin.
+ * Everything sized in rem (Tailwind spacing, type, radii, the sidebar, shadcn
+ * components) follows --root-size, so tune the numbers below and nothing else.
+ *
+ * Rule:
+ *  - touch devices (pointer: coarse): 15px on phones, 14px from 768px up (tablets);
+ *  - mouse devices (pointer: fine): 16px below 768px, then 15px, then 14px from
+ *    1024px (~ a laptop with the browser zoomed to 85-90%), back up to 15px at
+ *    1920px and 16px at 2560px so very wide screens do not look tiny.
+ * Media queries cannot read variables, so the width steps are repeated below.
+ * Tailwind breakpoints are rem-based, so they move with the root size.
+ *
+ * Safety rails that must NOT follow the root size (set in px on purpose):
+ *  - touch inputs stay 16px so iOS Safari does not zoom on focus;
+ *  - touch tap targets are >= --tap-target (44px) whatever the root is.
+ */
+:root {
+  --root-size-touch-phone: 15px;
+  --root-size-touch-tablet: 14px; /* touch, >= 768px */
+  --root-size-mouse-small: 16px;  /* mouse, < 768px */
+  --root-size-mouse-medium: 15px; /* mouse, 768-1023px */
+  --root-size-mouse-large: 14px;  /* mouse, 1024-1919px */
+  --root-size-mouse-xlarge: 15px; /* mouse, 1920-2559px */
+  --root-size-mouse-xxlarge: 16px; /* mouse, >= 2560px */
+
+  /* Minimum size of an interactive control, in px. Touch: 44. Mouse: 36 (>= 32). */
+  --tap-target: 44px;
+  --tap-target-mouse-min: 32px;
+
+  /* Main column cap (rem, so it scales with the root): keeps line length readable. */
+  --content-max: 84rem;
+
+  --root-size: var(--root-size-touch-phone);
+}
+
+@media (min-width: 768px) {
+  :root { --root-size: var(--root-size-touch-tablet); }
+}
+@media (pointer: fine) {
+  :root { --root-size: var(--root-size-mouse-small); --tap-target: 36px; }
+}
+@media (pointer: fine) and (min-width: 768px) {
+  :root { --root-size: var(--root-size-mouse-medium); }
+}
+@media (pointer: fine) and (min-width: 1024px) {
+  :root { --root-size: var(--root-size-mouse-large); }
+}
+@media (pointer: fine) and (min-width: 1920px) {
+  :root { --root-size: var(--root-size-mouse-xlarge); }
+}
+@media (pointer: fine) and (min-width: 2560px) {
+  :root { --root-size: var(--root-size-mouse-xxlarge); }
+}
+
+html {
+  font-size: var(--root-size);
+}
+
+@media (pointer: fine) {
+  /* mouse: even the densest button keeps a 32px-tall hit area */
+  button:not([role="checkbox"]):not([role="radio"]):not([role="switch"]),
+  [role="tab"] {
+    min-height: var(--tap-target-mouse-min);
+  }
+}
+
+@media (pointer: coarse) {
+  /* px, not rem: iOS zooms the page on focus when a field is under 16px. */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+  /* px floor for every control, independent of the (smaller) root size. */
+  button:not([role="checkbox"]):not([role="radio"]):not([role="switch"]),
+  [role="tab"],
+  [data-sidebar="menu-button"],
+  [data-sidebar="menu-sub-button"],
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    min-height: var(--tap-target);
+  }
+  button[data-size^="icon"] {
+    min-width: var(--tap-target);
+  }
+}
