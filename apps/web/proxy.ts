@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server"
 
 export function proxy(request: NextRequest) {
     // Dev bypass — skip auth entirely (server-only env var, not exposed to client)
-    if (process.env.AUTH_BYPASS === "true") {
+    if (process.env.AUTH_BYPASS === "true" && process.env.NODE_ENV !== "production") {
         return NextResponse.next()
     }
 
@@ -14,14 +14,16 @@ export function proxy(request: NextRequest) {
         return NextResponse.next()
     }
 
-    // Allow static assets & Next.js internals
+    // Allow static assets & Next.js internals (never API routes: "/api/admin/x.json"
+    // must not skip the session check)
     if (
+        !pathname.startsWith("/api/") && (
         pathname.startsWith("/_next") ||
         pathname.startsWith("/favicon") ||
         pathname.endsWith(".png") ||
         pathname.endsWith(".ico") ||
         pathname.endsWith(".svg") ||
-        pathname.endsWith(".json")
+        pathname.endsWith(".json"))
     ) {
         return NextResponse.next()
     }

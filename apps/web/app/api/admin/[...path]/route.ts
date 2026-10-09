@@ -1,12 +1,25 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
+import { hasUnsafeSegment, isSameOrigin } from "@/lib/admin-guard"
 
 const internalApiUrl = process.env.LENNY_INTERNAL_API_URL // e.g. http://127.0.0.1:1337/v1/api
 const internalSecret = process.env.ADMIN_INTERNAL_SECRET
 
 async function proxyRequest(request: Request, context: { params: Promise<{ path: string[] }> }) {
     const { path: pathArray } = await context.params
-    const joinedPath = pathArray.join("/")
+
+    if (!internalApiUrl) {
+        return NextResponse.json({ detail: "Admin API is not configured" }, { status: 500 })
+    }
+    // Segments arrive decoded: reject ".." / "%2e%2e" / encoded slashes before they can
+    // walk out of /admin/ with the secret and token attached.
+    if (hasUnsafeSegment(pathArray)) {
+        return NextResponse.json({ detail: "Invalid path" }, { status: 400 })
+    }
+    if (request.method !== "GET" && request.method !== "HEAD" && !isSameOrigin(request)) {
+        return NextResponse.json({ detail: "Cross-origin request blocked" }, { status: 403 })
+    }
+    const joinedPath = pathArray.map(encodeURIComponent).join("/")
 
     const url = new URL(request.url)
     const searchParams = url.searchParams.toString()
@@ -14,9 +27,13 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
 
     const cookieStore = await cookies()
     const token = cookieStore.get("admin_token")?.value
+    // Never attach the internal secret to an anonymous request.
+    if (!token) {
+        return NextResponse.json({ detail: "Unauthorized" }, { status: 401 })
+    }
 
     const headers: Record<string, string> = {
-        "Authorization": `Bearer ${token ?? ""}`,
+        "Authorization": `Bearer ${token}`,
     }
     if (internalSecret) {
         headers["X-Admin-Internal-Secret"] = internalSecret
@@ -46,9 +63,15 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
         method: request.method,
         headers,
         body,
+        // The secret header would follow a redirect to another host; never follow.
+        redirect: "manual",
         // @ts-ignore - Required for Node.js fetch with stream body
         duplex: "half",
     })
+
+    if (upstream.status >= 300 && upstream.status < 400) {
+        return NextResponse.json({ detail: "Unexpected upstream redirect" }, { status: 502 })
+    }
 
     const responseBody = await upstream.text()
 
@@ -63,6 +86,8 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
         status: upstream.status,
         headers: {
             "Content-Type": upstream.headers.get("Content-Type") || "application/json",
+            // Responses can carry one-time secrets; never let a cache keep them.
+            "Cache-Control": "no-store",
         },
     })
 }

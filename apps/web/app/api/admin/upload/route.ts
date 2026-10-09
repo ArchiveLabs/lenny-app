@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
+import { isSameOrigin } from "@/lib/admin-guard"
 
 const internalApiUrl = process.env.LENNY_INTERNAL_API_URL // e.g. http://lenny_api:1337/v1/api
 const internalSecret = process.env.ADMIN_INTERNAL_SECRET
@@ -8,13 +9,23 @@ const internalSecret = process.env.ADMIN_INTERNAL_SECRET
 // not bearer-token gated) so it can't go through the generic [...path] proxy,
 // which always targets `${internalApiUrl}/admin/...`.
 export async function POST(request: Request) {
+    if (!internalApiUrl) {
+        return NextResponse.json({ detail: "Admin API is not configured" }, { status: 500 })
+    }
+    if (!isSameOrigin(request)) {
+        return NextResponse.json({ detail: "Cross-origin request blocked" }, { status: 403 })
+    }
     const targetUrl = `${internalApiUrl}/upload`
 
     const cookieStore = await cookies()
     const token = cookieStore.get("admin_token")?.value
 
+    if (!token) {
+        return NextResponse.json({ detail: "Unauthorized" }, { status: 401 })
+    }
+
     const headers: Record<string, string> = {
-        "Authorization": `Bearer ${token ?? ""}`,
+        "Authorization": `Bearer ${token}`,
     }
     if (internalSecret) {
         headers["X-Admin-Internal-Secret"] = internalSecret
@@ -27,9 +38,14 @@ export async function POST(request: Request) {
         method: "POST",
         headers,
         body: request.body,
+        redirect: "manual",
         // @ts-ignore - Required for Node.js fetch with stream body
         duplex: "half",
     })
+
+    if (upstream.status >= 300 && upstream.status < 400) {
+        return NextResponse.json({ detail: "Unexpected upstream redirect" }, { status: 502 })
+    }
 
     const responseBody = await upstream.text()
 
