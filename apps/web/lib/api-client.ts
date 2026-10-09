@@ -62,19 +62,46 @@ export async function fetchAdmin(path: string, options: RequestInit = {}): Promi
 
 import { z } from "zod"
 
+// Short, human wording for failures that carry no usable `detail` (HTML error pages, empty bodies).
+function friendlyStatus(status: number, statusText: string): string {
+  if (status === 401) return "Your session has expired. Sign in again."
+  if (status === 403) return "You don't have permission to do that."
+  if (status === 404) return "Not found."
+  if (status >= 500) return "The server had a problem. Try again in a moment."
+  return statusText || "Something went wrong."
+}
+
+let redirectingToLogin = false
+
+/** Expired or invalid admin session: clear the stale cookie (so /login doesn't bounce back) and go to the login page. */
+export async function redirectToLogin(): Promise<void> {
+  if (redirectingToLogin || typeof window === "undefined") return
+  redirectingToLogin = true
+  try {
+    await fetch("/admin/api/auth/logout", { method: "POST" })
+  } catch {
+    // still navigate; the login page works either way
+  }
+  const next = window.location.pathname.replace(/^\/admin/, "") + window.location.search
+  window.location.assign(`/admin/login?next=${encodeURIComponent(next)}`)
+}
+
 export async function handleApiResponse<T>(response: Response, schema?: z.ZodType<T>): Promise<T> {
   if (!response.ok) {
-    let errorMsg = "Unknown error"
+    let errorMsg = ""
     try {
       const data = await response.json()
-      errorMsg = data.message || data.error || data.detail || response.statusText
+      // FastAPI validation errors put an array of {msg} objects in `detail`.
+      const detail = Array.isArray(data.detail)
+        ? data.detail.map((d: { msg?: string }) => d?.msg).filter(Boolean).join("; ")
+        : data.detail
+      errorMsg = data.message || data.error || (typeof detail === "string" && detail) || ""
     } catch {
-      errorMsg = await response.text().catch(() => response.statusText)
+      // not JSON (e.g. a proxy's HTML error page): never show that body to the admin
     }
-    const error = new ApiError(errorMsg, response.status)
-    throw error
+    throw new ApiError(errorMsg || friendlyStatus(response.status, response.statusText), response.status)
   }
-  
+
   // If no content, just return empty object
   if (response.status === 204) {
     if (schema) {

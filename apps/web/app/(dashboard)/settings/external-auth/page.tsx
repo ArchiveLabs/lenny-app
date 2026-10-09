@@ -13,6 +13,7 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 import { ErrorState } from "@/components/ErrorState"
 import Link from "next/link"
 import { useTranslation } from "react-i18next"
+import { SIGN_IN_PROVIDER, APP_ACCESS } from "@/lib/app-access"
 
 export default function ExternalAuthPage() {
     const { t } = useTranslation()
@@ -102,7 +103,7 @@ export default function ExternalAuthPage() {
         <div className="max-w-2xl space-y-8 animate-in fade-in duration-500">
             <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-semibold tracking-tight">{t("External Auth (OIDC)")}</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight">{t(SIGN_IN_PROVIDER.title)}</h1>
                     {data && (
                         <div className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5
                             ${data.is_ready ? 'bg-green-500/10 text-green-700' : 
@@ -114,6 +115,10 @@ export default function ExternalAuthPage() {
                     )}
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">{t("Configure an external OIDC provider like Auth0, Okta, or Keycloak for patron authentication.")}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                    {t(SIGN_IN_PROVIDER.otherNote)}{" "}
+                    <Link href={APP_ACCESS.route} className="underline underline-offset-4 hover:text-foreground">{t(SIGN_IN_PROVIDER.otherLink)}</Link>.
+                </p>
             </div>
 
             <form onSubmit={handleSave} className="space-y-6">

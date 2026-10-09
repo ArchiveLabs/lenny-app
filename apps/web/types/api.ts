@@ -190,3 +190,52 @@ export const ImportsResponseSchema = z.object({
   imports: z.array(ImportJobSchema)
 })
 export type ImportsResponse = z.infer<typeof ImportsResponseSchema>
+
+export const OAuth2ClientSchema = z.object({
+  client_id: z.string(),
+  name: z.string(),
+  redirect_uris: z.array(z.string()),
+  scopes: z.array(z.string()),
+  is_confidential: z.boolean(),
+  status: z.enum(["active", "disabled"]),
+  is_default: z.boolean(),
+  created_at: z.string()
+})
+export type OAuth2Client = z.infer<typeof OAuth2ClientSchema>
+
+// Where a developer points their app: OAuth2 / OIDC endpoints of this node.
+export const OAuth2ConnectionSchema = z.object({
+  issuer: z.string(),
+  discovery_url: z.string(),
+  authorization_endpoint: z.string(),
+  token_endpoint: z.string(),
+  revocation_endpoint: z.string(),
+  grant_types: z.array(z.string()),
+  pkce_method: z.string()
+})
+export type OAuth2Connection = z.infer<typeof OAuth2ConnectionSchema>
+
+export const OAuth2ClientListSchema = z.object({
+  clients: z.array(OAuth2ClientSchema),
+  available_scopes: z.array(z.object({ name: z.string(), description: z.string() })),
+  connection: OAuth2ConnectionSchema.optional()
+})
+export type OAuth2ClientList = z.infer<typeof OAuth2ClientListSchema>
+
+// POST /admin/oauth2/clients — client_secret is shown once (null for public apps).
+export const OAuth2ClientCreatedSchema = OAuth2ClientSchema.extend({
+  client_secret: z.string().nullable().optional()
+})
+export type OAuth2ClientCreated = z.infer<typeof OAuth2ClientCreatedSchema>
+
+// PATCH /admin/oauth2/clients/{id}: the updated client plus how many sign-ins were ended.
+export const OAuth2ClientUpdatedSchema = OAuth2ClientSchema.extend({
+  revoked_tokens: z.number().optional()
+})
+export type OAuth2ClientUpdated = z.infer<typeof OAuth2ClientUpdatedSchema>
+
+// POST /admin/oauth2/clients/{id}/rotate-secret: the new secret is shown once.
+export const OAuth2SecretRotatedSchema = z.object({
+  client_id: z.string(),
+  client_secret: z.string()
+})
