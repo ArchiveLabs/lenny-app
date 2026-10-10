@@ -145,3 +145,16 @@
     height: 0.875rem;
   }
 }
+
+/* Respect the OS "reduce motion" setting: spinners, slide-ins and fades
+   settle instantly. Near-zero (not 0) so animationend/transitionend still fire. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
