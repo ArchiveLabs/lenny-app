@@ -52,6 +52,8 @@ export function ImportTab() {
   const [editing, setEditing] = useState<ImportRow | null>(null)
   const [addedOnOL, setAddedOnOL] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [selected, setSelected] = useState<ReadonlyMap<number, ImportRow>>(new Map())
+  const [confirmSelected, setConfirmSelected] = useState(false)
   const limits = useImportLimits().data
 
   const filter: RowFilter = { ...FILTERS.find((f) => f.id === filterId)!.filter, ...(q.trim() ? { q: q.trim() } : {}) }
@@ -66,6 +68,21 @@ export function ImportTab() {
     // Removing books can leave the current page past the end.
     if (total !== undefined && page > 0 && page * PAGE_SIZE >= total) setPage(Math.max(0, Math.ceil(total / PAGE_SIZE) - 1))
   }, [total, page])
+  const select = (row: ImportRow, on: boolean) =>
+    setSelected((cur) => {
+      const next = new Map(cur)
+      if (on) next.set(row.id, row)
+      else next.delete(row.id)
+      return next
+    })
+  const selectable = imp.rows.filter((r) => r.state !== "importing")
+  const pageSelected = selectable.length > 0 && selectable.every((r) => selected.has(r.id))
+  const toggleSelectPage = () =>
+    setSelected((cur) => {
+      const next = new Map(cur)
+      for (const r of selectable) pageSelected ? next.delete(r.id) : next.set(r.id, r)
+      return next
+    })
   const { summary, phase } = imp
   const counts = summary?.counts ?? {}
   const queued = counts.queued ?? 0
@@ -200,36 +217,74 @@ export function ImportTab() {
             </AlertDialogContent>
           </AlertDialog>
 
+          <AlertDialog open={confirmSelected} onOpenChange={setConfirmSelected}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t("Remove {{n}} selected books from this list?", { n: selected.size })}</AlertDialogTitle>
+                <AlertDialogDescription>{t("They are not imported. Drop the files again to bring them back.")}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    imp.removeRows([...selected.values()])
+                    setSelected(new Map())
+                  }}
+                >
+                  {t("Remove")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Filter books")}>
             {FILTERS.map((f) => {
               const n = f.count(summary)
               if (f.id === "failed" && !n) return null
               return (
-                <Button key={f.id} size="sm" variant={filterId === f.id ? "default" : "outline"} aria-pressed={filterId === f.id} onClick={() => { setFilterId(f.id); setPage(0) }}>
+                <Button key={f.id} size="sm" variant={filterId === f.id ? "default" : "outline"} aria-pressed={filterId === f.id} onClick={() => { setFilterId(f.id); setPage(0); setSelected(new Map()) }}>
                   {t(f.label)} <span className="ml-1 tabular-nums opacity-80">{n}</span>
                 </Button>
               )
             })}
-            <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(0) }} placeholder={t("Search title or file")} aria-label={t("Search title or file")} className="ml-auto w-full @md:w-64" />
+            <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); setSelected(new Map()) }} placeholder={t("Search title or file")} aria-label={t("Search title or file")} className="ml-auto w-full @md:w-64" />
           </div>
 
           {imp.rows.length > 0 && (
             // Bulk actions live with the list they act on, and say how many books they touch.
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-muted/40 px-3 py-2 text-sm" role="group" aria-label={t("Actions for the books shown")}>
-              <p className="mr-auto text-muted-foreground">
-                {q.trim() ? t("Applies to the books matching this search") : t("Applies to {{n}} books in this view", { n: activeCount })}
-              </p>
-              <label className="flex items-center gap-1.5">
-                <Checkbox
-                  checked={allEncrypted ? true : anyEncrypted ? "indeterminate" : false}
-                  onCheckedChange={() => imp.bulk("set_encrypted", !allEncrypted)}
-                />
-                {t("Encrypt all")}
-              </label>
-              <Button size="sm" variant="ghost" className="text-red-700 hover:text-red-800" onClick={() => setConfirmRemove(true)}>
-                <Trash2 className="h-4 w-4" aria-hidden />
-                {t("Remove all")}
-              </Button>
+              <Checkbox
+                checked={pageSelected ? true : selectable.some((r) => selected.has(r.id)) ? "indeterminate" : false}
+                onCheckedChange={toggleSelectPage}
+                aria-label={t("Select all on this page")}
+              />
+              {selected.size > 0 ? (
+                <>
+                  <p className="mr-auto font-medium">{t("{{n}} selected", { n: selected.size })}</p>
+                  <Button size="sm" variant="ghost" onClick={() => setSelected(new Map())}>{t("Clear selection")}</Button>
+                  <Button size="sm" variant="ghost" className="text-red-700 hover:text-red-800" onClick={() => setConfirmSelected(true)}>
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                    {t("Remove selected")}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="mr-auto text-muted-foreground">
+                    {q.trim() ? t("Applies to the books matching this search") : t("Applies to {{n}} books in this view", { n: activeCount })}
+                  </p>
+                  <label className="flex items-center gap-1.5">
+                    <Checkbox
+                      checked={allEncrypted ? true : anyEncrypted ? "indeterminate" : false}
+                      onCheckedChange={() => imp.bulk("set_encrypted", !allEncrypted)}
+                    />
+                    {t("Encrypt all")}
+                  </label>
+                  <Button size="sm" variant="ghost" className="text-red-700 hover:text-red-800" onClick={() => setConfirmRemove(true)}>
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                    {t("Remove all")}
+                  </Button>
+                </>
+              )}
             </div>
           )}
 
@@ -243,6 +298,8 @@ export function ImportTab() {
               onOpen={setEditing}
               onRemove={imp.removeRow}
               onToggleEncrypted={(r) => imp.patchRow(r, { encrypted: !r.encrypted })}
+              onSelect={select}
+              selected={selected}
             />
           )}
 

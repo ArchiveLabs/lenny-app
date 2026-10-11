@@ -27,12 +27,16 @@ export const RowItem = memo(function RowItem({
   onOpen,
   onRemove,
   onToggleEncrypted,
+  onSelect,
+  selected,
   needsFile,
 }: {
   row: ImportRow
   onOpen: (r: ImportRow) => void
   onRemove: (r: ImportRow) => void
   onToggleEncrypted: (r: ImportRow) => void
+  onSelect: (r: ImportRow, selected: boolean) => void
+  selected: boolean
   needsFile: boolean
 }) {
   const { t } = useTranslation()
@@ -44,7 +48,14 @@ export const RowItem = memo(function RowItem({
   const canPick = !locked && row.state !== "duplicate"
 
   return (
-    <div className={`flex flex-col gap-2 border-b px-3 py-3 @2xl:flex-row @2xl:items-center @2xl:gap-4`}>
+    <div className={`flex items-center gap-3 border-b px-3 py-3 ${selected ? "bg-muted/40" : ""}`}>
+      <Checkbox
+        checked={selected}
+        disabled={row.state === "importing"}
+        onCheckedChange={(c) => onSelect(row, c === true)}
+        aria-label={t("Select {{name}}", { name: title })}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-2 @2xl:flex-row @2xl:items-center @2xl:gap-4">
       <div className="min-w-0 flex-1 space-y-0.5">
         <p className="truncate font-semibold">{title}</p>
         <p className="truncate text-sm text-muted-foreground">
@@ -91,6 +102,7 @@ export const RowItem = memo(function RowItem({
             {t("Remove")}
           </Button>
         )}
+      </div>
       </div>
     </div>
   )

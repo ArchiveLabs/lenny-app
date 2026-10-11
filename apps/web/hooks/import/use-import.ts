@@ -22,6 +22,7 @@ export const pollInterval = (updates: number) => (updates < 30 ? 2000 : updates 
 export const PAGE_SIZE = 50
 
 const UPLOADS_IN_FLIGHT = 3
+const REMOVALS_IN_FLIGHT = 4
 const RETRIES = 2
 
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
@@ -323,6 +324,26 @@ export function useImport(filter: RowFilter, page = 0) {
     [batchId, refresh],
   )
 
+  /** Remove several rows. The server has no remove-by-ids, so this is one DELETE per row, a few at a time. */
+  const removeRows = useCallback(
+    async (picked: ImportRow[]) => {
+      if (batchId === null || !picked.length) return
+      let failed = 0
+      await pool(picked, REMOVALS_IN_FLIGHT, async (row) => {
+        try {
+          await importApi.removeRow(batchId, row.id)
+          importFiles.remove(row)
+        } catch {
+          failed++ // e.g. a row that is importing right now
+        }
+      })
+      if (failed) setError(failed === 1 ? "1 book could not be removed." : `${failed} books could not be removed.`)
+      setVersion((v) => v + 1)
+      refresh()
+    },
+    [batchId, refresh],
+  )
+
   const bulk = useCallback(
     async (action: "set_encrypted" | "remove", value?: boolean, scope: RowFilter = filter) => {
       if (batchId === null) return
@@ -402,6 +423,7 @@ export function useImport(filter: RowFilter, page = 0) {
     patchRow,
     bulk,
     removeRow,
+    removeRows,
     runImport,
     cancelImport,
     clearBatch,

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ImportTab } from "./ImportTab"
 import { useImport, useImportLimits } from "@/hooks/import/use-import"
@@ -13,8 +13,8 @@ jest.mock("react-i18next", () => ({
   }),
 }))
 jest.mock("./RowList", () => ({
-  RowList: ({ rows, onOpen, onRemove }) => (
-    <ul>{rows.map((r) => <li key={r.id}><button onClick={() => onOpen(r)}>{r.title}</button><button onClick={() => onRemove(r)}>remove {r.title}</button></li>)}</ul>
+  RowList: ({ rows, onOpen, onRemove, onSelect, selected }) => (
+    <ul>{rows.map((r) => <li key={r.id}><button onClick={() => onOpen(r)}>{r.title}</button><button onClick={() => onRemove(r)}>remove {r.title}</button><input type="checkbox" aria-label={`pick ${r.title}`} checked={selected.has(r.id)} onChange={(e) => onSelect(r, e.target.checked)} /></li>)}</ul>
   ),
 }))
 jest.mock("./EditionSheet", () => ({
@@ -29,7 +29,7 @@ const summary = (over = {}) => ({
 const base = (over = {}) => ({
   batchId: 1, summary: summary(), rows: [{ id: 1, title: "Dune" }], rowsLoading: false,
   loading: false, phase: { kind: "idle" }, error: null, attachedCount: 1,
-  addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), removeRow: jest.fn(), patchRow: jest.fn(), bulk: jest.fn(),
+  addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), removeRow: jest.fn(), removeRows: jest.fn(), patchRow: jest.fn(), bulk: jest.fn(),
   runImport: jest.fn().mockResolvedValue({ missing: 0, failed: 0 }), cancelImport: jest.fn(),
   clearBatch: jest.fn(), hasFile: () => true, missing: 0, notice: null, folderName: null,
   folderSupported: false, chooseFolder: jest.fn(), reconnectFolder: jest.fn(), ...over,
@@ -321,5 +321,41 @@ describe("numbered pages", () => {
     useImport.mockReturnValue(base({ total: 60 })) // removed down to 2 pages
     view.rerender(tree())
     expect(useImport).toHaveBeenLastCalledWith(expect.anything(), 1)
+  })
+})
+
+describe("selecting books", () => {
+  const rows = [{ id: 1, title: "Dune", state: "matched" }, { id: 2, title: "Emma", state: "matched" }, { id: 3, title: "Ulysses", state: "importing" }]
+
+  it("shows the selection count and removes only the selected books after confirming", async () => {
+    const imp = setup({ rows })
+    fireEvent.click(screen.getByLabelText("pick Dune"))
+    fireEvent.click(screen.getByLabelText("pick Emma"))
+    expect(screen.getByText("2 selected")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Remove all" })).not.toBeInTheDocument() // filter-wide actions step aside
+    fireEvent.click(screen.getByRole("button", { name: "Remove selected" }))
+    expect(await screen.findByText("Remove 2 selected books from this list?")).toBeInTheDocument()
+    expect(imp.removeRows).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
+    expect(imp.removeRows).toHaveBeenCalledWith([rows[0], rows[1]])
+    await waitFor(() => expect(screen.queryByText(/selected$/)).not.toBeInTheDocument())
+  })
+
+  it("selects the whole page at once, leaving out a book that is importing", () => {
+    setup({ rows })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }))
+    expect(screen.getByText("2 selected")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }))
+    expect(screen.queryByText("2 selected")).not.toBeInTheDocument()
+  })
+
+  it("clears the selection on request and when the filter changes", () => {
+    setup({ rows })
+    fireEvent.click(screen.getByLabelText("pick Dune"))
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }))
+    expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText("pick Dune"))
+    fireEvent.click(screen.getByRole("button", { name: /^Matched/ }))
+    expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
   })
 })
