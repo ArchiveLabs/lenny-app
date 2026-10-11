@@ -60,3 +60,31 @@ describe("the Library toolbar on a phone", () => {
     expect(src).toContain("hidden max-w-2xl text-sm text-muted-foreground sm:block")
   })
 })
+
+describe("the dashboard frame on a phone", () => {
+  const layout = readFileSync(join(__dirname, "(dashboard)/layout.tsx"), "utf8")
+  const sidebar = readFileSync(join(__dirname, "../../../packages/ui/src/components/sidebar.tsx"), "utf8")
+
+  it("has a slimmer top bar below sm, and the full one from sm up", () => {
+    expect(layout).toContain("[--header-height:calc(var(--spacing)*10)] sm:[--header-height:calc(var(--spacing)*12)]")
+    expect(layout).not.toContain('"--header-height"') // an inline value would beat the responsive one
+  })
+
+  it("pads the page less on a phone, and grows back with the screen", () => {
+    expect(layout).toContain("gap-3 p-3 sm:gap-4 sm:p-4 md:gap-6 md:p-6 lg:p-12")
+  })
+
+  it("opens the phone's menu at a narrower width", () => {
+    expect(sidebar).toContain('const SIDEBAR_WIDTH_MOBILE = "15rem"')
+  })
+
+  it("keeps the desktop sidebar width", () => {
+    expect(layout).toContain('"--sidebar-width": "calc(var(--spacing) * 72)"')
+  })
+})
+
+describe("what stays readable", () => {
+  it("never takes the phone's root size below 13px, which keeps small text near 10px at least", () => {
+    expect(sizeAt(null)).toBeGreaterThanOrEqual(13)
+  })
+})

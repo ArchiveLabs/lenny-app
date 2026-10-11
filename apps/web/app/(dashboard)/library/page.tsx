@@ -215,7 +215,7 @@ export default function LibraryPage() {
       <div className="flex flex-col gap-3 sm:gap-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-1">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("Lenny Library")}</h2>
+            <h2 className="text-xl font-bold tracking-tight sm:text-3xl">{t("Lenny Library")}</h2>
             <p className="hidden max-w-2xl text-sm text-muted-foreground sm:block sm:text-base">
               {t("All books currently available in this Lenny instance, enriched with OpenLibrary metadata.")}
             </p>
