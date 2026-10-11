@@ -94,3 +94,27 @@ describe("a library book's metadata", () => {
     expect(LibraryBookMetadataSchema.parse({ olid: 5, title: null, links: { open_library: "https://o" }, details_loaded: false }).title).toBeNull()
   })
 })
+
+describe("a library book's metadata with nulls everywhere", () => {
+  it("accepts a null source, which a book that is not from Standard Ebooks has", () => {
+    const m = LibraryBookMetadataSchema.parse({ olid: 5, title: "Database Internals", source: null, source_id: null, authors: ["A"] })
+    expect(m.source).toBeNull()
+  })
+
+  it("turns null lists, flags and links into empty ones", () => {
+    const m = LibraryBookMetadataSchema.parse({
+      olid: 5, title: "T", authors: null, subjects: null, languages: null, all_subjects: null, in_library: null, is_new: null, links: null, details_loaded: null,
+      publisher: null, pages: null, isbn: null, description: null, year: null, cover_url: null, cover_url_large: null, size: null, added_at: null, publish_date: null,
+    })
+    expect(m).toMatchObject({ authors: [], subjects: [], languages: [], all_subjects: [], in_library: false, is_new: false, links: {}, details_loaded: true })
+  })
+
+  it("accepts a plain answer as before", () => {
+    const m = LibraryBookMetadataSchema.parse({ olid: 5, title: "T", source: "standardebooks", source_id: "a/b", languages: ["eng"], links: { open_library: "https://o" } })
+    expect(m).toMatchObject({ source: "standardebooks", languages: ["eng"], links: { open_library: "https://o" } })
+  })
+
+  it("still needs an edition number", () => {
+    expect(() => LibraryBookMetadataSchema.parse({ title: "T" })).toThrow()
+  })
+})

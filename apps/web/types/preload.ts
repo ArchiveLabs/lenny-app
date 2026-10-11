@@ -38,9 +38,24 @@ export type PreloadBookDetails = z.infer<typeof PreloadBookDetailsSchema>
 
 // GET /admin/items/{olid}/metadata: the same shape for any book in the library. A book that is not from Standard
 // Ebooks has no source_id, size or added_at, and when Open Library did not answer even the title is null.
+// Nearly anything can be null here (Open Library knows little about many books), so every field is lenient.
+const list = <T extends z.ZodType>(item: T) => z.array(item).nullish().transform((v) => v ?? [])
+const flag = z.boolean().nullish().transform((v) => v ?? false)
 export const LibraryBookMetadataSchema = PreloadBookDetailsSchema.extend({
   title: z.string().nullish(),
+  source: z.string().nullish(), // a book that is not from Standard Ebooks has none
   source_id: z.string().nullish(),
+  authors: list(z.string()),
+  subjects: list(z.string()),
+  languages: list(z.string()),
+  all_subjects: list(z.string()),
+  in_library: flag,
+  is_new: flag,
+  details_loaded: z.boolean().nullish().transform((v) => v ?? true),
+  links: z
+    .object({ open_library: z.string().nullish(), standard_ebooks: z.string().nullish(), archive_org: z.string().nullish() })
+    .nullish()
+    .transform((v) => v ?? {}),
 })
 export type LibraryBookMetadata = z.infer<typeof LibraryBookMetadataSchema>
 
