@@ -41,7 +41,8 @@ export default function ImportHub() {
             },
             {
               title: t("Search all Marketplaces..."),
-              description: t("Coming soon."),
+              description: t("Browse every marketplace you can redeem from."),
+              href: "/import/marketplaces",
               icon: <Search className="h-5 w-5 text-muted-foreground" aria-hidden />,
             },
           ]}

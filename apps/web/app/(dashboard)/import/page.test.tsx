@@ -12,8 +12,7 @@ it("lists the upload source and the redeem sources as links", () => {
   expect(screen.getByRole("link", { name: /Redeem from BRIET Marketplace/ })).toHaveAttribute("href", "/import/briet")
 })
 
-it("shows marketplace search as unavailable, not a link", () => {
+it("links marketplace search to the marketplaces page", () => {
   render(<ImportHub />)
-  expect(screen.queryByRole("link", { name: /Search all Marketplaces/ })).not.toBeInTheDocument()
-  expect(screen.getByText("Search all Marketplaces...").closest("[aria-disabled]")).toBeTruthy()
+  expect(screen.getByRole("link", { name: /Search all Marketplaces/ })).toHaveAttribute("href", "/import/marketplaces")
 })
