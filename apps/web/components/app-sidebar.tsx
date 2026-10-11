@@ -3,12 +3,10 @@
 import * as React from "react"
 import {
   IconHelp,
-  IconSearch,
   IconSettings,
   IconBook,
   IconUpload,
   IconServer,
-  IconTicket,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -28,19 +26,9 @@ import { useTranslation } from "react-i18next"
 const data = {
   navMain: [
     {
-      title: "Add Open Library Book",
-      url: "/add-book",
-      icon: IconSearch,
-    },
-    {
-      title: "Uploads",
-      url: "/",
+      title: "Import & Redeem",
+      url: "/import",
       icon: IconUpload,
-    },
-    {
-      title: "Redeem",
-      url: "/redeem",
-      icon: IconTicket,
     },
     {
       title: "Lenny Library",
