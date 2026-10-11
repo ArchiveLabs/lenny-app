@@ -102,8 +102,9 @@ export function BookCard({
       </div>
 
       <div className="space-y-0.5">
-        <span className="line-clamp-2 block min-h-10 text-sm font-semibold leading-tight" title={book.title}>{book.title}</span>
-        <span className="line-clamp-1 block text-xs text-muted-foreground">{author}</span>
+        {/* Paragraphs, not spans: line-clamp needs its own display, which "block" on a span would override. */}
+        <p className="line-clamp-2 text-sm font-semibold leading-tight" title={book.title}>{book.title}</p>
+        <p className="line-clamp-1 text-xs text-muted-foreground" title={author}>{author}</p>
         {availability && (
           <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
             <span

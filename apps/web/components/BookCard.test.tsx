@@ -174,3 +174,31 @@ it("has a skeleton in the same shape", () => {
   const { container } = render(<BookCardSkeleton />)
   expect(container.querySelector(".aspect-\\[2\\/3\\]")).toBeInTheDocument()
 })
+
+describe("the text under the cover", () => {
+  it("clamps the title to two lines and the author to one, so a long author list cannot grow the card", () => {
+    render(<BookCard book={book({ title: "A Connecticut Yankee in King Arthur's Court", author_name: ["Tom Ley", "Moskovitz", "Diana", "Luis Paez-Pumar", "Lauren Theisen", "Patrick Redford"] })} />)
+    const title = screen.getByText("A Connecticut Yankee in King Arthur's Court")
+    const author = screen.getByText(/Tom Ley, Moskovitz/)
+    expect(title.className).toContain("line-clamp-2")
+    expect(author.className).toContain("line-clamp-1")
+  })
+
+  it("does not undo the clamp with a display class (block on a span would)", () => {
+    render(<BookCard book={book()} />)
+    for (const el of [screen.getByText("Database Internals"), screen.getByText("Alex Petrov")]) {
+      expect(el.tagName).toBe("P")
+      expect(el.className).not.toMatch(/(^|\s)(block|flex|inline)(\s|$)/)
+    }
+  })
+
+  it("has no fixed height under the title, so a one-line title leaves no gap before the author", () => {
+    render(<BookCard book={book()} />)
+    expect(screen.getByText("Database Internals").className).not.toMatch(/min-h|h-10|h-\[/)
+  })
+
+  it("shows the full author list on hover", () => {
+    render(<BookCard book={book({ author_name: ["A", "B", "C"] })} />)
+    expect(screen.getByText("A, B, C")).toHaveAttribute("title", "A, B, C")
+  })
+})
