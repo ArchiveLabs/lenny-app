@@ -1,7 +1,7 @@
 import { z } from "zod"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import {
-  DuplicateCheckSchema, ImportBatchListSchema, ImportBatchSummarySchema,
+  ImportBatchListSchema, ImportBatchSummarySchema,
   ImportCandidatesSchema, ImportLimitsSchema, ImportJobSchema, ImportRowPageSchema, LibrarySyncSchema, ImportRowSchema, MatchJobSchema,
   type ImportRowState,
 } from "@/types/import"
@@ -68,16 +68,11 @@ export const importApi = {
     ),
   startMatch: (id: number, body: { state?: "queued" | "no_match" | "needs_review"; row_ids?: number[] } = {}) =>
     fetchAdmin(`${base(id)}/match`, json("POST", body)).then((r) => handleApiResponse(r, MatchJobSchema)),
-  job: (jobId: string) => fetchAdmin(`import/match/${jobId}`).then((r) => handleApiResponse(r, MatchJobSchema)),
   candidates: (id: number, rowId: number) =>
     fetchAdmin(`${base(id)}/rows/${rowId}/candidates`).then((r) => handleApiResponse(r, ImportCandidatesSchema)),
   /** Live search scored against the row: words, an ISBN, an edition key or an openlibrary.org link. q is 2+ characters. */
   searchEditions: (id: number, rowId: number, q: string) =>
     fetchAdmin(`${base(id)}/rows/${rowId}/search${query({ q })}`).then((r) => handleApiResponse(r, ImportCandidatesSchema)),
-  checkDuplicates: (olids: number[]) =>
-    fetchAdmin("import/check-duplicates", json("POST", { olids })).then((r) =>
-      handleApiResponse(r, DuplicateCheckSchema),
-    ),
   /** Stores the EPUB on the server so the import needs no browser later. Idempotent. */
   stageFile: (id: number, rowId: number, file: Blob) => {
     const form = new FormData()

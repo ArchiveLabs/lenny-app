@@ -110,15 +110,7 @@ export const ImportRowPageSchema = z.object({
 })
 export type ImportRowPage = z.infer<typeof ImportRowPageSchema>
 
-/** Rows the "Import N books" button will send: matched and not skipped. */
-export const isReady = (r: Pick<ImportRow, "state" | "skipped">) =>
-  r.state === "matched" && !r.skipped
-
-/** Blocking row states: the admin has to act before these can be imported. */
-export const needsAction = (r: Pick<ImportRow, "state">) =>
-  r.state === "needs_review" || r.state === "no_match"
-
-// #246: matching job, candidates, edition lookup, limits.
+// The matching job, edition candidates and the server limits.
 export const MatchJobSchema = z.object({
   id: z.string(),
   batch_id: z.number(),
@@ -130,18 +122,6 @@ export const MatchJobSchema = z.object({
 export type MatchJob = z.infer<typeof MatchJobSchema>
 
 export const ImportCandidatesSchema = z.object({ candidates: z.array(ImportCandidateSchema) })
-
-export const EditionLookupSchema = z.object({
-  olid: z.number(),
-  title: z.string().nullish(),
-  publisher: z.string().nullish(),
-  year: z.number().nullish(),
-  isbn: z.string().nullish(),
-  in_library: z.boolean().default(false),
-})
-export type EditionLookup = z.infer<typeof EditionLookupSchema>
-
-export const DuplicateCheckSchema = z.object({ existing: z.array(z.number()) })
 
 export const ImportLimitsSchema = z.object({
   max_rows_per_call: z.number(),
@@ -155,5 +135,3 @@ export const ImportLimitsSchema = z.object({
   formats: z.array(z.string()),
 })
 export type ImportLimits = z.infer<typeof ImportLimitsSchema>
-
-export const isJobActive = (j: Pick<MatchJob, "status">) => j.status === "queued" || j.status === "running"
