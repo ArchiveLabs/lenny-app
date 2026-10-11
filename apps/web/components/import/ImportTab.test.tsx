@@ -201,3 +201,31 @@ it("renders nothing, not a placeholder block, while the saved list loads", () =>
   expect(screen.queryByText("Drop a folder or EPUB files here")).not.toBeInTheDocument()
   expect(document.querySelector('[class*="animate-pulse"]')).toBeNull()
 })
+
+describe("server-side upload", () => {
+  it("explains that files upload as books are matched", () => {
+    setup()
+    expect(screen.getByText("Files are uploaded as books are matched, so you can leave this page.")).toBeInTheDocument()
+  })
+
+  it("shows N of M uploaded while sending files", () => {
+    setup({ uploading: true, summary: summary({ staged: 3, unstaged: 1 }) })
+    expect(screen.getByText("Uploading files")).toBeInTheDocument()
+    expect(screen.getByText("3 / 4")).toBeInTheDocument()
+  })
+
+  it("reports failed uploads with a retry", () => {
+    const imp = setup({ uploadFailed: 2, retryUploads: jest.fn() })
+    expect(screen.getByRole("alert")).toHaveTextContent("2 files could not be uploaded.")
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+    expect(imp.retryUploads).toHaveBeenCalled()
+  })
+})
+
+it("keeps the big drop zone and hides the list for an empty batch", () => {
+  setup({ summary: summary({ total: 0, ready: 0, counts: {} }), rows: [] })
+  expect(screen.getByText("Drop a folder or EPUB files here")).toBeInTheDocument()
+  expect(screen.queryByText(/kept for 30 days/)).not.toBeInTheDocument()
+  expect(screen.queryByRole("group", { name: "Filter books" })).not.toBeInTheDocument()
+  expect(screen.queryByText(/Files are uploaded as books are matched/)).not.toBeInTheDocument()
+})

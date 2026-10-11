@@ -72,6 +72,17 @@ export const importApi = {
     fetchAdmin("import/check-duplicates", json("POST", { olids })).then((r) =>
       handleApiResponse(r, DuplicateCheckSchema),
     ),
+  /** Stores the EPUB on the server so the import needs no browser later. Idempotent. */
+  stageFile: (id: number, rowId: number, file: Blob) => {
+    const form = new FormData()
+    form.append("file", file)
+    return fetchAdmin(`${base(id)}/rows/${rowId}/staged`, { method: "PUT", body: form }).then((r) =>
+      handleApiResponse(r, ImportRowSchema),
+    )
+  },
+  /** Imports a staged row on the server. No file bytes move. */
+  importRow: (id: number, rowId: number) =>
+    fetchAdmin(`${base(id)}/rows/${rowId}/import`, { method: "POST" }).then((r) => handleApiResponse(r, ImportRowSchema)),
   uploadFile: (id: number, rowId: number, file: Blob) => {
     const form = new FormData()
     form.append("file", file)

@@ -1,7 +1,7 @@
 "use client"
 
 import { memo } from "react"
-import { AlertTriangle, CheckCircle2, CircleSlash, Copy, Loader2, SearchX, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, CircleSlash, CloudCheck, Copy, Loader2, SearchX, Trash2, XCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -54,7 +54,7 @@ export const RowItem = memo(function RowItem({
         </p>
         <p className="truncate text-xs text-muted-foreground" title={row.path}>{row.path}</p>
         {row.error && <p className="text-xs text-red-700">{row.error}</p>}
-        {needsFile && row.state === "matched" && !row.skipped && (
+        {needsFile && row.state === "matched" && !row.skipped && !row.staged && (
           <p className="text-xs text-amber-700">{t("Drop this file again to import it")}</p>
         )}
       </div>
@@ -64,6 +64,12 @@ export const RowItem = memo(function RowItem({
           {t(s.label)}
           {row.state === "matched" && row.auto_picked && row.confidence != null ? ` ${row.confidence}%` : ""}
         </Badge>
+        {row.staged && !row.skipped && row.state === "matched" && (
+          <Badge variant="outline" className="gap-1 text-muted-foreground">
+            <CloudCheck className="h-3 w-3" aria-hidden />
+            {t("Uploaded")}
+          </Badge>
+        )}
         {row.skipped && <Badge variant="secondary">{t("Skipped")}</Badge>}
         {!locked && row.state !== "duplicate" && (
           <label className="flex items-center gap-1.5 text-sm">

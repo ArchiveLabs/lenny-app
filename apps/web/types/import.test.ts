@@ -1,6 +1,6 @@
 // @ts-nocheck
 import {
-  EditionLookupSchema, ImportBatchSummarySchema, ImportCandidateSchema, ImportLimitsSchema, ImportRowPageSchema,
+  EditionLookupSchema, ImportBatchSummarySchema, ImportCandidateSchema, ImportRowSchema, ImportLimitsSchema, ImportRowPageSchema,
   MatchJobSchema, isJobActive, isReady, needsAction,
 } from "./import"
 
@@ -66,4 +66,11 @@ it("parses the batch match job, which may be null or missing", () => {
   expect(ImportBatchSummarySchema.parse({ ...b, match: job }).match?.retry_after).toBe(30)
   expect(ImportBatchSummarySchema.parse({ ...b, match: null }).match).toBeNull()
   expect(ImportBatchSummarySchema.parse(b).match).toBeUndefined()
+})
+
+it("reads staged on rows and the staged/unstaged counts on the batch, defaulting to none", () => {
+  const b = { id: 1, created_at: "t", expires_at: "t", total: 1, counts: {} }
+  expect(ImportBatchSummarySchema.parse(b)).toMatchObject({ staged: 0, unstaged: 0 })
+  expect(ImportBatchSummarySchema.parse({ ...b, staged: 3, unstaged: 2 })).toMatchObject({ staged: 3, unstaged: 2 })
+  expect(ImportRowSchema.parse({ id: 1, path: "a", size: 1, mtime: 1, state: "matched", decision: "auto" }).staged).toBe(false)
 })

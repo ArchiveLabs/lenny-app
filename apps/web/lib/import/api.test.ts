@@ -48,3 +48,17 @@ it("DELETEs a single row and returns the updated batch", async () => {
   expect((await importApi.removeRow(3, 9)).total).toBe(1)
   expect(fetchAdmin).toHaveBeenCalledWith("import/batches/3/rows/9", { method: "DELETE" })
 })
+
+it("stages a file with PUT multipart and imports a staged row with a bodyless POST", async () => {
+  const row = { id: 9, path: "a.epub", size: 1, mtime: 1, state: "matched", decision: "auto", staged: true }
+  ;(fetchAdmin as jest.Mock).mockReturnValue(ok(row))
+  expect((await importApi.stageFile(3, 9, new Blob(["x"]))).staged).toBe(true)
+  const [path, init] = (fetchAdmin as jest.Mock).mock.calls[0]
+  expect(path).toBe("import/batches/3/rows/9/staged")
+  expect(init.method).toBe("PUT")
+  expect(init.body.get("file")).toBeTruthy()
+
+  ;(fetchAdmin as jest.Mock).mockReturnValue(ok({ ...row, state: "imported", staged: false }))
+  await importApi.importRow(3, 9)
+  expect((fetchAdmin as jest.Mock).mock.calls[1]).toEqual(["import/batches/3/rows/9/import", { method: "POST" }])
+})

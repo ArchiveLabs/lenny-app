@@ -9,7 +9,7 @@ jest.mock("@/lib/import/api", () => ({ importApi: {} }))
 jest.mock("@/lib/query-client", () => ({ forceFreshLibraryOnNextVisit: jest.fn() }))
 
 const summary = (id: number, counts = {}) => ({
-  id, created_at: "", expires_at: "", total: 1, counts, skipped: 0, encrypted: 0, ready: 0, auto_picked: 0,
+  id, created_at: "", expires_at: "", total: 1, counts, skipped: 0, encrypted: 0, ready: 0, auto_picked: 0, staged: 0, unstaged: 0,
 })
 const wrapper = ({ children }) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -28,7 +28,8 @@ beforeEach(() => {
     createBatch: jest.fn().mockResolvedValue(summary(9)),
     putRows: jest.fn().mockResolvedValue({ created: 0, existing: 0 }),
     startMatch: jest.fn().mockResolvedValue({}),
-    uploadFile: jest.fn().mockResolvedValue({ state: "imported" }),
+    stageFile: jest.fn().mockResolvedValue({ staged: true }),
+    importRow: jest.fn().mockResolvedValue({ state: "imported" }),
   })
 })
 
@@ -64,8 +65,9 @@ it("imports only rows whose file is in memory and reports the rest as missing", 
   importApi.rows.mockResolvedValue({ rows: [mk(1, "L/b0.epub"), mk(2, "L/gone.epub")], next_cursor: null })
   let res
   await act(async () => (res = await result.current.runImport()))
-  expect(importApi.uploadFile).toHaveBeenCalledTimes(1)
-  expect(importApi.uploadFile.mock.calls[0][1]).toBe(1)
+  expect(importApi.stageFile).toHaveBeenCalledTimes(1) // not on the server yet: sent first
+  expect(importApi.importRow).toHaveBeenCalledTimes(1)
+  expect(importApi.importRow.mock.calls[0][1]).toBe(1)
   expect(res.missing).toBe(1)
 })
 
@@ -115,7 +117,7 @@ describe("reconnecting files after a reload", () => {
     await waitFor(() => expect(result.current.resumed).toBe(true))
     await act(() => result.current.addFiles([fileAt("a.epub", "a.epub")]))
     importApi.rows.mockResolvedValue({ rows: [mk(1, "a.epub")], next_cursor: null })
-    importApi.uploadFile.mockRejectedValue(new Error("boom"))
+    importApi.importRow.mockRejectedValue(new Error("boom"))
     let res
     await act(async () => (res = await result.current.runImport()))
     expect(res.failed).toBe(1)
@@ -128,7 +130,7 @@ describe("reconnecting files after a reload", () => {
     const add = jest.spyOn(window, "addEventListener")
     importApi.listBatches.mockResolvedValue({ batches: [] })
     importApi.createBatch.mockResolvedValue(summary(9, { matched: 1 }))
-    importApi.batch.mockResolvedValue({ ...summary(9, { matched: 1 }), ready: 1 })
+    importApi.batch.mockResolvedValue({ ...summary(9, { matched: 1 }), ready: 1, unstaged: 1 })
     const { result } = renderHook(() => useImport({}), { wrapper })
     await waitFor(() => expect(result.current.resumed).toBe(true))
     await act(() => result.current.addFiles([fileAt("a.epub", "a.epub")]))

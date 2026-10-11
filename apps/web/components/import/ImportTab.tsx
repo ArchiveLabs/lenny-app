@@ -59,6 +59,8 @@ export function ImportTab() {
   const counts = summary?.counts ?? {}
   const queued = counts.queued ?? 0
   const match = summary?.match
+  // An empty batch (nothing added yet, or everything removed) gets the big drop zone, not the list chrome.
+  const hasList = !!summary && summary.total > 0
   const noMatch = counts.no_match ?? 0
   const busy = phase.kind !== "idle"
   const importing = phase.kind === "importing"
@@ -94,13 +96,13 @@ export function ImportTab() {
         <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{imp.error}</p>
       )}
 
-      <DropZone onPick={pick} onChooseFolder={imp.folderSupported ? imp.chooseFolder : undefined} compact={!!summary} disabled={busy} />
+      <DropZone onPick={pick} onChooseFolder={imp.folderSupported ? imp.chooseFolder : undefined} compact={hasList} disabled={busy} />
 
       {phase.kind === "reading" && <Progress label={t("Reading books")} done={phase.done} total={phase.total} />}
       {phase.kind === "saving" && <Progress label={t("Saving the list")} done={phase.done} total={phase.total} />}
       {importing && <Progress label={t("Importing")} done={phase.done} total={phase.total} />}
 
-      {summary && (
+      {hasList && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">
@@ -140,6 +142,15 @@ export function ImportTab() {
               />
             )
           )}
+
+          {imp.uploading && <Progress label={t("Uploading files")} done={summary.staged} total={summary.staged + summary.unstaged} />}
+          {imp.uploadFailed > 0 && !imp.uploading && (
+            <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+              <p className="mr-auto">{t("{{n}} files could not be uploaded.", { n: imp.uploadFailed })}</p>
+              <Button size="sm" onClick={imp.retryUploads}>{t("Try again")}</Button>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">{t("Files are uploaded as books are matched, so you can leave this page.")}</p>
 
           {imp.notice && <p role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">{t(imp.notice)}</p>}
           {imp.missing > 0 && !imp.reconnecting && (

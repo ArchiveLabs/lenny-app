@@ -30,6 +30,8 @@ export const ImportBatchSummarySchema = z.object({
   encrypted: z.number().default(0),
   ready: z.number().default(0), // matched and not skipped
   auto_picked: z.number().default(0),
+  staged: z.number().default(0), // matched rows whose file is already on the server
+  unstaged: z.number().default(0), // matched, not skipped, file not sent yet
   match: BatchMatchSchema.nullish(), // latest match job; null after a server restart
 })
 export type ImportBatchSummary = z.infer<typeof ImportBatchSummarySchema>
@@ -49,6 +51,7 @@ export const ImportRowSchema = z.object({
   candidates_count: z.number().default(0),
   confidence: z.number().nullish(), // 0-100
   encrypted: z.boolean().default(false),
+  staged: z.boolean().default(false), // the file is on the server
   isbn: z.string().nullish(),
   title: z.string().nullish(), // from the EPUB
   author: z.string().nullish(),

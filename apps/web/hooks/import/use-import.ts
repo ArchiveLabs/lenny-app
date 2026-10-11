@@ -20,6 +20,18 @@ export type Phase =
 export const pollInterval = (updates: number) => (updates < 30 ? 2000 : updates < 90 ? 5000 : 10000)
 
 const UPLOADS_IN_FLIGHT = 3
+const RETRIES = 2
+
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let n = 1; ; n++) {
+    try {
+      return await fn()
+    } catch (e) {
+      if (n > RETRIES) throw e
+      await new Promise((ok) => setTimeout(ok, 300 * n))
+    }
+  }
+}
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Something went wrong")
 
 async function allRows(batchId: number, filter: RowFilter): Promise<ImportRow[]> {
@@ -49,6 +61,8 @@ export function useImport(filter: RowFilter) {
   const [missing, setMissing] = useState(0) // matched, unskipped rows with no file attached
   const [notice, setNotice] = useState<string | null>(null)
   const [version, setVersion] = useState(0) // bumps when files are attached, to recount
+  const [uploading, setUploading] = useState(false) // staging files in the background
+  const [uploadFailed, setUploadFailed] = useState(0)
   const [reconnecting, setReconnecting] = useState(false) // silent reconnect in progress
   const [folderName, setFolderName] = useState<string | null>(null) // remembered folder (Chromium)
 
@@ -73,7 +87,7 @@ export function useImport(filter: RowFilter) {
       // A failed match leaves rows queued but nothing is running: stop polling until the admin retries.
       const matching = (c?.queued ?? 0) > 0 && q.state.data?.match?.status !== "failed"
       const busy = !!c && (matching || (c.importing ?? 0) > 0)
-      return busy || phase.kind !== "idle" ? pollInterval(q.state.dataUpdateCount) : false
+      return busy || uploading || phase.kind !== "idle" ? pollInterval(q.state.dataUpdateCount) : false
     },
   })
 
@@ -87,18 +101,19 @@ export function useImport(filter: RowFilter) {
   })
 
   // Keep the list in step with the counts while matching runs.
-  const sig = summary.data && JSON.stringify(summary.data.counts)
+  const sig = summary.data && JSON.stringify([summary.data.counts, summary.data.staged])
   useEffect(() => {
     if (sig) qc.invalidateQueries({ queryKey: ["import-rows", batchId] })
   }, [sig, batchId, qc])
 
   const recount = useCallback(async (id: number) => {
     const ready = await allRows(id, { state: "matched", skipped: false })
-    setMissing(ready.filter((r) => !importFiles.has(r)).length)
+    setMissing(ready.filter((r) => !r.staged && !importFiles.has(r)).length)
     return ready
   }, [])
 
   const ready = summary.data?.ready
+  const unstaged = summary.data?.unstaged ?? 0
   const matchStatus = summary.data?.match?.status
   const queuedRows = summary.data?.counts.queued ?? 0
   const matching = queuedRows > 0 && matchStatus !== "failed"
@@ -112,19 +127,69 @@ export function useImport(filter: RowFilter) {
   // Leaving now would lose the attached files (and stop a running import).
   const importing = phase.kind === "importing"
   useEffect(() => {
-    if (!(importing || (importFiles.size > 0 && (ready ?? 0) > 0))) return
+    if (!(importing || uploading || (importFiles.size > 0 && unstaged > 0))) return
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ""
     }
     window.addEventListener("beforeunload", warn)
     return () => window.removeEventListener("beforeunload", warn)
-  }, [importing, ready, version])
+  }, [importing, uploading, unstaged, version])
 
   const refresh = useCallback(() => {
     qc.invalidateQueries({ queryKey: ["import-batch", batchId] })
     qc.invalidateQueries({ queryKey: ["import-rows", batchId] })
   }, [qc, batchId])
+
+  // Send each matched, unskipped row's file to the server in the background, so a reload or a killed tab
+  // loses nothing. One pass at a time; a change during a pass schedules another. Rows that still fail after
+  // retries are left alone until the admin retries (gaveUp), so a bad file cannot loop.
+  const staging = useRef(false)
+  const again = useRef(false)
+  const gaveUp = useRef(new Set<number>())
+  const stage = useCallback(async () => {
+    if (batchId === null) return
+    if (staging.current) {
+      again.current = true
+      return
+    }
+    staging.current = true
+    setUploading(true)
+    try {
+      do {
+        again.current = false
+        const todo = (await allRows(batchId, { state: "matched", skipped: false })).filter(
+          (r) => !r.staged && importFiles.has(r) && !gaveUp.current.has(r.id),
+        )
+        await pool(todo, UPLOADS_IN_FLIGHT, async (row) => {
+          try {
+            await withRetry(() => importApi.stageFile(batchId, row.id, importFiles.get(row)!))
+            gaveUp.current.delete(row.id)
+          } catch {
+            gaveUp.current.add(row.id)
+          }
+        })
+      } while (again.current)
+    } catch (e) {
+      setError(errMsg(e))
+    } finally {
+      staging.current = false
+      setUploadFailed(gaveUp.current.size)
+      setUploading(false)
+      refresh()
+    }
+  }, [batchId, refresh])
+
+  const retryUploads = useCallback(() => {
+    gaveUp.current.clear()
+    setUploadFailed(0)
+    stage()
+  }, [stage])
+
+  useEffect(() => {
+    if (batchId === null || unstaged === 0 || importFiles.size === 0 || phase.kind === "importing") return
+    stage()
+  }, [batchId, unstaged, sig, version, phase.kind, stage])
 
   // Queued rows with no live job mean the server restarted and lost it: start it again, once per page load.
   const restarted = useRef(false)
@@ -270,7 +335,7 @@ export function useImport(filter: RowFilter) {
     [batchId, filter, refresh],
   )
 
-  /** Upload every matched, unskipped row whose file is attached. Returns how many have no file to send. */
+  /** Import every matched, unskipped row on the server. A row not staged yet is uploaded first. Returns how many have no file anywhere. */
   const runImport = useCallback(async () => {
     if (batchId === null) return { missing: 0, failed: 0 }
     cancelled.current = false
@@ -282,17 +347,18 @@ export function useImport(filter: RowFilter) {
       setError(errMsg(e))
       return { missing: 0, failed: 0 }
     }
-    const sendable = ready.filter((r) => importFiles.has(r))
+    const sendable = ready.filter((r) => r.staged || importFiles.has(r))
     let done = 0
     let failed = 0
     setPhase({ kind: "importing", done, total: sendable.length, failed })
     await pool(sendable, UPLOADS_IN_FLIGHT, async (row) => {
       if (cancelled.current) return
       try {
-        const res = await importApi.uploadFile(batchId, row.id, importFiles.get(row)!)
+        if (!row.staged) await importApi.stageFile(batchId, row.id, importFiles.get(row)!)
+        const res = await importApi.importRow(batchId, row.id)
         if (res.state === "failed" || res.state === "not_epub") failed++
       } catch {
-        failed++ // the file stays attached, so Import can simply be pressed again
+        failed++ // staged or still attached, so Import can simply be pressed again
       }
       setPhase({ kind: "importing", done: ++done, total: sendable.length, failed })
     })
@@ -339,6 +405,9 @@ export function useImport(filter: RowFilter) {
     cancelImport,
     clearBatch,
     reconnecting,
+    uploading,
+    uploadFailed,
+    retryUploads,
     attachedCount: importFiles.size,
     missing,
     notice,
