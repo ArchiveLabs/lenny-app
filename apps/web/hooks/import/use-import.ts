@@ -356,6 +356,24 @@ export function useImport(filter: RowFilter, page = 0) {
     [batchId, refresh],
   )
 
+  /** Set encryption on the picked rows. The server takes row ids for remove only, so this is one PATCH per row, a few at a time. */
+  const encryptRows = useCallback(
+    async (picked: ImportRow[], value: boolean) => {
+      if (batchId === null || !picked.length) return
+      let failed = 0
+      await pool(picked, UPLOADS_IN_FLIGHT, async (row) => {
+        try {
+          await importApi.patchRow(batchId, row.id, { encrypted: value })
+        } catch {
+          failed++
+        }
+      })
+      if (failed) setError(failed === 1 ? "1 book could not be changed." : `${failed} books could not be changed.`)
+      refresh()
+    },
+    [batchId, refresh],
+  )
+
   /** Remove the picked rows in one call per 500. The server skips rows that are importing and says how many it removed. */
   const removeRows = useCallback(
     async (picked: ImportRow[]) => {
@@ -461,6 +479,7 @@ export function useImport(filter: RowFilter, page = 0) {
     bulk,
     removeRow,
     removeRows,
+    encryptRows,
     runImport,
     importJob,
     importing,

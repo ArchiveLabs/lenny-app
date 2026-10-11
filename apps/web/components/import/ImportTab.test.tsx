@@ -30,7 +30,7 @@ const summary = (over = {}) => ({
 const base = (over = {}) => ({
   batchId: 1, summary: summary(), rows: [{ id: 1, title: "Dune" }], rowsLoading: false,
   loading: false, phase: { kind: "idle" }, error: null, attachedCount: 1,
-  addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), removeRow: jest.fn(), removeRows: jest.fn(), failedUploads: new Set(), patchRow: jest.fn(), bulk: jest.fn(),
+  addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), removeRow: jest.fn(), removeRows: jest.fn(), encryptRows: jest.fn(), failedUploads: new Set(), patchRow: jest.fn(), bulk: jest.fn(),
   runImport: jest.fn().mockResolvedValue({ missing: 0, failed: 0 }), cancelImport: jest.fn(),
   clearBatch: jest.fn(), clearLoaded: jest.fn(), hasFile: () => true, missing: 0, notice: null, folderName: null,
   folderSupported: false, chooseFolder: jest.fn(), reconnectFolder: jest.fn(), ...over,
@@ -52,7 +52,7 @@ it("shows a big drop zone and no list when there is no batch", () => {
 
 it("states the 30-day retention", () => {
   setup()
-  expect(screen.getByText(/kept for 30 days/)).toBeInTheDocument()
+  expect(screen.getByText(/Kept for 30 days/)).toBeInTheDocument()
 })
 
 it("offers Import N books and runs it", () => {
@@ -204,9 +204,14 @@ it("renders nothing, not a placeholder block, while the saved list loads", () =>
 })
 
 describe("server-side upload", () => {
-  it("explains that files upload as books are matched", () => {
-    setup()
+  it("explains that files upload as books are matched, only while they are uploading", () => {
+    setup({ uploading: true, summary: summary({ staged: 1, unstaged: 1 }) })
     expect(screen.getByText("Files are uploaded as books are matched, so you can leave this page.")).toBeInTheDocument()
+  })
+
+  it("leaves that sentence out when nothing is uploading", () => {
+    setup()
+    expect(screen.queryByText(/Files are uploaded as books are matched/)).not.toBeInTheDocument()
   })
 
   it("shows N of M uploaded while sending files", () => {
@@ -236,39 +241,6 @@ describe("no Skip", () => {
     setup({ summary: summary({ skipped: 0 }) })
     expect(screen.queryByRole("button", { name: /^Skipped/ })).not.toBeInTheDocument()
     expect(screen.queryByText(/skip/i)).not.toBeInTheDocument()
-  })
-
-  it("shows bulk actions above the list with their scope, not in a hidden menu", () => {
-    setup()
-    expect(screen.queryByRole("button", { name: "Actions for these books" })).not.toBeInTheDocument()
-    expect(screen.getByText("Applies to 4 books in this view")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Remove all" })).toBeInTheDocument()
-  })
-
-  it("confirms with the count before removing the current filter", async () => {
-    const imp = setup()
-    fireEvent.click(screen.getByRole("button", { name: "Remove all" }))
-    expect(await screen.findByText("Remove 4 books from this list?")).toBeInTheDocument()
-    expect(imp.bulk).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
-    expect(imp.bulk).toHaveBeenCalledWith("remove")
-  })
-
-  it("encrypts everything in view, then turns it off again once all are encrypted", () => {
-    const imp = setup({ rows: [{ id: 1, title: "A", encrypted: false }, { id: 2, title: "B", encrypted: true }] })
-    fireEvent.click(screen.getByRole("checkbox", { name: "Encrypt all" }))
-    expect(imp.bulk).toHaveBeenCalledWith("set_encrypted", true)
-  })
-
-  it("unchecks Encrypt all when every book is already encrypted", () => {
-    const imp = setup({ rows: [{ id: 1, title: "A", encrypted: true }, { id: 2, title: "B", encrypted: true }] })
-    fireEvent.click(screen.getByRole("checkbox", { name: "Encrypt all" }))
-    expect(imp.bulk).toHaveBeenCalledWith("set_encrypted", false)
-  })
-
-  it("hides the bulk strip when there are no books to act on", () => {
-    setup({ rows: [] })
-    expect(screen.queryByRole("button", { name: "Remove all" })).not.toBeInTheDocument()
   })
 
   it("offers a one-time clean-up for books skipped earlier", () => {
@@ -322,42 +294,6 @@ describe("numbered pages", () => {
     useImport.mockReturnValue(base({ total: 60 })) // removed down to 2 pages
     view.rerender(tree())
     expect(useImport).toHaveBeenLastCalledWith(expect.anything(), 1)
-  })
-})
-
-describe("selecting books", () => {
-  const rows = [{ id: 1, title: "Dune", state: "matched" }, { id: 2, title: "Emma", state: "matched" }, { id: 3, title: "Ulysses", state: "importing" }]
-
-  it("shows the selection count and removes only the selected books after confirming", async () => {
-    const imp = setup({ rows })
-    fireEvent.click(screen.getByLabelText("pick Dune"))
-    fireEvent.click(screen.getByLabelText("pick Emma"))
-    expect(screen.getByText("2 selected")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Remove all" })).not.toBeInTheDocument() // filter-wide actions step aside
-    fireEvent.click(screen.getByRole("button", { name: "Remove selected" }))
-    expect(await screen.findByText("Remove 2 selected books from this list?")).toBeInTheDocument()
-    expect(imp.removeRows).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
-    expect(imp.removeRows).toHaveBeenCalledWith([rows[0], rows[1]])
-    await waitFor(() => expect(screen.queryByText(/selected$/)).not.toBeInTheDocument())
-  })
-
-  it("selects the whole page at once, leaving out a book that is importing", () => {
-    setup({ rows })
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }))
-    expect(screen.getByText("2 selected")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }))
-    expect(screen.queryByText("2 selected")).not.toBeInTheDocument()
-  })
-
-  it("clears the selection on request and when the filter changes", () => {
-    setup({ rows })
-    fireEvent.click(screen.getByLabelText("pick Dune"))
-    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }))
-    expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByLabelText("pick Dune"))
-    fireEvent.click(screen.getByRole("button", { name: /^Matched/ }))
-    expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
   })
 })
 
@@ -452,11 +388,6 @@ describe("Loaded and History tabs", () => {
     expect(await screen.findByText("history of 3")).toBeInTheDocument()
   })
 
-  it("says how many books are loaded, not how many ever were", () => {
-    setup(withImported())
-    expect(screen.getByText(/1 books loaded/)).toBeInTheDocument()
-  })
-
   it("keeps History when starting over: only the loaded books are cleared", async () => {
     const imp = setup(withImported())
     fireEvent.click(screen.getByRole("button", { name: "Start over" }))
@@ -472,5 +403,116 @@ describe("Loaded and History tabs", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Clear loaded books" }))
     expect(imp.clearBatch).toHaveBeenCalled()
     expect(imp.clearLoaded).not.toHaveBeenCalled()
+  })
+})
+
+describe("a quieter page", () => {
+  it("has no sentence about retention above the list, and a small note below it", () => {
+    setup()
+    expect(screen.queryByText(/books loaded\. The list is kept/)).not.toBeInTheDocument()
+    expect(screen.getByText("Kept for 30 days after your last change.")).toBeInTheDocument()
+  })
+
+  it("puts Start over beside the tabs", () => {
+    setup()
+    const tabs = screen.getByRole("tablist")
+    expect(tabs.parentElement).toContainElement(screen.getByRole("button", { name: "Start over" }))
+  })
+
+  it("hides filters with nothing in them, but keeps All and the one chosen", () => {
+    setup({ summary: summary({ counts: { matched: 4 } }) })
+    expect(screen.getByRole("button", { name: /^All/ })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^Matched/ })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^No match/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Duplicate/ })).not.toBeInTheDocument()
+  })
+})
+
+describe("the list header and selection", () => {
+  const rows = [
+    { id: 1, title: "Dune", state: "matched", encrypted: false },
+    { id: 2, title: "Emma", state: "matched", encrypted: false },
+    { id: 3, title: "Ulysses", state: "importing", encrypted: false },
+  ]
+
+  it("just counts the books when nothing is selected, with no bulk buttons", () => {
+    setup({ rows })
+    expect(screen.getByText("4 books")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Remove$|Encrypt|Clear/ })).not.toBeInTheDocument()
+  })
+
+  it("shows what can be done once books are selected", () => {
+    setup({ rows })
+    fireEvent.click(screen.getByLabelText("pick Dune"))
+    fireEvent.click(screen.getByLabelText("pick Emma"))
+    expect(screen.getByText("2 selected")).toBeInTheDocument()
+    for (const name of ["Clear", "Encrypt", "Remove"]) expect(screen.getByRole("button", { name })).toBeInTheDocument()
+  })
+
+  it("removes only the selected books after confirming", async () => {
+    const imp = setup({ rows })
+    fireEvent.click(screen.getByLabelText("pick Dune"))
+    fireEvent.click(screen.getByLabelText("pick Emma"))
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
+    expect(await screen.findByText("Remove 2 selected books from this list?")).toBeInTheDocument()
+    expect(imp.removeRows).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
+    expect(imp.removeRows).toHaveBeenCalledWith([rows[0], rows[1]])
+    await waitFor(() => expect(screen.queryByText("2 selected")).not.toBeInTheDocument())
+  })
+
+  it("encrypts the selected books, and offers to undo once all of them are encrypted", () => {
+    const imp = setup({ rows })
+    fireEvent.click(screen.getByLabelText("pick Dune"))
+    fireEvent.click(screen.getByRole("button", { name: "Encrypt" }))
+    expect(imp.encryptRows).toHaveBeenCalledWith([rows[0]], true)
+  })
+
+  it("says Don't encrypt when every selected book is already encrypted", () => {
+    const imp = setup({ rows: [{ id: 1, title: "Dune", state: "matched", encrypted: true }] })
+    fireEvent.click(screen.getByLabelText("pick Dune"))
+    fireEvent.click(screen.getByRole("button", { name: "Don't encrypt" }))
+    expect(imp.encryptRows).toHaveBeenCalledWith([expect.objectContaining({ id: 1 })], false)
+  })
+
+  it("selects the page, leaving out a book that is importing", () => {
+    setup({ rows })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }))
+    expect(screen.getByText("2 selected")).toBeInTheDocument()
+  })
+
+  it("offers Select all N in this view when the view is longer than the page, and acts on the whole view", async () => {
+    const imp = setup({ rows, total: 120 })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }))
+    fireEvent.click(screen.getByRole("button", { name: "Select all 120 in this view" }))
+    expect(screen.getByText("All 4 selected")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Encrypt" }))
+    expect(imp.bulk).toHaveBeenCalledWith("set_encrypted", true)
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
+    expect(await screen.findByText("Remove 4 books from this list?")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
+    expect(imp.bulk).toHaveBeenCalledWith("remove")
+  })
+
+  it("does not offer Select all when the page is the whole view", () => {
+    setup({ rows, total: 3 })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }))
+    expect(screen.queryByRole("button", { name: /Select all .* in this view/ })).not.toBeInTheDocument()
+  })
+
+  it("clears the selection on request and when the filter changes", () => {
+    setup({ rows })
+    fireEvent.click(screen.getByLabelText("pick Dune"))
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }))
+    expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText("pick Dune"))
+    fireEvent.click(screen.getByRole("button", { name: /^Matched/ }))
+    expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
+  })
+
+  it("says the header applies to a search, not to a count", () => {
+    setup({ rows })
+    fireEvent.change(screen.getByLabelText("Search title or file"), { target: { value: "dune" } })
+    expect(screen.getByText("Books matching this search")).toBeInTheDocument()
   })
 })

@@ -402,3 +402,35 @@ describe("Start over that keeps History", () => {
     expect(result.current.batchId).toBe(7) // the batch, and so the history, stays
   })
 })
+
+describe("encrypting several rows", () => {
+  const rowsOf = (n) => Array.from({ length: n }, (_, i) => ({ id: i + 1 }))
+
+  it("patches each row, and refetches", async () => {
+    importApi.patchRow = jest.fn().mockResolvedValue({})
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.encryptRows(rowsOf(3), true))
+    expect(importApi.patchRow.mock.calls.map((c) => [c[1], c[2]]).sort()).toEqual([[1, { encrypted: true }], [2, { encrypted: true }], [3, { encrypted: true }]])
+    expect(result.current.error).toBeNull()
+  })
+
+  it("reports how many could not be changed", async () => {
+    importApi.patchRow = jest.fn().mockImplementation(async (_b, id) => {
+      if (id === 2) throw new Error("409")
+      return {}
+    })
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.encryptRows(rowsOf(3), false))
+    expect(result.current.error).toBe("1 book could not be changed.")
+  })
+
+  it("does nothing for an empty selection", async () => {
+    importApi.patchRow = jest.fn()
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.encryptRows([], true))
+    expect(importApi.patchRow).not.toHaveBeenCalled()
+  })
+})

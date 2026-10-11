@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ExternalLink, RefreshCw, Trash2 } from "lucide-react"
+import { ExternalLink, Lock, LockOpen, RefreshCw, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -61,6 +61,11 @@ export function ImportTab() {
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [selected, setSelected] = useState<ReadonlyMap<number, ImportRow>>(new Map())
   const [confirmSelected, setConfirmSelected] = useState(false)
+  const [selectAll, setSelectAll] = useState(false) // every book in this view, not only the ones on this page
+  const clearSelection = () => {
+    setSelected(new Map())
+    setSelectAll(false)
+  }
   const limits = useImportLimits().data
 
   const filter: RowFilter = { ...FILTERS.find((f) => f.id === filterId)!.filter, ...(q.trim() ? { q: q.trim() } : {}) }
@@ -90,6 +95,10 @@ export function ImportTab() {
       for (const r of selectable) pageSelected ? next.delete(r.id) : next.set(r.id, r)
       return next
     })
+  // Encrypt flips to "Don't encrypt" once everything selected is already encrypted.
+  const encryptOff = selectAll ? allEncrypted : selected.size > 0 && [...selected.values()].every((r) => r.encrypted)
+  const toggleEncryptSelection = () =>
+    selectAll ? imp.bulk("set_encrypted", !encryptOff) : imp.encryptRows([...selected.values()], !encryptOff)
   const { summary, phase } = imp
   const counts = summary?.counts ?? {}
   const queued = counts.queued ?? 0
@@ -131,28 +140,6 @@ export function ImportTab() {
 
       {hasList && (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              {t("{{n}} books loaded. The list is kept for {{days}} days after your last change, then cleared.", { n: loadedCount, days: retention })}
-            </p>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" disabled={busy}>{t("Start over")}</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t("Clear the loaded books?")}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {importedCount > 0 ? t("Books already imported stay in the library and in History.") : t("Books already imported stay in the library.")}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => (importedCount > 0 ? imp.clearLoaded() : imp.clearBatch())}>{t("Clear loaded books")}</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
 
           {match?.status === "failed" ? (
             <Notice tone="error" action={<Button size="sm" onClick={() => imp.recheck("queued")} disabled={busy}>{t("Retry matching")}</Button>}>
@@ -177,13 +164,14 @@ export function ImportTab() {
               setTab("loaded")
               setFilterId("failed")
               setPage(0)
-              setSelected(new Map())
+              clearSelection()
             }}
             onRetryFailed={() => imp.runImport(true)}
             onStartAgain={() => imp.runImport()}
           />
 
           <Tabs value={tab} onValueChange={(v) => setTab(v as "loaded" | "history")}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
             <TabsList>
               <TabsTrigger value="loaded">
                 {t("Loaded")} <span className="ml-1 tabular-nums opacity-70">{loadedCount}</span>
@@ -192,15 +180,37 @@ export function ImportTab() {
                 {t("History")} <span className="ml-1 tabular-nums opacity-70">{importedCount}</span>
               </TabsTrigger>
             </TabsList>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" disabled={busy}>{t("Start over")}</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t("Clear the loaded books?")}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {importedCount > 0 ? t("Books already imported stay in the library and in History.") : t("Books already imported stay in the library.")}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => (importedCount > 0 ? imp.clearLoaded() : imp.clearBatch())}>{t("Clear loaded books")}</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            </div>
             <TabsContent value="loaded" className="mt-4 space-y-4">
 
-          {imp.uploading && <Progress label={t("Uploading files")} done={summary.staged} total={summary.staged + summary.unstaged} />}
+          {imp.uploading && (
+            <div className="space-y-1">
+              <Progress label={t("Uploading files")} done={summary.staged} total={summary.staged + summary.unstaged} />
+              <p className="text-xs text-muted-foreground">{t("Files are uploaded as books are matched, so you can leave this page.")}</p>
+            </div>
+          )}
           {imp.uploadFailed > 0 && !imp.uploading && (
             <Notice tone="error" action={<Button size="sm" onClick={imp.retryUploads}>{t("Try again")}</Button>}>
               {t("{{n}} files could not be uploaded.", { n: imp.uploadFailed })}
             </Notice>
           )}
-          <p className="text-sm text-muted-foreground">{t("Files are uploaded as books are matched, so you can leave this page.")}</p>
 
           {imp.notice && <Notice tone="info">{t(imp.notice)}</Notice>}
           {imp.missing > 0 && !imp.reconnecting && (
@@ -229,7 +239,14 @@ export function ImportTab() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                <AlertDialogAction onClick={() => imp.bulk("remove")}>{t("Remove")}</AlertDialogAction>
+                <AlertDialogAction
+                  onClick={() => {
+                    imp.bulk("remove")
+                    clearSelection()
+                  }}
+                >
+                  {t("Remove")}
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -245,7 +262,7 @@ export function ImportTab() {
                 <AlertDialogAction
                   onClick={() => {
                     imp.removeRows([...selected.values()])
-                    setSelected(new Map())
+                    clearSelection()
                   }}
                 >
                   {t("Remove")}
@@ -257,48 +274,50 @@ export function ImportTab() {
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Filter books")}>
             {FILTERS.map((f) => {
               const n = f.count(summary)
-              if (f.id === "failed" && !n) return null
+              if (!n && f.id !== "all" && f.id !== filterId) return null // a filter with nothing in it is noise
               return (
-                <Button key={f.id} size="sm" variant={filterId === f.id ? "default" : "outline"} aria-pressed={filterId === f.id} onClick={() => { setFilterId(f.id); setPage(0); setSelected(new Map()) }}>
+                <Button key={f.id} size="sm" variant={filterId === f.id ? "default" : "outline"} aria-pressed={filterId === f.id} onClick={() => { setFilterId(f.id); setPage(0); clearSelection() }}>
                   {t(f.label)} <span className="ml-1 tabular-nums opacity-80">{n}</span>
                 </Button>
               )
             })}
-            <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); setSelected(new Map()) }} placeholder={t("Search title or file")} aria-label={t("Search title or file")} className="ml-auto w-full @md:w-64" />
+            <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); clearSelection() }} placeholder={t("Search title or file")} aria-label={t("Search title or file")} className="ml-auto w-full @md:w-64" />
           </div>
 
           {imp.rows.length > 0 && (
-            // Bulk actions live with the list they act on, and say how many books they touch.
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-muted/40 px-3 py-2 text-sm" role="group" aria-label={t("Actions for the books shown")}>
+            // One quiet header: how many books, and, once some are selected, what can be done with them.
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 text-sm" role="group" aria-label={t("Actions for the books shown")}>
               <Checkbox
                 checked={pageSelected ? true : selectable.some((r) => selected.has(r.id)) ? "indeterminate" : false}
-                onCheckedChange={toggleSelectPage}
+                onCheckedChange={() => {
+                  setSelectAll(false)
+                  toggleSelectPage()
+                }}
                 aria-label={t("Select all on this page")}
               />
-              {selected.size > 0 ? (
-                <>
-                  <p className="mr-auto font-medium">{t("{{n}} selected", { n: selected.size })}</p>
-                  <Button size="sm" variant="ghost" onClick={() => setSelected(new Map())}>{t("Clear selection")}</Button>
-                  <Button size="sm" variant="ghost" className="text-red-700 hover:text-red-800" onClick={() => setConfirmSelected(true)}>
-                    <Trash2 className="h-4 w-4" aria-hidden />
-                    {t("Remove selected")}
-                  </Button>
-                </>
+              {selected.size === 0 ? (
+                <p className="text-muted-foreground">
+                  {q.trim() ? t("Books matching this search") : t("{{n}} books", { n: activeCount })}
+                </p>
               ) : (
                 <>
-                  <p className="mr-auto text-muted-foreground">
-                    {q.trim() ? t("Applies to the books matching this search") : t("Applies to {{n}} books in this view", { n: activeCount })}
+                  <p className="font-medium">
+                    {selectAll ? t("All {{n}} selected", { n: activeCount }) : t("{{n}} selected", { n: selected.size })}
                   </p>
-                  <label className="flex items-center gap-1.5">
-                    <Checkbox
-                      checked={allEncrypted ? true : anyEncrypted ? "indeterminate" : false}
-                      onCheckedChange={() => imp.bulk("set_encrypted", !allEncrypted)}
-                    />
-                    {t("Encrypt all")}
-                  </label>
-                  <Button size="sm" variant="ghost" className="text-red-700 hover:text-red-800" onClick={() => setConfirmRemove(true)}>
+                  {!selectAll && pageSelected && total !== undefined && total > imp.rows.length && (
+                    <Button size="sm" variant="link" className="h-auto p-0" onClick={() => setSelectAll(true)}>
+                      {t("Select all {{n}} in this view", { n: total })}
+                    </Button>
+                  )}
+                  <span className="mr-auto" />
+                  <Button size="sm" variant="ghost" onClick={clearSelection}>{t("Clear")}</Button>
+                  <Button size="sm" variant="ghost" onClick={toggleEncryptSelection}>
+                    {encryptOff ? <LockOpen className="h-4 w-4" aria-hidden /> : <Lock className="h-4 w-4" aria-hidden />}
+                    {encryptOff ? t("Don't encrypt") : t("Encrypt")}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-red-700 hover:text-red-800" onClick={() => (selectAll ? setConfirmRemove(true) : setConfirmSelected(true))}>
                     <Trash2 className="h-4 w-4" aria-hidden />
-                    {t("Remove all")}
+                    {t("Remove")}
                   </Button>
                 </>
               )}
@@ -324,6 +343,7 @@ export function ImportTab() {
           )}
 
           {total !== undefined && <Pager page={page} total={total} pageSize={PAGE_SIZE} onPage={setPage} />}
+          <p className="text-center text-xs text-muted-foreground">{t("Kept for {{days}} days after your last change.", { days: retention })}</p>
 
           <div className="sticky bottom-0 -mx-2 flex flex-wrap items-center gap-2 border-t bg-background/95 px-2 py-3 backdrop-blur">
             <p className="mr-auto text-sm">
