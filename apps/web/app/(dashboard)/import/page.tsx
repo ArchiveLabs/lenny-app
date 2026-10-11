@@ -1,45 +1,52 @@
 "use client"
 
-import { Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { Search, Upload } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
-import { ImportTab } from "@/components/import/ImportTab"
-import { RedeemTab } from "@/components/import/RedeemTab"
+import { SourceList } from "@/components/import/SourceList"
 
-function ImportPage() {
+export default function ImportHub() {
   const { t } = useTranslation()
-  const router = useRouter()
-  const tab = useSearchParams().get("tab") === "redeem" ? "redeem" : "import"
-
   return (
-    <div className="@container flex flex-col gap-6 p-2 md:p-6 lg:p-8 animate-in fade-in duration-500">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">{t("Import & Redeem")}</h1>
-        <p className="text-muted-foreground max-w-2xl">
-          {t("Add EPUB files from your computer, or redeem a bundle code.")}
-        </p>
-      </div>
-      <Tabs value={tab} onValueChange={(v) => router.replace(v === "redeem" ? "/import?tab=redeem" : "/import")}>
-        <TabsList>
-          <TabsTrigger value="import">{t("Import")}</TabsTrigger>
-          <TabsTrigger value="redeem">{t("Redeem")}</TabsTrigger>
-        </TabsList>
-        <TabsContent value="import" className="mt-6">
-          <ImportTab />
-        </TabsContent>
-        <TabsContent value="redeem" className="mt-6">
-          <RedeemTab />
-        </TabsContent>
-      </Tabs>
+    <div className="flex flex-col gap-10 p-2 md:p-6 lg:p-8 animate-in fade-in duration-500">
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight">{t("Import")}</h1>
+          <p className="text-muted-foreground">{t("Add EPUB files from your computer.")}</p>
+        </div>
+        <SourceList
+          sources={[
+            {
+              title: t("Upload Files from Computer"),
+              description: t("Drop a folder or many EPUBs. Books are matched to Open Library and reviewed before they are imported."),
+              href: "/import/upload",
+              icon: <Upload className="h-5 w-5 text-muted-foreground" aria-hidden />,
+            },
+          ]}
+        />
+      </section>
+
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-3xl font-bold tracking-tight">{t("Redeem")}</h2>
+          <p className="text-muted-foreground">{t("Choose a source to redeem a bundle or code from.")}</p>
+        </div>
+        <SourceList
+          sources={[
+            {
+              title: t("Redeem from BRIET Marketplace"),
+              description: t("Redeem a BRIET bundle code to import every book it contains."),
+              href: "/import/briet",
+              // eslint-disable-next-line @next/next/no-img-element
+              icon: <img src="/admin/briet-logo.svg" alt="" className="h-full w-full object-contain" />,
+            },
+            {
+              title: t("Search all Marketplaces..."),
+              description: t("Coming soon."),
+              icon: <Search className="h-5 w-5 text-muted-foreground" aria-hidden />,
+            },
+          ]}
+        />
+      </section>
     </div>
-  )
-}
-
-export default function Page() {
-  return (
-    <Suspense>
-      <ImportPage />
-    </Suspense>
   )
 }

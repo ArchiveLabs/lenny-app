@@ -61,7 +61,7 @@ function ImportStatusBadge({ status, error }: { status: ImportJob["status"]; err
   }
 }
 
-export function RedeemTab() {
+export function BrietRedeem() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [code, setCode] = useState("")
