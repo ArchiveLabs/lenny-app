@@ -74,3 +74,11 @@ it("reads staged on rows and the staged/unstaged counts on the batch, defaulting
   expect(ImportBatchSummarySchema.parse({ ...b, staged: 3, unstaged: 2 })).toMatchObject({ staged: 3, unstaged: 2 })
   expect(ImportRowSchema.parse({ id: 1, path: "a", size: 1, mtime: 1, state: "matched", decision: "auto" }).staged).toBe(false)
 })
+
+it("reads the import job on a batch, which may be missing or null", () => {
+  const b = { id: 1, created_at: "t", expires_at: "t", total: 1, counts: {} }
+  const job = { id: "j", status: "running", total: 5, done: 2 }
+  expect(ImportBatchSummarySchema.parse({ ...b, import: job }).import).toMatchObject({ status: "running", imported: 0, waiting: 0 })
+  expect(ImportBatchSummarySchema.parse({ ...b, import: null }).import).toBeNull()
+  expect(ImportBatchSummarySchema.parse(b).import).toBeUndefined()
+})

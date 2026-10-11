@@ -20,6 +20,21 @@ export const BatchMatchSchema = z.object({
 })
 export type BatchMatch = z.infer<typeof BatchMatchSchema>
 
+// The server-side import of a batch: one job at a time, kept while the server process lives.
+export const ImportJobSchema = z.object({
+  id: z.string(),
+  status: z.enum(["queued", "running", "done", "failed"]),
+  total: z.number(),
+  done: z.number(),
+  imported: z.number().default(0),
+  duplicate: z.number().default(0),
+  failed: z.number().default(0),
+  waiting: z.number().default(0), // ready rows whose file has not reached the server
+  error: z.string().nullish(),
+})
+export type ImportJob = z.infer<typeof ImportJobSchema>
+export const isImportActive = (j: Pick<ImportJob, "status"> | null | undefined) => j?.status === "queued" || j?.status === "running"
+
 export const ImportBatchSummarySchema = z.object({
   id: z.number(),
   created_at: z.string(),
@@ -33,6 +48,7 @@ export const ImportBatchSummarySchema = z.object({
   staged: z.number().default(0), // matched rows whose file is already on the server
   unstaged: z.number().default(0), // matched, not skipped, file not sent yet
   match: BatchMatchSchema.nullish(), // latest match job; null after a server restart
+  import: ImportJobSchema.nullish(), // newest import job; null before the first and after a server restart
 })
 export type ImportBatchSummary = z.infer<typeof ImportBatchSummarySchema>
 

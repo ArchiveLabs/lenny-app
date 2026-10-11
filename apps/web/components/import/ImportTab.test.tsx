@@ -378,3 +378,62 @@ describe("book details panel", () => {
     expect(screen.queryByText("L/dune.epub")).not.toBeInTheDocument()
   })
 })
+
+describe("server-side import", () => {
+  const job = (over = {}) => ({ id: "j", status: "done", total: 10, done: 10, imported: 7, duplicate: 1, failed: 2, waiting: 0, error: null, ...over })
+
+  it("shows an Imported filter chip with its count only once something is imported", () => {
+    setup({ summary: summary({ counts: { matched: 2, imported: 6 } }) })
+    expect(screen.getByRole("button", { name: /^Imported/ })).toHaveTextContent("6")
+  })
+
+  it("has no Imported chip before any import", () => {
+    setup()
+    expect(screen.queryByRole("button", { name: /^Imported/ })).not.toBeInTheDocument()
+  })
+
+  it("asks the hook for the Imported filter when its chip is chosen", () => {
+    setup({ summary: summary({ counts: { matched: 2, imported: 6 } }) })
+    fireEvent.click(screen.getByRole("button", { name: /^Imported/ }))
+    expect(useImport).toHaveBeenLastCalledWith({ state: "imported" }, 0)
+  })
+
+  it("disables Import and says Importing… while the server runs it", () => {
+    setup({ importing: true })
+    const button = screen.getByRole("button", { name: /Importing…/ })
+    expect(button).toBeDisabled()
+    expect(screen.queryByRole("button", { name: /Stop after/ })).not.toBeInTheDocument()
+  })
+
+  it("shows the running status panel from the summary, as after a reload", () => {
+    setup({ importing: true, summary: summary({ counts: { matched: 1, imported: 4 }, import: job({ status: "running", done: 4, total: 10 }) }) })
+    expect(screen.getByText("Importing 4 of 10")).toBeInTheDocument()
+    expect(screen.getByText("You can leave this page. The import continues on the server.")).toBeInTheDocument()
+  })
+
+  it("shows the result when done, and Show failed switches to the Failed filter", () => {
+    setup({ summary: summary({ counts: { imported: 7, failed: 2 }, import: job() }) })
+    expect(screen.getByText("7 imported. 1 were already in your library. 2 failed.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show failed" }))
+    expect(useImport).toHaveBeenLastCalledWith({ state: "failed" }, 0)
+  })
+
+  it("retries failed rows through the hook", () => {
+    const imp = setup({ summary: summary({ counts: { imported: 7, failed: 2 }, import: job() }) })
+    fireEvent.click(screen.getByRole("button", { name: "Retry failed" }))
+    expect(imp.runImport).toHaveBeenCalledWith(true)
+  })
+
+  it("starts again after a failed job", () => {
+    const imp = setup({ summary: summary({ import: job({ status: "failed", error: "boom" }) }) })
+    fireEvent.click(screen.getByRole("button", { name: "Start again" }))
+    expect(imp.runImport).toHaveBeenCalledWith()
+  })
+
+  it("starts the import once, with no arguments, from the Import button", () => {
+    const imp = setup()
+    fireEvent.click(screen.getByRole("button", { name: "Import 2 books" }))
+    expect(imp.runImport).toHaveBeenCalledTimes(1)
+    expect(imp.runImport).toHaveBeenCalledWith()
+  })
+})

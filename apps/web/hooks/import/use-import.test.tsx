@@ -30,7 +30,7 @@ beforeEach(() => {
     putRows: jest.fn().mockResolvedValue({ created: 0, existing: 0 }),
     startMatch: jest.fn().mockResolvedValue({}),
     stageFile: jest.fn().mockResolvedValue({ staged: true }),
-    importRow: jest.fn().mockResolvedValue({ state: "imported" }),
+    startImport: jest.fn().mockResolvedValue({ id: "j", status: "running", total: 1, done: 0 }),
   })
 })
 
@@ -55,21 +55,20 @@ it("saves rows 500 per call then starts matching", async () => {
   expect(result.current.phase.kind).toBe("idle")
 })
 
-it("imports only rows whose file is in memory and reports the rest as missing", async () => {
-  importApi.listBatches.mockResolvedValue({ batches: [] })
+it("starts one server-side import instead of looping over rows", async () => {
   const { result } = renderHook(() => useImport({}), { wrapper })
-  await waitFor(() => expect(result.current.resumed).toBe(true))
-  const picked = pick(1)
-  const f = picked[0].file
-  await act(() => result.current.addFiles(picked))
-  const mk = (id, path) => ({ id, path, size: 1, mtime: f.lastModified, state: "matched", decision: "auto" })
-  importApi.rows.mockResolvedValue({ rows: [mk(1, "L/b0.epub"), mk(2, "L/gone.epub")], next_cursor: null })
-  let res
-  await act(async () => (res = await result.current.runImport()))
-  expect(importApi.stageFile).toHaveBeenCalledTimes(1) // not on the server yet: sent first
-  expect(importApi.importRow).toHaveBeenCalledTimes(1)
-  expect(importApi.importRow.mock.calls[0][1]).toBe(1)
-  expect(res.missing).toBe(1)
+  await waitFor(() => expect(result.current.summary?.id).toBe(7))
+  await act(() => result.current.runImport())
+  expect(importApi.startImport).toHaveBeenCalledTimes(1)
+  expect(importApi.startImport).toHaveBeenCalledWith(7, {})
+  expect(importApi.stageFile).not.toHaveBeenCalled() // nothing in memory to send
+})
+
+it("asks the server to retry failed rows", async () => {
+  const { result } = renderHook(() => useImport({}), { wrapper })
+  await waitFor(() => expect(result.current.summary?.id).toBe(7))
+  await act(() => result.current.runImport(true))
+  expect(importApi.startImport).toHaveBeenCalledWith(7, { retry_failed: true })
 })
 
 describe("reconnecting files after a reload", () => {
@@ -111,17 +110,16 @@ describe("reconnecting files after a reload", () => {
     expect(result.current.hasFile({ path: "a.epub", size: 1, mtime: 1000 })).toBe(true)
   })
 
-  it("keeps the files when an upload fails, and only Start over clears them", async () => {
+  it("keeps the files when starting the import fails, and only Start over clears them", async () => {
     importApi.listBatches.mockResolvedValue({ batches: [] })
     importApi.deleteBatch = jest.fn().mockResolvedValue({})
     const { result } = renderHook(() => useImport({}), { wrapper })
     await waitFor(() => expect(result.current.resumed).toBe(true))
     await act(() => result.current.addFiles([fileAt("a.epub", "a.epub")]))
     importApi.rows.mockResolvedValue({ rows: [mk(1, "a.epub")], next_cursor: null })
-    importApi.importRow.mockRejectedValue(new Error("boom"))
-    let res
-    await act(async () => (res = await result.current.runImport()))
-    expect(res.failed).toBe(1)
+    importApi.startImport.mockRejectedValue(new Error("boom"))
+    await act(() => result.current.runImport())
+    expect(result.current.error).toBe("boom")
     expect(result.current.attachedCount).toBe(1)
     await act(() => result.current.clearBatch())
     expect(result.current.attachedCount).toBe(0)
@@ -292,5 +290,58 @@ describe("Start over on an expired list", () => {
     const { result } = renderHook(() => useImport({}), { wrapper })
     await waitFor(() => expect(result.current.summary?.id).toBe(7))
     await expect(act(() => result.current.clearBatch())).rejects.toThrow("boom")
+  })
+})
+
+describe("import state from the server alone", () => {
+  const job = (status, over = {}) => ({ id: "j", status, total: 5, done: 2, imported: 2, duplicate: 0, failed: 0, waiting: 0, ...over })
+  const withJob = (j, counts = { matched: 3, imported: 2 }) => ({ ...summary(7, counts), total: 5, import: j })
+
+  it("is importing after a reload while the job runs, with no click on this page", async () => {
+    importApi.batch.mockResolvedValue(withJob(job("running")))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.importing).toBe(true))
+    expect(result.current.importJob?.done).toBe(2)
+    expect(importApi.startImport).not.toHaveBeenCalled()
+  })
+
+  it("treats a queued job as importing too", async () => {
+    importApi.batch.mockResolvedValue(withJob(job("queued", { done: 0 })))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.importing).toBe(true))
+  })
+
+  it("is importing from the row counts when the job is gone (server restart)", async () => {
+    importApi.batch.mockResolvedValue(withJob(null, { importing: 3, imported: 2 }))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.importing).toBe(true))
+  })
+
+  it.each(["done", "failed"])("is not importing once the job is %s", async (status) => {
+    importApi.batch.mockResolvedValue(withJob(job(status), { matched: 3, imported: 2 }))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.importJob?.status).toBe(status))
+    expect(result.current.importing).toBe(false)
+  })
+
+  it("is importing between pressing the button and the job showing up", async () => {
+    let finish
+    importApi.startImport.mockImplementation(() => new Promise((ok) => (finish = () => ok(job("running")))))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    let run
+    act(() => { run = result.current.runImport() })
+    await waitFor(() => expect(result.current.importing).toBe(true))
+    await act(async () => { finish(); await run })
+    expect(result.current.importing).toBe(false)
+  })
+
+  it("does not warn about leaving while the server runs the import", async () => {
+    const add = jest.spyOn(window, "addEventListener")
+    importApi.batch.mockResolvedValue(withJob(job("running")))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.importing).toBe(true))
+    expect(add.mock.calls.some(([t]) => t === "beforeunload")).toBe(false)
+    add.mockRestore()
   })
 })

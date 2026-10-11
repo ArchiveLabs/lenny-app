@@ -33,17 +33,6 @@ it("PUTs rows as JSON", async () => {
   expect(JSON.parse(init.body).rows).toHaveLength(1)
 })
 
-it("uploads the file as multipart field 'file'", async () => {
-  ;(fetchAdmin as jest.Mock).mockReturnValue(
-    ok({ id: 5, path: "a.epub", size: 1, mtime: 2, state: "imported", decision: "auto" }),
-  )
-  const row = await importApi.uploadFile(1, 5, new Blob(["x"]))
-  const [path, init] = (fetchAdmin as jest.Mock).mock.calls[0]
-  expect(path).toBe("import/batches/1/rows/5/file")
-  expect(init.body.get("file")).toBeTruthy()
-  expect(row.state).toBe("imported")
-})
-
 it("surfaces API errors", async () => {
   ;(fetchAdmin as jest.Mock).mockReturnValue(ok({ detail: "Batch expired" }, 410))
   await expect(importApi.batch(1)).rejects.toThrow("Batch expired")
@@ -55,7 +44,7 @@ it("DELETEs a single row and returns the updated batch", async () => {
   expect(fetchAdmin).toHaveBeenCalledWith("import/batches/3/rows/9", { method: "DELETE" })
 })
 
-it("stages a file with PUT multipart and imports a staged row with a bodyless POST", async () => {
+it("stages a file with PUT multipart", async () => {
   const row = { id: 9, path: "a.epub", size: 1, mtime: 1, state: "matched", decision: "auto", staged: true }
   ;(fetchAdmin as jest.Mock).mockReturnValue(ok(row))
   expect((await importApi.stageFile(3, 9, new Blob(["x"]))).staged).toBe(true)
@@ -63,10 +52,6 @@ it("stages a file with PUT multipart and imports a staged row with a bodyless PO
   expect(path).toBe("import/batches/3/rows/9/staged")
   expect(init.method).toBe("PUT")
   expect(init.body.get("file")).toBeTruthy()
-
-  ;(fetchAdmin as jest.Mock).mockReturnValue(ok({ ...row, state: "imported", staged: false }))
-  await importApi.importRow(3, 9)
-  expect((fetchAdmin as jest.Mock).mock.calls[1]).toEqual(["import/batches/3/rows/9/import", { method: "POST" }])
 })
 
 it("searches editions for a row with the text encoded", async () => {
@@ -81,4 +66,14 @@ it("asks for a page by offset and limit", async () => {
   const page = await importApi.rows(3, { state: "matched", offset: 100, limit: 50 })
   expect(fetchAdmin).toHaveBeenCalledWith("import/batches/3/rows?state=matched&offset=100&limit=50")
   expect(page.total).toBe(120)
+})
+
+it("starts the server-side import, optionally retrying failed rows", async () => {
+  const job = { id: "j", status: "running", total: 5, done: 0, imported: 0, duplicate: 0, failed: 0, waiting: 0 }
+  ;(fetchAdmin as jest.Mock).mockImplementation(() => ok(job, 202))
+  expect((await importApi.startImport(3)).status).toBe("running")
+  expect((fetchAdmin as jest.Mock).mock.calls[0][0]).toBe("import/batches/3/import")
+  expect((fetchAdmin as jest.Mock).mock.calls[0][1].method).toBe("POST")
+  await importApi.startImport(3, { retry_failed: true })
+  expect(JSON.parse((fetchAdmin as jest.Mock).mock.calls[1][1].body)).toEqual({ retry_failed: true })
 })

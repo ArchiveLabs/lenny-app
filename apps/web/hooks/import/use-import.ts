@@ -9,13 +9,12 @@ import { clearHandle, ensureReadPermission, hasReadPermission, loadHandle, pickD
 import { chunk, ingest, pool } from "@/lib/import/ingest"
 import { ApiError } from "@/types/api"
 import type { PickedFile } from "@/lib/import/walk"
-import type { ImportRow } from "@/types/import"
+import { isImportActive, type ImportRow } from "@/types/import"
 
 export type Phase =
   | { kind: "idle" }
   | { kind: "reading"; done: number; total: number }
   | { kind: "saving"; done: number; total: number }
-  | { kind: "importing"; done: number; total: number; failed: number }
 
 // Poll fast at first, then back off; react-query pauses polling while the tab is hidden.
 export const pollInterval = (updates: number) => (updates < 30 ? 2000 : updates < 90 ? 5000 : 10000)
@@ -61,11 +60,11 @@ export function useImport(filter: RowFilter, page = 0) {
   // A browser cannot keep File objects across a reload, so after one they are re-attached by dropping
   // again or by reconnecting the remembered folder. Between routes they stay in the module-level
   // importFiles. Only clearBatch and removeRow shrink it: errors must never lose the files.
-  const cancelled = useRef(false)
   const [missing, setMissing] = useState(0) // matched, unskipped rows with no file attached
   const [notice, setNotice] = useState<string | null>(null)
   const [version, setVersion] = useState(0) // bumps when files are attached, to recount
   const [uploading, setUploading] = useState(false) // staging files in the background
+  const [starting, setStarting] = useState(false) // between pressing Import and the server's job existing
   const [failedIds, setFailedIds] = useState<ReadonlySet<number>>(new Set()) // rows whose upload gave up
   const [reconnecting, setReconnecting] = useState(false) // silent reconnect in progress
   const [folderName, setFolderName] = useState<string | null>(null) // remembered folder (Chromium)
@@ -90,7 +89,7 @@ export function useImport(filter: RowFilter, page = 0) {
       const c = q.state.data?.counts
       // A failed match leaves rows queued but nothing is running: stop polling until the admin retries.
       const matching = (c?.queued ?? 0) > 0 && q.state.data?.match?.status !== "failed"
-      const busy = !!c && (matching || (c.importing ?? 0) > 0)
+      const busy = !!c && (matching || (c.importing ?? 0) > 0 || isImportActive(q.state.data?.import))
       return busy || uploading || phase.kind !== "idle" ? pollInterval(q.state.dataUpdateCount) : false
     },
   })
@@ -117,6 +116,9 @@ export function useImport(filter: RowFilter, page = 0) {
 
   const ready = summary.data?.ready
   const unstaged = summary.data?.unstaged ?? 0
+  const importJob = summary.data?.import ?? null
+  // From the server alone, so it is true after a reload or in another tab too.
+  const importing = starting || isImportActive(importJob) || (summary.data?.counts.importing ?? 0) > 0
   const matchStatus = summary.data?.match?.status
   const queuedRows = summary.data?.counts.queued ?? 0
   const matching = queuedRows > 0 && matchStatus !== "failed"
@@ -128,16 +130,15 @@ export function useImport(filter: RowFilter, page = 0) {
   }, [batchId, ready, matching, idle, version, recount])
 
   // Leaving now would lose the attached files (and stop a running import).
-  const importing = phase.kind === "importing"
   useEffect(() => {
-    if (!(importing || uploading || (importFiles.size > 0 && unstaged > 0))) return
+    if (!(uploading || (importFiles.size > 0 && unstaged > 0))) return
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ""
     }
     window.addEventListener("beforeunload", warn)
     return () => window.removeEventListener("beforeunload", warn)
-  }, [importing, uploading, unstaged, version])
+  }, [uploading, unstaged, version])
 
   const refresh = useCallback(() => {
     qc.invalidateQueries({ queryKey: ["import-batch", batchId] })
@@ -147,40 +148,44 @@ export function useImport(filter: RowFilter, page = 0) {
   // Send each matched, unskipped row's file to the server in the background, so a reload or a killed tab
   // loses nothing. One pass at a time; a change during a pass schedules another. Rows that still fail after
   // retries are left alone until the admin retries (gaveUp), so a bad file cannot loop.
-  const staging = useRef(false)
+  const staging = useRef<Promise<void> | null>(null)
   const again = useRef(false)
   const gaveUp = useRef(new Set<number>())
-  const stage = useCallback(async () => {
-    if (batchId === null) return
+  /** Resolves when the running pass, including any that were asked for meanwhile, has finished. */
+  const stage = useCallback((): Promise<void> => {
+    if (batchId === null) return Promise.resolve()
     if (staging.current) {
       again.current = true
-      return
+      return staging.current
     }
-    staging.current = true
     setUploading(true)
-    try {
-      do {
-        again.current = false
-        const todo = (await allRows(batchId, { state: "matched", staged: false })).filter(
-          (r) => importFiles.has(r) && !gaveUp.current.has(r.id),
-        )
-        await pool(todo, UPLOADS_IN_FLIGHT, async (row) => {
-          try {
-            await withRetry(() => importApi.stageFile(batchId, row.id, importFiles.get(row)!))
-            gaveUp.current.delete(row.id)
-          } catch {
-            gaveUp.current.add(row.id)
-          }
-        })
-      } while (again.current)
-    } catch (e) {
-      setError(errMsg(e))
-    } finally {
-      staging.current = false
-      setFailedIds(new Set(gaveUp.current))
-      setUploading(false)
-      refresh()
-    }
+    const run = (async () => {
+      try {
+        do {
+          again.current = false
+          const todo = (await allRows(batchId, { state: "matched", staged: false })).filter(
+            (r) => importFiles.has(r) && !gaveUp.current.has(r.id),
+          )
+          await pool(todo, UPLOADS_IN_FLIGHT, async (row) => {
+            try {
+              await withRetry(() => importApi.stageFile(batchId, row.id, importFiles.get(row)!))
+              gaveUp.current.delete(row.id)
+            } catch {
+              gaveUp.current.add(row.id)
+            }
+          })
+        } while (again.current)
+      } catch (e) {
+        setError(errMsg(e))
+      } finally {
+        staging.current = null
+        setFailedIds(new Set(gaveUp.current))
+        setUploading(false)
+        refresh()
+      }
+    })()
+    staging.current = run
+    return run
   }, [batchId, refresh])
 
   const retryUploads = useCallback(() => {
@@ -190,9 +195,9 @@ export function useImport(filter: RowFilter, page = 0) {
   }, [stage])
 
   useEffect(() => {
-    if (batchId === null || unstaged === 0 || importFiles.size === 0 || phase.kind === "importing") return
+    if (batchId === null || unstaged === 0 || importFiles.size === 0) return
     stage()
-  }, [batchId, unstaged, sig, version, phase.kind, stage])
+  }, [batchId, unstaged, sig, version, stage])
 
   // Queued rows with no live job mean the server restarted and lost it: start it again, once per page load.
   const restarted = useRef(false)
@@ -380,43 +385,28 @@ export function useImport(filter: RowFilter, page = 0) {
     [batchId, filter, refresh],
   )
 
-  /** Import every matched, unskipped row on the server. A row not staged yet is uploaded first. Returns how many have no file anywhere. */
-  const runImport = useCallback(async () => {
-    if (batchId === null) return { missing: 0, failed: 0 }
-    cancelled.current = false
-    setError(null)
-    let ready: ImportRow[]
-    try {
-      // skipped: false only guards books skipped before Skip was removed; the server still honours the flag.
-      ready = await allRows(batchId, { state: "matched", skipped: false })
-    } catch (e) {
-      setError(errMsg(e))
-      return { missing: 0, failed: 0 }
-    }
-    const sendable = ready.filter((r) => r.staged || importFiles.has(r))
-    let done = 0
-    let failed = 0
-    setPhase({ kind: "importing", done, total: sendable.length, failed })
-    await pool(sendable, UPLOADS_IN_FLIGHT, async (row) => {
-      if (cancelled.current) return
+  /**
+   * Start the server-side import. Files not yet on the server are uploaded first; then one call starts a job
+   * that keeps running if this page closes. Its progress comes back in the batch summary.
+   */
+  const runImport = useCallback(
+    async (retryFailed = false) => {
+      if (batchId === null) return
+      setError(null)
+      setStarting(true)
       try {
-        if (!row.staged) await importApi.stageFile(batchId, row.id, importFiles.get(row)!)
-        const res = await importApi.importRow(batchId, row.id)
-        if (res.state === "failed" || res.state === "not_epub") failed++
-      } catch {
-        failed++ // staged or still attached, so Import can simply be pressed again
+        if (importFiles.size > 0) await stage()
+        await importApi.startImport(batchId, retryFailed ? { retry_failed: true } : {})
+        forceFreshLibraryOnNextVisit()
+      } catch (e) {
+        setError(errMsg(e))
+      } finally {
+        setStarting(false)
+        refresh()
       }
-      setPhase({ kind: "importing", done: ++done, total: sendable.length, failed })
-    })
-    setPhase({ kind: "idle" })
-    forceFreshLibraryOnNextVisit()
-    refresh()
-    return { missing: ready.length - sendable.length, failed }
-  }, [batchId, refresh])
-
-  const cancelImport = useCallback(() => {
-    cancelled.current = true
-  }, [])
+    },
+    [batchId, stage, refresh],
+  )
 
   const clearBatch = useCallback(async () => {
     if (batchId === null) return
@@ -453,7 +443,8 @@ export function useImport(filter: RowFilter, page = 0) {
     removeRow,
     removeRows,
     runImport,
-    cancelImport,
+    importJob,
+    importing,
     clearBatch,
     reconnecting,
     uploading,

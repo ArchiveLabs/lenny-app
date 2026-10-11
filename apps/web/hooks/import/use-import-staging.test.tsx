@@ -31,7 +31,7 @@ beforeEach(() => {
     batch: jest.fn().mockResolvedValue(batch()),
     rows: jest.fn().mockResolvedValue({ rows: [1, 2, 3, 4, 5].map((i) => row(i)), next_cursor: null }),
     stageFile: jest.fn().mockResolvedValue({ staged: true }),
-    importRow: jest.fn().mockResolvedValue({ state: "imported" }),
+    startImport: jest.fn().mockResolvedValue({ id: "j", status: "running", total: 2, done: 0 }),
     startMatch: jest.fn().mockResolvedValue({}),
   })
 })
@@ -49,7 +49,7 @@ it("sends matched rows' files to the server in the background, three at a time, 
   mount()
   await waitFor(() => expect(importApi.stageFile).toHaveBeenCalledTimes(5))
   expect(peak).toBeLessThanOrEqual(3)
-  expect(importApi.importRow).not.toHaveBeenCalled()
+  expect(importApi.startImport).not.toHaveBeenCalled()
 })
 
 it("does not resend rows already on the server or with no file here", async () => {
@@ -83,26 +83,46 @@ it("retries a failing upload, then stops and reports it until the admin tries ag
   await waitFor(() => expect(result.current.uploadFailed).toBe(0))
 })
 
-it("imports staged rows on the server with no file in memory and nothing to reconnect", async () => {
+it("starts the server import without sending any file when everything is already staged", async () => {
   importApi.batch.mockResolvedValue(batch({ staged: 5, unstaged: 0 }))
-  importApi.rows.mockResolvedValue({ rows: [1, 2].map((i) => row(i, { staged: true })), next_cursor: null })
   const { result } = mount()
   await waitFor(() => expect(result.current.summary?.staged).toBe(5))
-  let res
-  await act(async () => (res = await result.current.runImport()))
+  await act(() => result.current.runImport())
   expect(importApi.stageFile).not.toHaveBeenCalled() // no bytes move
-  expect(importApi.importRow.mock.calls.map((c) => c[1])).toEqual([1, 2])
-  expect(res).toEqual({ missing: 0, failed: 0 })
+  expect(importApi.startImport).toHaveBeenCalledTimes(1)
 })
 
-it("uploads a row that is not staged yet before importing it", async () => {
+it("uploads the files that are not on the server yet before starting the import", async () => {
   attach(1)
-  importApi.batch.mockResolvedValue(batch({ unstaged: 0 })) // keep the background pass out of the way
+  importApi.batch.mockResolvedValue(batch({ unstaged: 1 }))
   importApi.rows.mockResolvedValue({ rows: [row(1)], next_cursor: null })
   const { result } = mount()
-  await waitFor(() => expect(result.current.summary?.id).toBe(7))
-  await act(async () => { await result.current.runImport() })
-  expect(importApi.stageFile.mock.invocationCallOrder[0]).toBeLessThan(importApi.importRow.mock.invocationCallOrder[0])
+  await waitFor(() => expect(result.current.summary?.unstaged).toBe(1))
+  await act(() => result.current.runImport())
+  expect(importApi.stageFile).toHaveBeenCalled()
+  expect(importApi.stageFile.mock.invocationCallOrder[0]).toBeLessThan(importApi.startImport.mock.invocationCallOrder[0])
+})
+
+it("waits for a running upload pass instead of racing it", async () => {
+  attach(1)
+  let release
+  let onServer = false
+  importApi.stageFile.mockImplementation(
+    () => new Promise((ok) => (release = () => { onServer = true; ok({ staged: true }) })),
+  )
+  importApi.batch.mockResolvedValue(batch({ unstaged: 1 }))
+  importApi.rows.mockImplementation(async () => ({ rows: onServer ? [] : [row(1)], next_cursor: null }))
+  const { result } = mount()
+  await waitFor(() => expect(importApi.stageFile).toHaveBeenCalledTimes(1)) // the background pass is mid-upload
+  const run = result.current.runImport() // pressed while the background pass is still uploading
+  await new Promise((ok) => setTimeout(ok, 30))
+  expect(importApi.startImport).not.toHaveBeenCalled()
+  await act(async () => {
+    release()
+    await run
+  })
+  expect(importApi.startImport).toHaveBeenCalledTimes(1)
+  expect(importApi.stageFile).toHaveBeenCalledTimes(1) // not uploaded twice
 })
 
 it("counts as missing only rows with no file on the server and none in memory", async () => {

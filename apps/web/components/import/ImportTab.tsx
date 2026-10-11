@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { ExternalLink, RefreshCw, Trash2 } from "lucide-react"
-import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -21,6 +20,7 @@ import type { PickedFile } from "@/lib/import/walk"
 import type { ImportBatchSummary, ImportRow } from "@/types/import"
 import { DropZone } from "./DropZone"
 import { ADD_ON_OPEN_LIBRARY_URL, EditionSheet } from "./EditionSheet"
+import { ImportStatus } from "./ImportStatus"
 import { Pager } from "./Pager"
 import { RowDetails } from "./RowDetails"
 import { RowList } from "./RowList"
@@ -31,6 +31,7 @@ const FILTERS = [
   { id: "needs_review", label: "Needs review", filter: { state: "needs_review" }, count: (s: ImportBatchSummary) => s.counts.needs_review ?? 0 },
   { id: "no_match", label: "No match", filter: { state: "no_match" }, count: (s: ImportBatchSummary) => s.counts.no_match ?? 0 },
   { id: "duplicate", label: "Duplicate", filter: { state: "duplicate" }, count: (s: ImportBatchSummary) => s.counts.duplicate ?? 0 },
+  { id: "imported", label: "Imported", filter: { state: "imported" }, count: (s: ImportBatchSummary) => s.counts.imported ?? 0 },
   { id: "failed", label: "Failed", filter: { state: "failed" }, count: (s: ImportBatchSummary) => s.counts.failed ?? 0 },
 ] as const satisfies readonly { id: string; label: string; filter: RowFilter; count: (s: ImportBatchSummary) => number }[]
 
@@ -112,19 +113,11 @@ export function ImportTab() {
   const hasList = !!summary && summary.total > 0
   const noMatch = counts.no_match ?? 0
   const busy = phase.kind !== "idle"
-  const importing = phase.kind === "importing"
   const retention = limits?.retention_days ?? 30
   const dragging = useWindowDrop(imp.addFiles, imp.reportError, !busy)
 
   const pick = (f: PickedFile[]) =>
     f.length ? imp.addFiles(f) : imp.reportError(t("No files found in what you chose. Empty folders and hidden files are ignored."))
-
-  const startImport = async () => {
-    const res = await imp.runImport()
-    if (res.missing) toast.warning(t("{{n}} books need their file. Drop the folder again to send them.", { n: res.missing }))
-    else if (res.failed) toast.error(t("{{n}} books failed. See the Failed filter.", { n: res.failed }))
-    else toast.success(t("Import finished."))
-  }
 
   // Resuming a batch takes a moment; a grey block that then turns into something else looks like a glitch.
   if (imp.loading) return null
@@ -147,7 +140,6 @@ export function ImportTab() {
 
       {phase.kind === "reading" && <Progress label={t("Reading books")} done={phase.done} total={phase.total} />}
       {phase.kind === "saving" && <Progress label={t("Saving the list")} done={phase.done} total={phase.total} />}
-      {importing && <Progress label={t("Importing")} done={phase.done} total={phase.total} />}
 
       {hasList && (
         <>
@@ -186,6 +178,18 @@ export function ImportTab() {
               />
             )
           )}
+
+          <ImportStatus
+            summary={summary}
+            disabled={busy || imp.importing}
+            onShowFailed={() => {
+              setFilterId("failed")
+              setPage(0)
+              setSelected(new Map())
+            }}
+            onRetryFailed={() => imp.runImport(true)}
+            onStartAgain={() => imp.runImport()}
+          />
 
           {imp.uploading && <Progress label={t("Uploading files")} done={summary.staged} total={summary.staged + summary.unstaged} />}
           {imp.uploadFailed > 0 && !imp.uploading && (
@@ -250,7 +254,7 @@ export function ImportTab() {
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Filter books")}>
             {FILTERS.map((f) => {
               const n = f.count(summary)
-              if (f.id === "failed" && !n) return null
+              if ((f.id === "failed" || f.id === "imported") && !n) return null
               return (
                 <Button key={f.id} size="sm" variant={filterId === f.id ? "default" : "outline"} aria-pressed={filterId === f.id} onClick={() => { setFilterId(f.id); setPage(0); setSelected(new Map()) }}>
                   {t(f.label)} <span className="ml-1 tabular-nums opacity-80">{n}</span>
@@ -339,14 +343,10 @@ export function ImportTab() {
                 </Button>
               </>
             )}
-            {importing ? (
-              <Button variant="outline" onClick={imp.cancelImport}>{t("Stop after current books")}</Button>
-            ) : (
-              <Button disabled={busy || summary.ready === 0} onClick={startImport}>
-                {busy && <Spinner className="mr-2" aria-hidden />}
-                {t("Import {{n}} books", { n: summary.ready })}
-              </Button>
-            )}
+            <Button disabled={busy || imp.importing || summary.ready === 0} onClick={() => imp.runImport()}>
+              {(busy || imp.importing) && <Spinner className="mr-2" aria-hidden />}
+              {imp.importing ? t("Importing…") : t("Import {{n}} books", { n: summary.ready })}
+            </Button>
           </div>
 
           <RowDetails

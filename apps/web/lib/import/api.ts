@@ -1,8 +1,8 @@
 import { z } from "zod"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import {
-  DuplicateCheckSchema, EditionLookupSchema, ImportBatchListSchema, ImportBatchSummarySchema,
-  ImportCandidatesSchema, ImportLimitsSchema, ImportRowPageSchema, ImportRowSchema, MatchJobSchema,
+  DuplicateCheckSchema, ImportBatchListSchema, ImportBatchSummarySchema,
+  ImportCandidatesSchema, ImportLimitsSchema, ImportJobSchema, ImportRowPageSchema, ImportRowSchema, MatchJobSchema,
   type ImportRowState,
 } from "@/types/import"
 
@@ -70,8 +70,6 @@ export const importApi = {
   /** Live search scored against the row: words, an ISBN, an edition key or an openlibrary.org link. q is 2+ characters. */
   searchEditions: (id: number, rowId: number, q: string) =>
     fetchAdmin(`${base(id)}/rows/${rowId}/search${query({ q })}`).then((r) => handleApiResponse(r, ImportCandidatesSchema)),
-  lookupEdition: (key: string) =>
-    fetchAdmin(`import/editions/lookup${query({ key })}`).then((r) => handleApiResponse(r, EditionLookupSchema)),
   checkDuplicates: (olids: number[]) =>
     fetchAdmin("import/check-duplicates", json("POST", { olids })).then((r) =>
       handleApiResponse(r, DuplicateCheckSchema),
@@ -84,14 +82,7 @@ export const importApi = {
       handleApiResponse(r, ImportRowSchema),
     )
   },
-  /** Imports a staged row on the server. No file bytes move. */
-  importRow: (id: number, rowId: number) =>
-    fetchAdmin(`${base(id)}/rows/${rowId}/import`, { method: "POST" }).then((r) => handleApiResponse(r, ImportRowSchema)),
-  uploadFile: (id: number, rowId: number, file: Blob) => {
-    const form = new FormData()
-    form.append("file", file)
-    return fetchAdmin(`${base(id)}/rows/${rowId}/file`, { method: "POST", body: form }).then((r) =>
-      handleApiResponse(r, ImportRowSchema),
-    )
-  },
+  /** Starts the server-side import of every ready row whose file is staged. It keeps running if the page closes. */
+  startImport: (id: number, body: { retry_failed?: boolean } = {}) =>
+    fetchAdmin(`${base(id)}/import`, json("POST", body)).then((r) => handleApiResponse(r, ImportJobSchema)),
 }
