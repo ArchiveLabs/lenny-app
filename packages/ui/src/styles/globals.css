@@ -129,4 +129,33 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /*
+   * Everything is sized in rem, so the root size scales the whole app: a little smaller on phones and tablets,
+   * full size on a desktop. The media queries use the browser's own size, so they do not move with this.
+   */
+  html {
+    font-size: 14px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  @media (min-width: 640px) {
+    html {
+      font-size: 15px;
+    }
+  }
+  @media (min-width: 1024px) {
+    html {
+      font-size: 16px;
+    }
+  }
+
+  /* iOS zooms the page when a field under 16px is focused: keep fields at 16px on phones and small tablets. */
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
 }
