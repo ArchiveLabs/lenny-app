@@ -63,3 +63,21 @@ describe("inCurrentLoad", () => {
     expect(inCurrentLoad(done("2026-10-11T10:05:00Z"), null)).toBe(false)
   })
 })
+
+it("ignores jobs with no source when counting a Standard Ebooks load, and does not fail on them", async () => {
+  const now = new Date().toISOString()
+  fetchAdmin.mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      imports: [
+        { source: null, olid: 9, status: "downloading" }, // came in through the batch import
+        { source: "standardebooks", olid: 1, status: "done", title: "t", updated_at: now },
+      ],
+    }),
+  })
+  const { result } = renderHook(() => useLoadProgress(Date.now() - 60_000), { wrapper })
+  await waitFor(() => expect(result.current.done).toBe(1)) // the response parsed: it did not throw on the null source
+  expect(result.current.active).toBe(0) // the null-source download is not a Standard Ebooks one
+  expect(result.current.jobs).toHaveLength(1)
+})
