@@ -144,7 +144,6 @@ export function BookCard({
       title={book.title}
       author={author}
       coverUrl={coverUrl}
-      idBadge={book.olid}
       selectMode={selectMode}
       selected={selected}
       onSelectChange={onSelectChange}
@@ -164,11 +163,14 @@ export function BookCard({
       footer={
         <>
           <FormatBadge formats={book.lenny.formats} />
-          <div className="flex flex-col items-end">
-            <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60">{t("Copies")}</span>
-            <span className="text-xs font-bold text-foreground/80">{book.lenny.available_copies}</span>
+          {/* The copies and the share button sit together on the right */}
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">
+              <span className="font-bold text-foreground/80">{book.lenny.available_copies}</span>{" "}
+              {book.lenny.available_copies === 1 ? t("copy") : t("copies")}
+            </span>
+            {!selectMode && <ShareButton olid={book.olid} title={book.title} />}
           </div>
-          {!selectMode && <ShareButton olid={book.olid} title={book.title} />}
         </>
       }
     />

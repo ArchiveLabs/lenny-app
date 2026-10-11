@@ -210,36 +210,29 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="flex flex-col h-full space-y-10 p-2 md:p-6 lg:p-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div className="flex flex-col space-y-2 min-w-0">
-          <h2 className="text-3xl font-bold tracking-tight">{t("Lenny Library")}</h2>
-          <p className="text-muted-foreground text-base max-w-2xl">
-            {t("All books currently available in this Lenny instance, enriched with OpenLibrary metadata.")}
-          </p>
+    <div className="flex flex-col h-full space-y-8 p-2 md:p-6 lg:p-8">
+      {/* Header: the title with the sharing links on the right, then one row of controls */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-1">
+            <h2 className="text-3xl font-bold tracking-tight">{t("Lenny Library")}</h2>
+            <p className="max-w-2xl text-base text-muted-foreground">
+              {t("All books currently available in this Lenny instance, enriched with OpenLibrary metadata.")}
+            </p>
+          </div>
           <LibraryLinksBar />
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto sm:min-w-0 sm:flex-1">
-          {selectMode ? (
-            <>
-              <label className="flex items-center gap-2 text-sm font-medium mr-1 cursor-pointer select-none">
-                <Checkbox checked={allOnPageSelected} onCheckedChange={(c) => toggleSelectAllOnPage(!!c)} />
-                {t("Select all ({{count}})", { count: displayBooks.length })}
-              </label>
-              <Button variant="ghost" className="font-semibold" onClick={exitSelectMode}>
-                <X className="mr-2 h-4 w-4" />
-                {t("Cancel")}
-              </Button>
-            </>
-          ) : (
-            displayBooks.length > 0 && (
-              <Button variant="outline" className="font-semibold shadow-sm" onClick={() => setSelectMode(true)}>
-                <ListChecks className="mr-2 h-4 w-4" />
-                {t("Select")}
-              </Button>
-            )
-          )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1 sm:max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="w-full rounded-lg pl-9"
+              placeholder={t("Search title, author, edition…")}
+              value={query}
+              onChange={e => handleQueryChange(e.target.value)}
+            />
+          </div>
           <Select value={accessFilter} onValueChange={handleFilterChange}>
             <SelectTrigger className="w-[150px] rounded-lg font-semibold">
               <SelectValue />
@@ -250,21 +243,31 @@ export default function LibraryPage() {
               <SelectItem value="encrypted">{t("Encrypted")}</SelectItem>
             </SelectContent>
           </Select>
-
-          <div className="relative flex-1 min-w-[140px] sm:flex-none">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              className="pl-9 w-full sm:w-[220px] rounded-lg"
-              placeholder={t("Search title, author, edition…")}
-              value={query}
-              onChange={e => handleQueryChange(e.target.value)}
-            />
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {selectMode ? (
+              <>
+                <label className="mr-1 flex cursor-pointer select-none items-center gap-2 text-sm font-medium">
+                  <Checkbox checked={allOnPageSelected} onCheckedChange={(c) => toggleSelectAllOnPage(!!c)} />
+                  {t("Select all ({{count}})", { count: displayBooks.length })}
+                </label>
+                <Button variant="ghost" className="font-semibold" onClick={exitSelectMode}>
+                  <X className="mr-2 h-4 w-4" />
+                  {t("Cancel")}
+                </Button>
+              </>
+            ) : (
+              displayBooks.length > 0 && (
+                <Button variant="outline" className="font-semibold shadow-sm" onClick={() => setSelectMode(true)}>
+                  <ListChecks className="mr-2 h-4 w-4" />
+                  {t("Select")}
+                </Button>
+              )
+            )}
+            <Button variant="outline" className="font-semibold shadow-sm" onClick={handleRefetch} disabled={isFetching}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              {t("Refresh")}
+            </Button>
           </div>
-
-          <Button variant="outline" className="font-semibold shadow-sm" onClick={handleRefetch} disabled={isFetching}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-            {t("Refresh")}
-          </Button>
         </div>
       </div>
 
