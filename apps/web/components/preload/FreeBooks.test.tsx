@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { FreeBooks } from "./FreeBooks"
+import { ApiError } from "@/types/api"
 import { useCatalog, useCollections, useLoadBooks, useLoadProgress } from "@/hooks/preload/use-preload"
 
 jest.mock("@/hooks/preload/use-preload")
@@ -138,4 +139,76 @@ it("only counts this page's load: no start time until a load is accepted, then t
   fireEvent.click(screen.getByRole("button", { name: /Add 1 books/ }))
   await waitFor(() => expect(typeof useLoadProgress.mock.calls.at(-1)[0]).toBe("number"))
   expect(useLoadProgress.mock.calls.at(-1)[0]).toBeGreaterThanOrEqual(before)
+})
+
+describe("the page's chrome", () => {
+  const failedCatalog = (error) => catalog([], { isError: true, isSuccess: false, data: undefined, error })
+
+  it("does not repeat the page heading when the catalog has not loaded", () => {
+    setup({ cat: failedCatalog(new ApiError("Not Found", 404)) })
+    expect(screen.queryByText("Free books")).not.toBeInTheDocument()
+  })
+
+  it("says plainly that the service is missing on a 404, not a bare Not Found", () => {
+    const cat = failedCatalog(new ApiError("Not Found", 404))
+    setup({ cat })
+    expect(screen.getByRole("alert")).toHaveTextContent("Free books are not available on this server yet.")
+    expect(screen.queryByText("Not Found")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Try again" })) // the route may only be missing while the server reloads
+    expect(cat.refetch).toHaveBeenCalled()
+  })
+
+  it("says Open Library did not answer only for a 502", () => {
+    setup({ cat: failedCatalog(new ApiError("bad gateway", 502)) })
+    expect(screen.getByRole("alert")).toHaveTextContent("Open Library did not answer. Try again in a moment.")
+  })
+
+  it("hides search, filters and collections when the catalog could not load", () => {
+    setup({ cat: failedCatalog(new ApiError("Not Found", 404)) })
+    expect(screen.queryByLabelText("Search title, author or subject")).not.toBeInTheDocument()
+    expect(screen.queryByRole("group", { name: "Collections" })).not.toBeInTheDocument()
+  })
+
+  it("has no lone All chip when there are no collections", () => {
+    useCatalog.mockReturnValue(catalog([book(1)]))
+    useCollections.mockReturnValue({ data: { collections: [] } })
+    useLoadBooks.mockReturnValue({ mutateAsync, isPending: false })
+    useLoadProgress.mockReturnValue(progress())
+    render(<FreeBooks />)
+    expect(screen.queryByRole("group", { name: "Collections" })).not.toBeInTheDocument()
+  })
+
+  it("shows no add bar until something is picked", () => {
+    setup()
+    expect(screen.queryByText("Pick books to add")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^Add books$/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+    expect(screen.getByText("1 selected")).toBeInTheDocument()
+  })
+
+  it("tucks the list box away until it is wanted", () => {
+    setup()
+    const box = screen.getByLabelText("Add a list")
+    expect(box.closest("details")).not.toHaveAttribute("open")
+    expect(screen.getByText("Add a list of books")).toBeInTheDocument()
+  })
+
+  it("shows a refusal such as a running load as a warning, with the server's words", async () => {
+    mutateAsync.mockRejectedValue(new ApiError("A load is already running", 409))
+    setup()
+    fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+    fireEvent.click(screen.getByRole("button", { name: /Add 1 books/ }))
+    expect(await screen.findByRole("status")).toHaveTextContent("A load is already running")
+  })
+
+  it("shows progress as a bar while books are being added", () => {
+    setup({ prog: progress({ jobs: [1], active: 2, done: 3 }) })
+    expect(screen.getByRole("progressbar", { name: "Adding books: 3 done, 2 to go" })).toHaveAttribute("aria-valuenow", "60")
+  })
+
+  it("says how many were added once the load is done", () => {
+    setup({ prog: progress({ jobs: [1], active: 0, done: 5 }) })
+    expect(screen.getByText("5 books added")).toBeInTheDocument()
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument()
+  })
 })

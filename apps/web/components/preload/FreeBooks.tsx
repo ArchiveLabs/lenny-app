@@ -1,13 +1,18 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Check, Loader2, RefreshCw } from "lucide-react"
+import { Check, ChevronRight, RefreshCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
 import { Skeleton } from "@workspace/ui/components/skeleton"
+import { Spinner } from "@workspace/ui/components/spinner"
+import { ErrorNotice } from "@/components/ErrorNotice"
+import { Notice } from "@/components/import/Notice"
+import { ProgressPanel } from "@/components/import/ProgressPanel"
+import { ApiError } from "@/types/api"
 import { useCatalog, useCollections, useLoadBooks, useLoadProgress } from "@/hooks/preload/use-preload"
 import { MAX_LISTED_IDS, formatSize, parseBookList, type PreloadBook, type PreloadImportResult } from "@/types/preload"
 
@@ -62,7 +67,7 @@ export function FreeBooks() {
   const [picked, setPicked] = useState<Map<number, PreloadBook>>(new Map())
   const [list, setList] = useState("")
   const [listResult, setListResult] = useState<PreloadImportResult | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  const [runError, setRunError] = useState<unknown>(null)
 
   const catalog = useCatalog({ q, collection, hideOwned })
   const collections = useCollections().data?.collections ?? []
@@ -85,7 +90,7 @@ export function FreeBooks() {
     })
 
   const run = async (body: Parameters<typeof load.mutateAsync>[0]) => {
-    setMessage(null)
+    setRunError(null)
     const startedAt = Date.now()
     try {
       const res = await load.mutateAsync(body)
@@ -93,7 +98,7 @@ export function FreeBooks() {
       setSince((s) => s ?? startedAt)
       return res
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : t("Something went wrong."))
+      setRunError(e)
     }
   }
 
@@ -120,39 +125,57 @@ export function FreeBooks() {
 
   return (
     <div className="space-y-5">
-      <p className="text-lg font-semibold">
-        {head
-          ? t("{{n}} free books available · {{lib}} in your library", { n: head.available, lib: head.in_library })
-          : t("Free books")}
-      </p>
-
-      {message && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{message}</p>}
-
-      {(progress.jobs.length > 0) && (
-        <section aria-live="polite" className="space-y-2 rounded-xl border p-4">
-          <p className="flex items-center gap-2 font-semibold">
-            {running && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-            {running
-              ? t("Adding books: {{done}} done, {{active}} to go", { done: progress.done, active: progress.active })
-              : t("{{n}} books added", { n: progress.done })}
-          </p>
-          {progress.failed.length > 0 && (
-            <div className="space-y-2 text-sm">
-              <p className="text-red-700">{t("{{n}} failed", { n: progress.failed.length })}</p>
-              <ul className="list-inside list-disc text-muted-foreground">
-                {progress.failed.slice(0, 5).map((j) => (
-                  <li key={j.olid}>{j.title ?? `OL${j.olid}M`}{j.error ? `: ${j.error}` : ""}</li>
-                ))}
-              </ul>
-              <Button size="sm" variant="outline" disabled={load.isPending || running} onClick={retryFailed}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                {t("Retry failed")}
-              </Button>
-            </div>
-          )}
-        </section>
+      {head && (
+        <p className="text-sm text-muted-foreground">
+          {t("{{n}} free books available · {{lib}} in your library", { n: head.available, lib: head.in_library })}
+        </p>
       )}
 
+      {runError != null &&
+        // A refusal such as "a load is already running" is the server explaining itself; anything else gets the shared wording.
+        (runError instanceof ApiError && runError.status === 409 ? (
+          <Notice tone="warning">{runError.message}</Notice>
+        ) : (
+          <ErrorNotice
+            boxed
+            error={runError}
+            onRetry={() => setRunError(null)}
+            retryOn={[]}
+            texts={{ gone: "Adding books is not available on this server yet.", unreachable: "Open Library did not answer. Try again in a moment." }}
+          />
+        ))}
+
+      {running && (
+        <ProgressPanel
+          stages={[{
+            key: "adding",
+            label: t("Adding books: {{done}} done, {{active}} to go", { done: progress.done, active: progress.active }),
+            done: progress.done,
+            total: progress.done + progress.active,
+          }]}
+        />
+      )}
+      {!running && progress.jobs.length > 0 && progress.done > 0 && <Notice tone="success">{t("{{n}} books added", { n: progress.done })}</Notice>}
+      {progress.failed.length > 0 && (
+        <Notice
+          tone="warning"
+          action={
+            <Button size="sm" variant="outline" disabled={load.isPending || running} onClick={retryFailed}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {t("Retry failed")}
+            </Button>
+          }
+        >
+          <span className="block font-medium">{t("{{n}} failed", { n: progress.failed.length })}</span>
+          <ul className="list-inside list-disc text-xs">
+            {progress.failed.slice(0, 5).map((j) => (
+              <li key={j.olid}>{j.title ?? `OL${j.olid}M`}{j.error ? `: ${j.error}` : ""}</li>
+            ))}
+          </ul>
+        </Notice>
+      )}
+
+      {!catalog.isError && collections.length > 0 && (
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Collections")}>
         <Button size="sm" variant={collection === "" ? "default" : "outline"} aria-pressed={collection === ""} onClick={() => setCollection("")}>
           {t("All")}
@@ -163,7 +186,9 @@ export function FreeBooks() {
           </Button>
         ))}
       </div>
+      )}
 
+      {!catalog.isError && (
       <div className="flex flex-wrap items-center gap-4">
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("Search title, author or subject")} aria-label={t("Search title, author or subject")} className="max-w-sm" />
         <label className="flex min-h-11 items-center gap-2 text-sm">
@@ -181,6 +206,7 @@ export function FreeBooks() {
           </Button>
         )}
       </div>
+      )}
 
       {catalog.isLoading && (
         <div className="space-y-3" role="status">
@@ -193,10 +219,13 @@ export function FreeBooks() {
         </div>
       )}
       {catalog.isError && (
-        <div role="alert" className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <p>{(catalog.error as Error).message || t("Open Library did not answer.")}</p>
-          <Button size="sm" variant="outline" onClick={() => catalog.refetch()}>{t("Try again")}</Button>
-        </div>
+        <ErrorNotice
+          boxed
+          error={catalog.error}
+          onRetry={() => catalog.refetch()}
+          retryOn={["unreachable", "other", "gone"]}
+          texts={{ unreachable: "Open Library did not answer. Try again in a moment.", gone: "Free books are not available on this server yet." }}
+        />
       )}
       {catalog.isSuccess && books.length === 0 && <p className="rounded-xl border p-8 text-center text-muted-foreground">{t("No books match.")}</p>}
 
@@ -208,46 +237,50 @@ export function FreeBooks() {
       {catalog.hasNextPage && (
         <div className="text-center">
           <Button variant="outline" disabled={catalog.isFetchingNextPage} onClick={() => catalog.fetchNextPage()}>
-            {catalog.isFetchingNextPage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {catalog.isFetchingNextPage && <Spinner className="mr-2" aria-hidden />}
             {t("Show more")}
           </Button>
         </div>
       )}
 
-      <section className="space-y-2 rounded-xl border p-4">
-        <label htmlFor="book-list" className="font-semibold">{t("Add a list")}</label>
-        <p className="text-sm text-muted-foreground">{t("Paste Standard Ebooks ids or links, such as jane-austen/pride-and-prejudice. One per line or separated by commas.")}</p>
-        <textarea
-          id="book-list"
-          value={list}
-          onChange={(e) => setList(e.target.value)}
-          rows={4}
-          spellCheck={false}
-          className="w-full rounded-lg border bg-background p-3 font-mono text-sm"
-        />
-        <Button variant="outline" disabled={!list.trim() || load.isPending || running} onClick={addList}>{t("Add list")}</Button>
-        {listResult && (
-          <p role="status" className="text-sm">
-            {t("{{queued}} queued, {{owned}} already in your library, {{unknown}} not found", {
-              queued: listResult.queued, owned: listResult.already_in_library, unknown: listResult.unknown.length,
-            })}
-            {listResult.unknown.length > 0 && <span className="block text-muted-foreground">{listResult.unknown.join(", ")}</span>}
-          </p>
-        )}
-      </section>
+      <details className="group rounded-xl border">
+        <summary className="flex cursor-pointer list-none items-center gap-2 p-4 font-semibold">
+          <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" aria-hidden />
+          {t("Add a list of books")}
+        </summary>
+        <div className="space-y-2 px-4 pb-4">
+          <label htmlFor="book-list" className="text-sm font-medium">{t("Add a list")}</label>
+          <p className="text-sm text-muted-foreground">{t("Paste Standard Ebooks ids or links, such as jane-austen/pride-and-prejudice. One per line or separated by commas.")}</p>
+          <textarea
+            id="book-list"
+            value={list}
+            onChange={(e) => setList(e.target.value)}
+            rows={4}
+            spellCheck={false}
+            className="w-full rounded-lg border bg-background p-3 font-mono text-sm"
+          />
+          <Button variant="outline" disabled={!list.trim() || load.isPending || running} onClick={addList}>{t("Add list")}</Button>
+          {listResult && (
+            <p role="status" className="text-sm">
+              {t("{{queued}} queued, {{owned}} already in your library, {{unknown}} not found", {
+                queued: listResult.queued, owned: listResult.already_in_library, unknown: listResult.unknown.length,
+              })}
+              {listResult.unknown.length > 0 && <span className="block text-muted-foreground">{listResult.unknown.join(", ")}</span>}
+            </p>
+          )}
+        </div>
+      </details>
 
+      {picked.size > 0 && (
       <div className="sticky bottom-0 -mx-2 flex flex-wrap items-center gap-2 border-t bg-background/95 px-2 py-3 backdrop-blur">
-        <p className="mr-auto text-sm">
-          {picked.size > 0 ? t("{{n}} selected", { n: picked.size }) : t("Pick books to add")}
-        </p>
-        {picked.size > 0 && <Button variant="ghost" onClick={() => setPicked(new Map())}>{t("Clear")}</Button>}
+        <p className="mr-auto text-sm">{t("{{n}} selected", { n: picked.size })}</p>
+        <Button variant="ghost" onClick={() => setPicked(new Map())}>{t("Clear")}</Button>
         <Button disabled={picked.size === 0 || load.isPending || running} onClick={addPicked}>
-          {load.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {picked.size > 0
-            ? t("Add {{n}} books · ~{{size}}", { n: picked.size, size: formatSize(bytes) })
-            : t("Add books")}
+          {load.isPending && <Spinner className="mr-2" aria-hidden />}
+          {t("Add {{n}} books · ~{{size}}", { n: picked.size, size: formatSize(bytes) })}
         </Button>
       </div>
+      )}
     </div>
   )
 }
