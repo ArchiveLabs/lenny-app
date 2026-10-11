@@ -55,12 +55,14 @@ it("sends matched rows' files to the server in the background, three at a time, 
 it("does not resend rows already on the server, skipped rows, or rows with no file here", async () => {
   attach(1, 2, 3)
   importApi.rows.mockImplementation(async (_id, f) => ({
-    rows: [row(1, { staged: true }), row(2, { skipped: true }), row(3), row(4)].filter((r) => f.skipped === undefined || r.skipped === f.skipped),
+    rows: [row(1, { staged: true }), row(2, { skipped: true }), row(3), row(4)].filter((r) => (f.skipped === undefined || r.skipped === f.skipped) && (f.staged === undefined || r.staged === f.staged)),
     next_cursor: null,
   }))
   mount()
   await waitFor(() => expect(importApi.stageFile).toHaveBeenCalledTimes(1))
   expect(importApi.stageFile.mock.calls[0][1]).toBe(3)
+  // The pass asks the server only for rows still to be sent, not every matched row.
+  expect(importApi.rows).toHaveBeenCalledWith(7, expect.objectContaining({ state: "matched", skipped: false, staged: false }))
 })
 
 it("retries a failing upload, then stops and reports it until the admin tries again", async () => {

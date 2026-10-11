@@ -17,6 +17,7 @@ export interface RowFilter {
   state?: ImportRowState
   q?: string
   skipped?: boolean
+  staged?: boolean
   auto_picked?: boolean
 }
 

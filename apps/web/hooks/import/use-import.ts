@@ -158,8 +158,8 @@ export function useImport(filter: RowFilter) {
     try {
       do {
         again.current = false
-        const todo = (await allRows(batchId, { state: "matched", skipped: false })).filter(
-          (r) => !r.staged && importFiles.has(r) && !gaveUp.current.has(r.id),
+        const todo = (await allRows(batchId, { state: "matched", skipped: false, staged: false })).filter(
+          (r) => importFiles.has(r) && !gaveUp.current.has(r.id),
         )
         await pool(todo, UPLOADS_IN_FLIGHT, async (row) => {
           try {

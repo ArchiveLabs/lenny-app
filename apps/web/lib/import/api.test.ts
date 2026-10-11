@@ -18,6 +18,12 @@ it("sends row filters as a query string and drops empty ones", async () => {
   expect(fetchAdmin).toHaveBeenCalledWith("import/batches/3/rows?state=no_match&skipped=false&cursor=c1&limit=100")
 })
 
+it("filters rows by staged", async () => {
+  ;(fetchAdmin as jest.Mock).mockReturnValue(ok({ rows: [], next_cursor: null }))
+  await importApi.rows(3, { state: "matched", skipped: false, staged: false })
+  expect(fetchAdmin).toHaveBeenCalledWith("import/batches/3/rows?state=matched&skipped=false&staged=false&limit=100")
+})
+
 it("PUTs rows as JSON", async () => {
   ;(fetchAdmin as jest.Mock).mockReturnValue(ok({ created: 1, existing: 0 }))
   await importApi.putRows(1, [{ path: "a.epub", size: 1, mtime: 2 }])
