@@ -70,7 +70,9 @@ export function useImport(filter: RowFilter) {
     staleTime: 0,
     refetchInterval: (q) => {
       const c = q.state.data?.counts
-      const busy = !!c && ((c.queued ?? 0) > 0 || (c.importing ?? 0) > 0)
+      // A failed match leaves rows queued but nothing is running: stop polling until the admin retries.
+      const matching = (c?.queued ?? 0) > 0 && q.state.data?.match?.status !== "failed"
+      const busy = !!c && (matching || (c.importing ?? 0) > 0)
       return busy || phase.kind !== "idle" ? pollInterval(q.state.dataUpdateCount) : false
     },
   })
@@ -97,7 +99,10 @@ export function useImport(filter: RowFilter) {
   }, [])
 
   const ready = summary.data?.ready
-  const matching = (summary.data?.counts.queued ?? 0) > 0
+  const matchStatus = summary.data?.match?.status
+  const queuedRows = summary.data?.counts.queued ?? 0
+  const matching = queuedRows > 0 && matchStatus !== "failed"
+
   const idle = phase.kind === "idle"
   useEffect(() => {
     if (batchId === null || ready === undefined || matching || !idle) return
@@ -121,6 +126,13 @@ export function useImport(filter: RowFilter) {
     qc.invalidateQueries({ queryKey: ["import-rows", batchId] })
   }, [qc, batchId])
 
+  // Queued rows with no live job mean the server restarted and lost it: start it again, once per page load.
+  const restarted = useRef(false)
+  useEffect(() => {
+    if (batchId === null || restarted.current || queuedRows === 0 || (matchStatus && matchStatus !== "done")) return
+    restarted.current = true
+    importApi.startMatch(batchId).then(refresh, () => {}) // the failure shows up as match.failed on the next poll
+  }, [batchId, queuedRows, matchStatus, refresh])
   const addFiles = useCallback(
     async (picked: PickedFile[]) => {
       if (!picked.length) return

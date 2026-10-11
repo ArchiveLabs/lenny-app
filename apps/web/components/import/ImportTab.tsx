@@ -59,6 +59,7 @@ export function ImportTab() {
   const { summary, phase } = imp
   const counts = summary?.counts ?? {}
   const queued = counts.queued ?? 0
+  const match = summary?.match
   const noMatch = counts.no_match ?? 0
   const busy = phase.kind !== "idle"
   const importing = phase.kind === "importing"
@@ -122,7 +123,23 @@ export function ImportTab() {
             </AlertDialog>
           </div>
 
-          {queued > 0 && <Progress label={t("Matching with Open Library")} done={summary.total - queued - (counts.not_epub ?? 0)} total={summary.total - (counts.not_epub ?? 0)} />}
+          {match?.status === "failed" ? (
+            <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+              <p className="mr-auto">
+                {t("Matching stopped.")} {match.error}
+                {match.retry_after ? ` ${t("Try again in about {{n}} seconds.", { n: Math.ceil(match.retry_after) })}` : ""}
+              </p>
+              <Button size="sm" onClick={() => imp.recheck("queued")} disabled={busy}>{t("Retry matching")}</Button>
+            </div>
+          ) : (
+            queued > 0 && (
+              <Progress
+                label={match?.status === "running" ? t("Matched {{done}} of {{total}}", { done: match.done, total: match.total }) : t("Matching with Open Library")}
+                done={summary.total - queued - (counts.not_epub ?? 0)}
+                total={summary.total - (counts.not_epub ?? 0)}
+              />
+            )
+          )}
 
           {imp.notice && <p role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">{t(imp.notice)}</p>}
           {imp.missing > 0 && (

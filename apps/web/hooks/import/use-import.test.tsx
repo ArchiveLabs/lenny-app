@@ -138,3 +138,37 @@ describe("reconnecting files after a reload", () => {
     add.mockRestore()
   })
 })
+
+describe("match job status", () => {
+  const withMatch = (counts, match) => ({ ...summary(7, counts), total: 5, match })
+  const job = (status) => ({ id: "j", status, total: 5, done: 1, error: null, retry_after: null })
+
+  it("restarts matching once when rows are queued and no job exists", async () => {
+    importApi.batch.mockResolvedValue(withMatch({ queued: 3 }, null))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(importApi.startMatch).toHaveBeenCalledWith(7))
+    await act(async () => { await result.current.refresh() })
+    await waitFor(() => expect(importApi.batch.mock.calls.length).toBeGreaterThan(1))
+    expect(importApi.startMatch).toHaveBeenCalledTimes(1)
+  })
+
+  it("restarts when the last job is done but rows are still queued", async () => {
+    importApi.batch.mockResolvedValue(withMatch({ queued: 3 }, job("done")))
+    renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(importApi.startMatch).toHaveBeenCalledTimes(1))
+  })
+
+  it.each(["running", "queued", "failed"])("does not restart over a %s job", async (status) => {
+    importApi.batch.mockResolvedValue(withMatch({ queued: 3 }, job(status)))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.match?.status).toBe(status))
+    expect(importApi.startMatch).not.toHaveBeenCalled()
+  })
+
+  it("does not restart when nothing is queued", async () => {
+    importApi.batch.mockResolvedValue(withMatch({ matched: 5 }, null))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    expect(importApi.startMatch).not.toHaveBeenCalled()
+  })
+})

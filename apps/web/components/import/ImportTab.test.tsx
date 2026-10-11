@@ -139,3 +139,27 @@ it("shows a message when the folder picker returns nothing usable", () => {
   fireEvent.change(input, { target: { files: [] } })
   expect(imp.reportError).toHaveBeenCalledWith(expect.stringMatching(/No files found/))
 })
+
+describe("match status", () => {
+  const match = (over = {}) => ({ id: "j", status: "running", total: 30, done: 12, error: null, retry_after: null, ...over })
+  const queued = (m) => summary({ counts: { queued: 20, matched: 10 }, total: 30, match: m })
+
+  it("shows Matched done of total while the job runs", () => {
+    setup({ summary: queued(match()) })
+    expect(screen.getByText("Matched 12 of 30")).toBeInTheDocument()
+  })
+
+  it("shows the error, the wait and a Retry button when the job failed", () => {
+    const imp = setup({ summary: queued(match({ status: "failed", error: "Open Library is rate limiting us", retry_after: 42.2 })) })
+    expect(screen.getByRole("alert")).toHaveTextContent("Open Library is rate limiting us")
+    expect(screen.getByRole("alert")).toHaveTextContent("Try again in about 43 seconds.")
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Retry matching" }))
+    expect(imp.recheck).toHaveBeenCalledWith("queued")
+  })
+
+  it("omits the wait when retry_after is not set", () => {
+    setup({ summary: queued(match({ status: "failed", error: "boom" })) })
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Try again")
+  })
+})

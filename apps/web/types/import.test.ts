@@ -59,3 +59,11 @@ describe("#246 schemas", () => {
     expect(EditionLookupSchema.parse({ olid: 1 }).in_library).toBe(false)
   })
 })
+
+it("parses the batch match job, which may be null or missing", () => {
+  const b = { id: 7, created_at: "t", expires_at: "t", total: 2, counts: {} }
+  const job = { id: "j", status: "failed", total: 2, done: 0, error: "rate limited", retry_after: 30 }
+  expect(ImportBatchSummarySchema.parse({ ...b, match: job }).match?.retry_after).toBe(30)
+  expect(ImportBatchSummarySchema.parse({ ...b, match: null }).match).toBeNull()
+  expect(ImportBatchSummarySchema.parse(b).match).toBeUndefined()
+})

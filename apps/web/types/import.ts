@@ -10,6 +10,16 @@ export type ImportRowState = z.infer<typeof ImportRowStateSchema>
 export const ImportDecisionSchema = z.enum(["auto", "user"])
 export type ImportDecision = z.infer<typeof ImportDecisionSchema>
 
+export const BatchMatchSchema = z.object({
+  id: z.string(),
+  status: z.enum(["queued", "running", "done", "failed"]),
+  total: z.number(),
+  done: z.number(),
+  error: z.string().nullish(),
+  retry_after: z.number().nullish(), // seconds
+})
+export type BatchMatch = z.infer<typeof BatchMatchSchema>
+
 export const ImportBatchSummarySchema = z.object({
   id: z.number(),
   created_at: z.string(),
@@ -20,6 +30,7 @@ export const ImportBatchSummarySchema = z.object({
   encrypted: z.number().default(0),
   ready: z.number().default(0), // matched and not skipped
   auto_picked: z.number().default(0),
+  match: BatchMatchSchema.nullish(), // latest match job; null after a server restart
 })
 export type ImportBatchSummary = z.infer<typeof ImportBatchSummarySchema>
 
