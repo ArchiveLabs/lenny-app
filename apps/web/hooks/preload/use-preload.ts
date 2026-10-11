@@ -29,6 +29,17 @@ export function useCatalog(f: { q: string; collection: string; hideOwned: boolea
   })
 }
 
+/** One book's details. Open Library is asked on the first call (a second or two) and the server caches it for hours. */
+export function usePreloadBook(olid: number | null) {
+  return useQuery({
+    queryKey: ["preload-book", olid],
+    queryFn: () => preloadApi.book(olid!),
+    enabled: olid !== null,
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+}
+
 export function useCollections() {
   return useQuery({ queryKey: ["preload-collections"], queryFn: preloadApi.collections, staleTime: 5 * 60_000 })
 }

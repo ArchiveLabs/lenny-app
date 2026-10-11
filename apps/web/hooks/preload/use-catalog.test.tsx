@@ -39,3 +39,22 @@ it("still shows the first load as loading", async () => {
   expect(result.current.isLoading).toBe(true)
   expect(result.current.data).toBeUndefined()
 })
+
+describe("usePreloadBook", () => {
+  const { usePreloadBook } = require("./use-preload")
+  const wrapper = ({ children }) => <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+
+  it("asks for nothing until a book is chosen", () => {
+    preloadApi.book = jest.fn()
+    renderHook(() => usePreloadBook(null), { wrapper })
+    expect(preloadApi.book).not.toHaveBeenCalled()
+  })
+
+  it("loads the chosen book's details, and does not retry a failure on its own", async () => {
+    preloadApi.book = jest.fn().mockRejectedValue(new Error("boom"))
+    const { result } = renderHook(() => usePreloadBook(7), { wrapper })
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(preloadApi.book).toHaveBeenCalledTimes(1)
+    expect(preloadApi.book).toHaveBeenCalledWith(7)
+  })
+})

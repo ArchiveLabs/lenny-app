@@ -40,3 +40,10 @@ it("checks archive.org now", async () => {
   expect(await preloadApi.refresh()).toEqual({ started: false })
   expect((fetchAdmin as jest.Mock).mock.calls.at(-1)).toEqual(["preload/refresh", { method: "POST" }])
 })
+
+it("fetches one book's details", async () => {
+  fetchAdmin.mockImplementation(() => ok({ olid: 7, title: "T", source_id: "a/b", details_loaded: false }))
+  const b = await preloadApi.book(7)
+  expect(fetchAdmin).toHaveBeenCalledWith("preload/books/7")
+  expect(b).toMatchObject({ olid: 7, details_loaded: false, languages: [], all_subjects: [], links: {} })
+})

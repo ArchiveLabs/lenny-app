@@ -1,4 +1,4 @@
-import { PreloadCatalogSchema, formatSize, parseBookList } from "./preload"
+import { PreloadBookDetailsSchema, PreloadCatalogSchema, formatSize, parseBookList } from "./preload"
 
 describe("parseBookList", () => {
   it("splits on whitespace, commas and newlines, and dedupes", () => {
@@ -63,5 +63,24 @@ describe("what is new in the catalog", () => {
     expect(c.books[0]).toMatchObject({ is_new: false })
     expect(c.books[0]!.added_at).toBeUndefined()
     expect(c).toMatchObject({ new: 0, refreshing: false })
+  })
+})
+
+describe("a book's details", () => {
+  it("reads everything Open Library adds", () => {
+    const b = PreloadBookDetailsSchema.parse({
+      olid: 7, title: "T", source_id: "a/b", cover_url_large: "/big.jpg", publisher: "Ace", publish_date: "2014-05-25", pages: 380, isbn: "9780000000002",
+      languages: ["eng"], description: "d", all_subjects: ["x"], links: { open_library: "https://o", standard_ebooks: "https://s", archive_org: "https://a" }, details_loaded: true,
+    })
+    expect(b).toMatchObject({ publisher: "Ace", pages: 380, languages: ["eng"], links: { open_library: "https://o" }, details_loaded: true })
+  })
+
+  it("accepts nulls for the optional fields, and the catalog-only answer when Open Library is down", () => {
+    const b = PreloadBookDetailsSchema.parse({ olid: 7, title: "T", source_id: "a/b", pages: null, isbn: null, publisher: null, description: null, size: 0, details_loaded: false })
+    expect(b).toMatchObject({ pages: null, details_loaded: false, languages: [], all_subjects: [], links: {} })
+  })
+
+  it("assumes the details loaded when the server does not say", () => {
+    expect(PreloadBookDetailsSchema.parse({ olid: 7, title: "T", source_id: "a/b" }).details_loaded).toBe(true)
   })
 })

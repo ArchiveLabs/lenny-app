@@ -17,6 +17,25 @@ export const PreloadBookSchema = z.object({
 })
 export type PreloadBook = z.infer<typeof PreloadBookSchema>
 
+// GET /admin/preload/books/{olid}: the catalog fields plus what Open Library knows. When Open Library did not answer,
+// details_loaded is false and only the catalog fields are present; any of the rest can be null or empty.
+export const PreloadBookDetailsSchema = PreloadBookSchema.extend({
+  cover_url_large: z.string().nullish(),
+  publisher: z.string().nullish(),
+  publish_date: z.string().nullish(),
+  pages: z.number().nullish(),
+  isbn: z.string().nullish(),
+  languages: z.array(z.string()).default([]),
+  description: z.string().nullish(),
+  all_subjects: z.array(z.string()).default([]),
+  links: z
+    .object({ open_library: z.string().nullish(), standard_ebooks: z.string().nullish(), archive_org: z.string().nullish() })
+    .partial()
+    .default({}),
+  details_loaded: z.boolean().default(true),
+})
+export type PreloadBookDetails = z.infer<typeof PreloadBookDetailsSchema>
+
 export const PreloadCatalogSchema = z.object({
   books: z.array(PreloadBookSchema),
   total: z.number(),

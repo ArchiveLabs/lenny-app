@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, ChevronRight, RefreshCw } from "lucide-react"
+import { ChevronRight, RefreshCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -11,6 +11,7 @@ import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { ErrorNotice, errorKind } from "@/components/ErrorNotice"
 import { Notice } from "@/components/import/Notice"
+import { BookDetails } from "./BookDetails"
 import { EmptyPreload } from "./EmptyPreload"
 import { ProgressPanel } from "@/components/import/ProgressPanel"
 import { ApiError } from "@/types/api"
@@ -47,18 +48,13 @@ const writeSort = (v: CatalogSort) => {
   }
 }
 
-function BookTile({ book, selected, onToggle }: { book: PreloadBook; selected: boolean; onToggle: () => void }) {
+function BookTile({ book, selected, onToggle, onOpen }: { book: PreloadBook; selected: boolean; onToggle: () => void; onOpen: () => void }) {
   const { t } = useTranslation()
   const owned = book.in_library
   return (
-    <li>
-      <button
-        type="button"
-        disabled={owned}
-        aria-pressed={selected}
-        onClick={onToggle}
-        className={`group relative flex h-full w-full flex-col gap-2 rounded-xl border p-2 text-left transition-colors enabled:hover:bg-muted/50 disabled:opacity-70 ${selected ? "border-primary ring-2 ring-primary" : ""}`}
-      >
+    <li className={`relative rounded-xl border transition-colors hover:bg-muted/50 ${selected ? "border-primary ring-2 ring-primary" : ""}`}>
+      {/* The card opens the details; the checkbox, on its own, picks the book. */}
+      <button type="button" onClick={onOpen} className="flex h-full w-full flex-col gap-2 rounded-xl p-2 text-left">
         <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted">
           {book.cover_url && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -68,17 +64,20 @@ function BookTile({ book, selected, onToggle }: { book: PreloadBook; selected: b
           {book.is_new && (
             <Badge variant="secondary" className="absolute bottom-2 left-2 bg-green-100 text-green-800">{t("New")}</Badge>
           )}
-          {selected && (
-            <span className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
-              <Check className="h-4 w-4" aria-hidden />
-            </span>
-          )}
         </div>
         <span className="line-clamp-2 min-h-10 text-sm font-semibold leading-tight">{book.title}</span>
         <span className="line-clamp-1 text-xs text-muted-foreground">
           {[book.authors.join(", "), book.year].filter(Boolean).join(" · ")}
         </span>
       </button>
+      {!owned && (
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onToggle}
+          aria-label={t("Select {{name}}", { name: book.title })}
+          className="absolute right-3 top-3 h-5 w-5 bg-background shadow-sm"
+        />
+      )}
     </li>
   )
 }
@@ -90,6 +89,7 @@ export function FreeBooks() {
   const [collection, setCollection] = useState("")
   const [hideOwned, setHideOwned] = useState(false)
   const [newOnly, setNewOnly] = useState(false)
+  const [viewing, setViewing] = useState<number | null>(null) // the book whose details are open
   const [sort, setSort] = useState<CatalogSort>(readSort)
   // One "Show" menu replaces the rows of chips: all books, the new ones, or a collection.
   const view = newOnly ? NEW_VIEW : collection
@@ -338,7 +338,7 @@ export function FreeBooks() {
           className={`grid grid-cols-2 gap-3 transition-opacity sm:grid-cols-4 lg:grid-cols-6 ${catalog.isPlaceholderData ? "opacity-60" : ""}`}
           aria-busy={catalog.isPlaceholderData}
         >
-          {books.map((b) => <BookTile key={b.olid} book={b} selected={picked.has(b.olid)} onToggle={() => toggle(b)} />)}
+          {books.map((b) => <BookTile key={b.olid} book={b} selected={picked.has(b.olid)} onToggle={() => toggle(b)} onOpen={() => setViewing(b.olid)} />)}
         </ul>
       )}
       {catalog.hasNextPage && (
@@ -389,6 +389,17 @@ export function FreeBooks() {
         </Button>
       </div>
       )}
+      <BookDetails
+        olid={viewing}
+        listed={books.find((b) => b.olid === viewing)}
+        busy={load.isPending || running}
+        onAdd={(olid) => run({ olids: [olid] })}
+        onClose={() => setViewing(null)}
+        onGone={() => {
+          setViewing(null)
+          catalog.refetch()
+        }}
+      />
     </div>
   )
 }

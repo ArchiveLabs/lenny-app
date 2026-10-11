@@ -2,7 +2,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { FreeBooks } from "./FreeBooks"
 import { ApiError } from "@/types/api"
-import { useCatalog, useCatalogRefresh, useCollections, useLoadBooks, useLoadProgress } from "@/hooks/preload/use-preload"
+import { useCatalog, useCatalogRefresh, useCollections, useLoadBooks, useLoadProgress, usePreloadBook } from "@/hooks/preload/use-preload"
 import { toast } from "sonner"
 
 jest.mock("@/hooks/preload/use-preload")
@@ -25,11 +25,13 @@ const catalog = (books, over = {}) => ({
 })
 const mutateAsync = jest.fn()
 const refresh = jest.fn()
+const idleBook = { data: undefined, isLoading: false, isError: false, isFetching: false, error: null, refetch: jest.fn() }
 const progress = (over = {}) => ({ jobs: [], active: 0, done: 0, failed: [], ...over })
 
-const setup = ({ cat = catalog([book(1), book(2), book(3, { in_library: true })]), prog = progress(), refreshState = {} } = {}) => {
+const setup = ({ cat = catalog([book(1), book(2), book(3, { in_library: true })]), prog = progress(), refreshState = {}, bookState = idleBook } = {}) => {
   useCatalog.mockReturnValue(cat)
   useCatalogRefresh.mockReturnValue({ checking: false, error: null, refresh, ...refreshState })
+  usePreloadBook.mockReturnValue(bookState)
   useCollections.mockReturnValue({ data: { collections: [{ id: "poetry", name: "Poetry", count: 12, in_library: 0 }] } })
   useLoadBooks.mockReturnValue({ mutateAsync, isPending: false })
   useLoadProgress.mockReturnValue(prog)
@@ -48,22 +50,23 @@ it("shows the available and in-library counts", () => {
   expect(screen.getByText("190 free books available · 7 in your library")).toBeInTheDocument()
 })
 
-it("disables books already in the library and labels them", () => {
+it("cannot pick a book already in the library, but can still open it, and labels it", () => {
   setup()
-  expect(screen.getByRole("button", { name: /Book 3/ })).toBeDisabled()
+  expect(screen.queryByRole("checkbox", { name: "Select Book 3" })).not.toBeInTheDocument()
+  expect(screen.getByRole("button", { name: /Book 3/ })).toBeEnabled()
   expect(screen.getByText("In library")).toBeInTheDocument()
 })
 
 it("totals the size of the selection in the add bar", () => {
   setup()
-  fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
-  fireEvent.click(screen.getByRole("button", { name: /Book 2/ }))
+  fireEvent.click(screen.getByRole("checkbox", { name: "Select Book 1" }))
+  fireEvent.click(screen.getByRole("checkbox", { name: "Select Book 2" }))
   expect(screen.getByRole("button", { name: "Add 2 books · ~4 MB" })).toBeEnabled()
 })
 
 it("adds the selected books by edition id", async () => {
   setup()
-  fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+  fireEvent.click(screen.getByRole("checkbox", { name: "Select Book 1" }))
   fireEvent.click(screen.getByRole("button", { name: /Add 1 books/ }))
   await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ olids: [1] }))
 })
@@ -80,7 +83,7 @@ it("splits a selection larger than 200 into several requests", async () => {
 it("keeps the selection and shows the reason when the server refuses (409)", async () => {
   mutateAsync.mockRejectedValue(new Error("A load is already running"))
   setup()
-  fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+  fireEvent.click(screen.getByRole("checkbox", { name: "Select Book 1" }))
   fireEvent.click(screen.getByRole("button", { name: /Add 1 books/ }))
   expect(await screen.findByRole("alert")).toHaveTextContent("A load is already running")
   expect(screen.getByText("1 selected")).toBeInTheDocument()
@@ -142,7 +145,7 @@ it("only counts this page's load: no start time until a load is accepted, then t
   setup()
   expect(useLoadProgress).toHaveBeenLastCalledWith(null)
   const before = Date.now()
-  fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+  fireEvent.click(screen.getByRole("checkbox", { name: "Select Book 1" }))
   fireEvent.click(screen.getByRole("button", { name: /Add 1 books/ }))
   await waitFor(() => expect(typeof useLoadProgress.mock.calls.at(-1)[0]).toBe("number"))
   expect(useLoadProgress.mock.calls.at(-1)[0]).toBeGreaterThanOrEqual(before)
@@ -203,6 +206,7 @@ describe("the page's chrome", () => {
     useLoadBooks.mockReturnValue({ mutateAsync, isPending: false })
     useLoadProgress.mockReturnValue(progress())
     useCatalogRefresh.mockReturnValue({ checking: false, error: null, refresh })
+    usePreloadBook.mockReturnValue(idleBook)
     render(<FreeBooks />)
     expect(screen.queryByRole("group", { name: "Collections" })).not.toBeInTheDocument()
   })
@@ -211,7 +215,7 @@ describe("the page's chrome", () => {
     setup()
     expect(screen.queryByText("Pick books to add")).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^Add books$/ })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Book 1" }))
     expect(screen.getByText("1 selected")).toBeInTheDocument()
   })
 
@@ -225,7 +229,7 @@ describe("the page's chrome", () => {
   it("shows a refusal such as a running load as a warning, with the server's words", async () => {
     mutateAsync.mockRejectedValue(new ApiError("A load is already running", 409))
     setup()
-    fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Book 1" }))
     fireEvent.click(screen.getByRole("button", { name: /Add 1 books/ }))
     expect(await screen.findByRole("status")).toHaveTextContent("A load is already running")
   })
@@ -361,6 +365,7 @@ describe("telling the admin the list grew", () => {
   const mount = (n) => {
     useCatalog.mockReturnValue(withAvailable(n))
     useCatalogRefresh.mockReturnValue({ checking: false, error: null, refresh })
+    usePreloadBook.mockReturnValue(idleBook)
     useCollections.mockReturnValue({ data: { collections: [] } })
     useLoadBooks.mockReturnValue({ mutateAsync, isPending: false })
     useLoadProgress.mockReturnValue(progress())
@@ -415,6 +420,7 @@ describe("the toolbar", () => {
     useLoadBooks.mockReturnValue({ mutateAsync, isPending: false })
     useLoadProgress.mockReturnValue(progress())
     useCatalogRefresh.mockReturnValue({ checking: false, error: null, refresh })
+    usePreloadBook.mockReturnValue(idleBook)
     render(<FreeBooks />)
     expect(screen.queryByLabelText("Show")).not.toBeInTheDocument()
   })
@@ -447,5 +453,39 @@ describe("searching", () => {
     setup({ cat: catalog([book(1)], { isPlaceholderData: false }) })
     expect(screen.getByRole("list")).toHaveAttribute("aria-busy", "false")
     expect(screen.getByRole("list").className).not.toContain("opacity-60")
+  })
+})
+
+describe("opening a book's details", () => {
+  const details = (over = {}) => ({ ...idleBook, data: { ...book(1), languages: [], all_subjects: [], links: {}, details_loaded: true, ...over } })
+
+  it("opens the details from the card, not by picking it", () => {
+    setup()
+    fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+    expect(usePreloadBook).toHaveBeenLastCalledWith(1)
+    expect(screen.getByRole("checkbox", { name: "Select Book 1", hidden: true })).not.toBeChecked()
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
+  })
+
+  it("picks a book with its checkbox, without opening the details", () => {
+    setup()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Book 2" }))
+    expect(screen.getByText("1 selected")).toBeInTheDocument()
+    expect(usePreloadBook).not.toHaveBeenCalledWith(2)
+  })
+
+  it("adds the one book from the sheet through the same add flow", async () => {
+    setup({ bookState: details() })
+    fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+    fireEvent.click(await screen.findByRole("button", { name: "Add to my library" }))
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ olids: [1] }))
+  })
+
+  it("closes the sheet and reloads the list when the book is gone from the catalog (404)", async () => {
+    const cat = catalog([book(1), book(2)])
+    setup({ cat, bookState: { ...idleBook, isError: true, error: new ApiError("Not Found", 404) } })
+    fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+    await waitFor(() => expect(cat.refetch).toHaveBeenCalled())
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 })
