@@ -1,0 +1,98 @@
+// @ts-nocheck
+import { fireEvent, render, screen } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { ImportTab } from "./ImportTab"
+import { useImport, useImportLimits } from "@/hooks/import/use-import"
+
+jest.mock("@/hooks/import/use-import")
+jest.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])),
+  }),
+}))
+jest.mock("./RowList", () => ({
+  RowList: ({ rows, onOpen }) => (
+    <ul>{rows.map((r) => <li key={r.id}><button onClick={() => onOpen(r)}>{r.title}</button></li>)}</ul>
+  ),
+}))
+jest.mock("./EditionSheet", () => ({
+  ADD_ON_OPEN_LIBRARY_URL: "https://openlibrary.org/books/add",
+  EditionSheet: ({ row }) => (row ? <div>editing {row.title}</div> : null),
+}))
+
+const summary = (over = {}) => ({
+  id: 1, created_at: "", expires_at: "", total: 4, skipped: 0, encrypted: 0, ready: 2, auto_picked: 2,
+  counts: { matched: 2, no_match: 1, needs_review: 1 }, ...over,
+})
+const base = (over = {}) => ({
+  batchId: 1, summary: summary(), rows: [{ id: 1, title: "Dune" }], rowsLoading: false, hasMore: false,
+  loadMore: jest.fn(), loading: false, phase: { kind: "idle" }, error: null, attachedCount: 1,
+  addFiles: jest.fn(), recheck: jest.fn(), patchRow: jest.fn(), bulk: jest.fn(),
+  runImport: jest.fn().mockResolvedValue({ missing: 0, failed: 0 }), cancelImport: jest.fn(),
+  clearBatch: jest.fn(), hasFile: () => true, ...over,
+})
+const setup = (over) => {
+  const imp = base(over)
+  useImport.mockReturnValue(imp)
+  useImportLimits.mockReturnValue({ data: { retention_days: 30 } })
+  render(<QueryClientProvider client={new QueryClient()}><ImportTab /></QueryClientProvider>)
+  return imp
+}
+
+it("shows a big drop zone and no list when there is no batch", () => {
+  setup({ summary: undefined, batchId: null, rows: [] })
+  expect(screen.getByText("Drop a folder or EPUB files here")).toBeInTheDocument()
+  expect(screen.queryByText(/ready to import/)).not.toBeInTheDocument()
+})
+
+it("states the 30-day retention", () => {
+  setup()
+  expect(screen.getByText(/kept for 30 days/)).toBeInTheDocument()
+})
+
+it("offers Import N books and runs it", () => {
+  const imp = setup()
+  fireEvent.click(screen.getByRole("button", { name: "Import 2 books" }))
+  expect(imp.runImport).toHaveBeenCalled()
+})
+
+it("disables import with nothing ready", () => {
+  setup({ summary: summary({ ready: 0 }) })
+  expect(screen.getByRole("button", { name: "Import 0 books" })).toBeDisabled()
+})
+
+it("re-checks unmatched rows and links to Open Library in a new tab", () => {
+  const imp = setup()
+  const link = screen.getByRole("link", { name: /Add on Open Library/ })
+  expect(link).toHaveAttribute("target", "_blank")
+  expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"))
+  fireEvent.click(screen.getByRole("button", { name: /Re-check 1 unmatched/ }))
+  expect(imp.recheck).toHaveBeenCalledWith("no_match")
+})
+
+it("hides re-check when nothing is unmatched", () => {
+  setup({ summary: summary({ counts: { matched: 4 } }) })
+  expect(screen.queryByRole("button", { name: /Re-check/ })).not.toBeInTheDocument()
+})
+
+it("asks to re-drop the folder when no files are loaded after a reload", () => {
+  setup({ attachedCount: 0 })
+  expect(screen.getByText(/Drop the folder again/)).toBeInTheDocument()
+})
+
+it("filter chips carry counts and the chosen filter reaches the hook", () => {
+  setup()
+  fireEvent.click(screen.getByRole("button", { name: /No match/ }))
+  expect(useImport).toHaveBeenLastCalledWith({ state: "no_match" })
+})
+
+it("opens the edition panel from a row", () => {
+  setup()
+  fireEvent.click(screen.getByText("Dune"))
+  expect(screen.getByText("editing Dune")).toBeInTheDocument()
+})
+
+it("shows a progress bar while reading files", () => {
+  setup({ phase: { kind: "reading", done: 5, total: 10 } })
+  expect(screen.getByRole("progressbar", { name: "Reading books" })).toHaveAttribute("aria-valuenow", "50")
+})

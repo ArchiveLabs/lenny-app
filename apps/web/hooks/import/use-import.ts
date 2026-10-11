@@ -205,6 +205,7 @@ export function useImport(filter: RowFilter) {
     runImport,
     cancelImport,
     clearBatch,
+    attachedCount: files.current.size,
     hasFile: (r: ImportRow) => files.current.has(rowKey(r)),
     refresh,
   }
