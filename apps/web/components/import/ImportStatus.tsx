@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 import { Button } from "@workspace/ui/components/button"
 import { Progress } from "@workspace/ui/components/progress"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { readDismissed, resultKey, writeDismissed } from "@/lib/import/dismissed"
 import { isImportActive, type ImportBatchSummary } from "@/types/import"
 
 const n = (v: number) => v.toLocaleString("en-US")
@@ -32,7 +33,8 @@ export function ImportStatus({
   onViewHistory?: () => void
 }) {
   const { t } = useTranslation()
-  const [dismissed, setDismissed] = useState<string | null>(null) // a finished result can be put away; a new job shows again
+  // A finished result can be put away, and stays away after leaving the page; a new job shows again.
+  const [dismissed, setDismissed] = useState<string | null>(readDismissed)
   const job = summary.import ?? null
   const rowsImporting = summary.counts.importing ?? 0
 
@@ -72,7 +74,7 @@ export function ImportStatus({
     )
   }
 
-  if (job?.status === "done" && job.total > 0 && job.id !== dismissed) {
+  if (job?.status === "done" && job.total > 0 && resultKey(summary.id, job.id) !== dismissed) {
     const parts = [t("{{n}} imported.", { n: n(job.imported) })]
     if (job.duplicate > 0) parts.push(t("{{n}} were already in your library.", { n: n(job.duplicate) }))
     if (job.failed > 0) parts.push(t("{{n}} failed.", { n: n(job.failed) }))
@@ -92,7 +94,11 @@ export function ImportStatus({
             <Button size="sm" variant="outline" asChild>
               <Link href="/library">{t("View in Library")}</Link>
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Dismiss")} onClick={() => setDismissed(job.id)}>
+            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Dismiss")} onClick={() => {
+                const key = resultKey(summary.id, job.id)
+                writeDismissed(key)
+                setDismissed(key)
+              }}>
               <X className="h-4 w-4" aria-hidden />
             </Button>
           </div>

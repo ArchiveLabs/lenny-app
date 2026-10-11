@@ -6,6 +6,8 @@ jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])) }),
 }))
 
+beforeEach(() => localStorage.clear())
+
 const job = (over = {}) => ({ id: "j", status: "done", total: 5000, done: 5000, imported: 4985, duplicate: 12, failed: 3, waiting: 0, error: null, ...over })
 const summary = (over = {}) => ({ id: 1, created_at: "", expires_at: "", total: 5000, counts: {}, skipped: 0, encrypted: 0, ready: 0, auto_picked: 0, staged: 0, unstaged: 0, import: null, ...over })
 const show = (s) => {
@@ -124,5 +126,43 @@ describe("dismissing the result", () => {
   it("does not offer to dismiss a running import", () => {
     show(summary({ import: job({ status: "running" }) }))
     expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument()
+  })
+})
+
+describe("a dismissed result stays dismissed", () => {
+  const props = { onShowFailed: jest.fn(), onRetryFailed: jest.fn(), onStartAgain: jest.fn() }
+
+  it("after leaving the page and coming back", () => {
+    const first = render(<ImportStatus summary={summary({ import: job() })} {...props} />)
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+    first.unmount()
+    render(<ImportStatus summary={summary({ import: job() })} {...props} />)
+    expect(screen.queryByText(/imported\./)).not.toBeInTheDocument()
+  })
+
+  it("only for that import: a new job shows its result", () => {
+    const first = render(<ImportStatus summary={summary({ import: job({ id: "a" }) })} {...props} />)
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+    first.unmount()
+    render(<ImportStatus summary={summary({ import: job({ id: "b", imported: 9 }) })} {...props} />)
+    expect(screen.getByText(/9 imported\./)).toBeInTheDocument()
+  })
+
+  it("only for that batch", () => {
+    const first = render(<ImportStatus summary={summary({ id: 1, import: job() })} {...props} />)
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+    first.unmount()
+    render(<ImportStatus summary={summary({ id: 2, import: job() })} {...props} />)
+    expect(screen.getByText(/imported\./)).toBeInTheDocument()
+  })
+
+  it("still works when the browser's storage is blocked", () => {
+    const get = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked") })
+    const set = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked") })
+    render(<ImportStatus summary={summary({ import: job() })} {...props} />)
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+    expect(screen.queryByText(/imported\./)).not.toBeInTheDocument() // gone for now, back after a reload
+    get.mockRestore()
+    set.mockRestore()
   })
 })
