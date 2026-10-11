@@ -61,19 +61,15 @@ it("shows the feed link in a message when the clipboard is blocked, so it can be
   expect(toast.success).not.toHaveBeenCalled()
 })
 
-describe("the warning that the links are not public", () => {
-  const WARNING = "These links only work on your own network. Set LENNY_PROXY in Lenny's .env to your domain to share them with others."
-
-  it("shows beside the buttons when is_public is false, and still shows the buttons", () => {
+describe("a link that is not public", () => {
+  it("shows no warning about it: the buttons are all there is", () => {
     useLibraryLinks.mockReturnValue({ data: links({ is_public: false }) })
     render(<LibraryLinksBar />)
-    expect(screen.getByText(WARNING)).toBeInTheDocument()
+    expect(screen.queryByRole("note")).not.toBeInTheDocument()
+    expect(screen.queryByText(/only work on your own network/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/LENNY_PROXY/)).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "OPDS feed" })).toBeInTheDocument()
-  })
-
-  it("is not shown when the address is public", () => {
-    render(<LibraryLinksBar />)
-    expect(screen.queryByText(WARNING)).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open in Internet Archive reader" })).toBeInTheDocument()
   })
 })
 
@@ -81,11 +77,4 @@ it("uses the reader link exactly as Lenny returns it, without building its own",
   useLibraryLinks.mockReturnValue({ data: links({ opds_feed: "https://other.example/v1/api/opds", reader_url: "https://reader.archive.org/?opds=https://lender.briet.app/v1/api/opds" }) })
   render(<LibraryLinksBar />)
   expect(screen.getByRole("link", { name: "Open in Internet Archive reader" })).toHaveAttribute("href", "https://reader.archive.org/?opds=https://lender.briet.app/v1/api/opds")
-})
-
-it("names LENNY_PROXY, not LENNY_PUBLIC_URL, in the warning", () => {
-  useLibraryLinks.mockReturnValue({ data: links({ is_public: false }) })
-  render(<LibraryLinksBar />)
-  expect(screen.getByRole("note")).toHaveTextContent("LENNY_PROXY")
-  expect(screen.getByRole("note")).not.toHaveTextContent("LENNY_PUBLIC_URL")
 })
