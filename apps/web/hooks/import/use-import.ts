@@ -158,7 +158,7 @@ export function useImport(filter: RowFilter) {
     try {
       do {
         again.current = false
-        const todo = (await allRows(batchId, { state: "matched", skipped: false, staged: false })).filter(
+        const todo = (await allRows(batchId, { state: "matched", staged: false })).filter(
           (r) => importFiles.has(r) && !gaveUp.current.has(r.id),
         )
         await pool(todo, UPLOADS_IN_FLIGHT, async (row) => {
@@ -292,7 +292,7 @@ export function useImport(filter: RowFilter) {
   )
 
   const patchRow = useCallback(
-    async (row: ImportRow, body: { skipped?: boolean; olid?: number; encrypted?: boolean }) => {
+    async (row: ImportRow, body: { olid?: number; encrypted?: boolean }) => {
       if (batchId === null) return
       try {
         await importApi.patchRow(batchId, row.id, body)
@@ -323,7 +323,7 @@ export function useImport(filter: RowFilter) {
   )
 
   const bulk = useCallback(
-    async (action: "skip" | "unskip" | "set_encrypted", value?: boolean, scope: RowFilter = filter) => {
+    async (action: "set_encrypted" | "remove", value?: boolean, scope: RowFilter = filter) => {
       if (batchId === null) return
       try {
         await importApi.action(batchId, { action, value, ...scope })
@@ -342,6 +342,7 @@ export function useImport(filter: RowFilter) {
     setError(null)
     let ready: ImportRow[]
     try {
+      // skipped: false only guards books skipped before Skip was removed; the server still honours the flag.
       ready = await allRows(batchId, { state: "matched", skipped: false })
     } catch (e) {
       setError(errMsg(e))

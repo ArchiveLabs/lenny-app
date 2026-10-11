@@ -229,3 +229,30 @@ it("keeps the big drop zone and hides the list for an empty batch", () => {
   expect(screen.queryByRole("group", { name: "Filter books" })).not.toBeInTheDocument()
   expect(screen.queryByText(/Files are uploaded as books are matched/)).not.toBeInTheDocument()
 })
+
+describe("no Skip", () => {
+  it("has no Skipped filter and no skip items in the bulk menu", async () => {
+    setup({ summary: summary({ skipped: 0 }) })
+    expect(screen.queryByRole("button", { name: /^Skipped/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/skip/i)).not.toBeInTheDocument()
+  })
+
+  it("confirms with the count before removing the current filter", async () => {
+    const imp = setup()
+    fireEvent.click(screen.getByRole("button", { name: /^No match/ }))
+    // the mocked hook ignores the filter; the count comes from the chip
+    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for these books" }), { key: "Enter" })
+    fireEvent.click(await screen.findByText("Remove these"))
+    expect(await screen.findByText("Remove 1 books from this list?")).toBeInTheDocument()
+    expect(imp.bulk).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }))
+    expect(imp.bulk).toHaveBeenCalledWith("remove")
+  })
+
+  it("offers a one-time clean-up for books skipped earlier", () => {
+    const imp = setup({ summary: summary({ skipped: 3 }) })
+    expect(screen.getByText("3 books were skipped earlier")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Remove them" }))
+    expect(imp.bulk).toHaveBeenCalledWith("remove", undefined, { skipped: true })
+  })
+})

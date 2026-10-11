@@ -177,6 +177,24 @@ describe("match job status", () => {
   })
 })
 
+describe("bulk remove", () => {
+  it("removes by the current filter and refetches, never sending ids", async () => {
+    importApi.action = jest.fn().mockResolvedValue({ updated: 2 })
+    const { result } = renderHook(() => useImport({ state: "no_match" }), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.bulk("remove"))
+    expect(importApi.action).toHaveBeenCalledWith(7, { action: "remove", value: undefined, state: "no_match" })
+  })
+
+  it("removes the books skipped earlier", async () => {
+    importApi.action = jest.fn().mockResolvedValue({ updated: 3 })
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.bulk("remove", undefined, { skipped: true }))
+    expect(importApi.action).toHaveBeenCalledWith(7, { action: "remove", value: undefined, skipped: true })
+  })
+})
+
 describe("removing a row", () => {
   it("deletes it on the server and refetches the batch", async () => {
     importApi.removeRow = jest.fn().mockResolvedValue(undefined)

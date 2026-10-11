@@ -26,7 +26,6 @@ const FILTERS = [
   { id: "needs_review", label: "Needs review", filter: { state: "needs_review" }, count: (s: ImportBatchSummary) => s.counts.needs_review ?? 0 },
   { id: "no_match", label: "No match", filter: { state: "no_match" }, count: (s: ImportBatchSummary) => s.counts.no_match ?? 0 },
   { id: "duplicate", label: "Duplicate", filter: { state: "duplicate" }, count: (s: ImportBatchSummary) => s.counts.duplicate ?? 0 },
-  { id: "skipped", label: "Skipped", filter: { skipped: true }, count: (s: ImportBatchSummary) => s.skipped },
   { id: "failed", label: "Failed", filter: { state: "failed" }, count: (s: ImportBatchSummary) => s.counts.failed ?? 0 },
 ] as const satisfies readonly { id: string; label: string; filter: RowFilter; count: (s: ImportBatchSummary) => number }[]
 
@@ -51,10 +50,12 @@ export function ImportTab() {
   const [q, setQ] = useState("")
   const [editing, setEditing] = useState<ImportRow | null>(null)
   const [addedOnOL, setAddedOnOL] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState(false)
   const limits = useImportLimits().data
 
   const filter: RowFilter = { ...FILTERS.find((f) => f.id === filterId)!.filter, ...(q.trim() ? { q: q.trim() } : {}) }
   const imp = useImport(filter)
+  const activeCount = imp.summary ? FILTERS.find((f) => f.id === filterId)!.count(imp.summary) : 0
   const { summary, phase } = imp
   const counts = summary?.counts ?? {}
   const queued = counts.queued ?? 0
@@ -68,7 +69,7 @@ export function ImportTab() {
   const dragging = useWindowDrop(imp.addFiles, imp.reportError, !busy)
 
   const pick = (f: PickedFile[]) =>
-    f.length ? imp.addFiles(f) : imp.reportError(t("No files found in what you chose. Empty folders and hidden files are skipped."))
+    f.length ? imp.addFiles(f) : imp.reportError(t("No files found in what you chose. Empty folders and hidden files are ignored."))
 
   const startImport = async () => {
     const res = await imp.runImport()
@@ -167,6 +168,28 @@ export function ImportTab() {
             </div>
           )}
 
+          {summary.skipped > 0 && (
+            <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
+              <p className="mr-auto">{t("{{n}} books were skipped earlier", { n: summary.skipped })}</p>
+              <Button size="sm" variant="outline" onClick={() => imp.bulk("remove", undefined, { skipped: true })}>{t("Remove them")}</Button>
+            </div>
+          )}
+
+          <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {q.trim() ? t("Remove the books matching this search from this list?") : t("Remove {{n}} books from this list?", { n: activeCount })}
+                </AlertDialogTitle>
+                <AlertDialogDescription>{t("They are not imported. Drop the files again to bring them back.")}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                <AlertDialogAction onClick={() => imp.bulk("remove")}>{t("Remove")}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Filter books")}>
             {FILTERS.map((f) => {
               const n = f.count(summary)
@@ -185,10 +208,9 @@ export function ImportTab() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => imp.bulk("skip")}>{t("Skip these")}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => imp.bulk("unskip")}>{t("Unskip these")}</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => imp.bulk("set_encrypted", true)}>{t("Encrypt these")}</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => imp.bulk("set_encrypted", false)}>{t("Don't encrypt these")}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setConfirmRemove(true)} className="text-red-700">{t("Remove these")}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -202,7 +224,6 @@ export function ImportTab() {
               loadMore={imp.loadMore}
               needsFile={(r) => !imp.hasFile(r)}
               onOpen={setEditing}
-              onToggleSkip={(r) => imp.patchRow(r, { skipped: !r.skipped })}
               onRemove={imp.removeRow}
               onToggleEncrypted={(r) => imp.patchRow(r, { encrypted: !r.encrypted })}
             />

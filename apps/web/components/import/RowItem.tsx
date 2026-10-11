@@ -25,14 +25,12 @@ export const editionKey = (olid: number) => `OL${olid}M`
 export const RowItem = memo(function RowItem({
   row,
   onOpen,
-  onToggleSkip,
   onRemove,
   onToggleEncrypted,
   needsFile,
 }: {
   row: ImportRow
   onOpen: (r: ImportRow) => void
-  onToggleSkip: (r: ImportRow) => void
   onRemove: (r: ImportRow) => void
   onToggleEncrypted: (r: ImportRow) => void
   needsFile: boolean
@@ -46,7 +44,7 @@ export const RowItem = memo(function RowItem({
   const canPick = !locked && row.state !== "duplicate"
 
   return (
-    <div className={`flex flex-col gap-2 border-b px-3 py-3 @2xl:flex-row @2xl:items-center @2xl:gap-4 ${row.skipped ? "opacity-60" : ""}`}>
+    <div className={`flex flex-col gap-2 border-b px-3 py-3 @2xl:flex-row @2xl:items-center @2xl:gap-4`}>
       <div className="min-w-0 flex-1 space-y-0.5">
         <p className="truncate font-semibold">{title}</p>
         <p className="truncate text-sm text-muted-foreground">
@@ -54,7 +52,7 @@ export const RowItem = memo(function RowItem({
         </p>
         <p className="truncate text-xs text-muted-foreground" title={row.path}>{row.path}</p>
         {row.error && <p className="text-xs text-red-700">{row.error}</p>}
-        {needsFile && row.state === "matched" && !row.skipped && !row.staged && (
+        {needsFile && row.state === "matched" && !row.staged && (
           <p className="text-xs text-amber-700">{t("Drop this file again to import it")}</p>
         )}
       </div>
@@ -64,13 +62,12 @@ export const RowItem = memo(function RowItem({
           {t(s.label)}
           {row.state === "matched" && row.auto_picked && row.confidence != null ? ` ${row.confidence}%` : ""}
         </Badge>
-        {row.staged && !row.skipped && row.state === "matched" && (
+        {row.staged && row.state === "matched" && (
           <Badge variant="outline" className="gap-1 text-muted-foreground">
             <CloudCheck className="h-3 w-3" aria-hidden />
             {t("Uploaded")}
           </Badge>
         )}
-        {row.skipped && <Badge variant="secondary">{t("Skipped")}</Badge>}
         {!locked && row.state !== "duplicate" && (
           <label className="flex items-center gap-1.5 text-sm">
             <Checkbox checked={row.encrypted} onCheckedChange={() => onToggleEncrypted(row)} />
@@ -82,14 +79,16 @@ export const RowItem = memo(function RowItem({
             {row.state === "matched" ? t("Change edition") : t("Choose edition")}
           </Button>
         )}
-        {!locked && (
-          <Button size="sm" variant="ghost" onClick={() => onToggleSkip(row)}>
-            {row.skipped ? t("Unskip") : t("Skip")}
-          </Button>
-        )}
         {row.state !== "importing" && (
-          <Button size="icon" variant="ghost" aria-label={t("Remove {{name}}", { name: title })} title={t("Remove from list")} onClick={() => onRemove(row)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label={t("Remove {{name}} from this list", { name: title })}
+            title={t("The book is not imported. Drop the file again to bring it back.")}
+            onClick={() => onRemove(row)}
+          >
             <Trash2 className="h-4 w-4" aria-hidden />
+            {t("Remove")}
           </Button>
         )}
       </div>
