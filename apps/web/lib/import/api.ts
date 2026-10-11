@@ -2,7 +2,7 @@ import { z } from "zod"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import {
   DuplicateCheckSchema, ImportBatchListSchema, ImportBatchSummarySchema,
-  ImportCandidatesSchema, ImportLimitsSchema, ImportJobSchema, ImportRowPageSchema, ImportRowSchema, MatchJobSchema,
+  ImportCandidatesSchema, ImportLimitsSchema, ImportJobSchema, ImportRowPageSchema, LibrarySyncSchema, ImportRowSchema, MatchJobSchema,
   type ImportRowState,
 } from "@/types/import"
 
@@ -85,6 +85,8 @@ export const importApi = {
       handleApiResponse(r, ImportRowSchema),
     )
   },
+  /** Brings the saved list in step with the live library. Cheap, and safe to repeat. */
+  sync: (id: number) => fetchAdmin(`${base(id)}/sync`, { method: "POST" }).then((r) => handleApiResponse(r, LibrarySyncSchema)),
   /** Starts the server-side import of every ready row whose file is staged. It keeps running if the page closes. */
   startImport: (id: number, body: { retry_failed?: boolean } = {}) =>
     fetchAdmin(`${base(id)}/import`, json("POST", body)).then((r) => handleApiResponse(r, ImportJobSchema)),

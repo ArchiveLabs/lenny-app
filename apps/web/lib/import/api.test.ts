@@ -77,3 +77,9 @@ it("starts the server-side import, optionally retrying failed rows", async () =>
   await importApi.startImport(3, { retry_failed: true })
   expect(JSON.parse((fetchAdmin as jest.Mock).mock.calls[1][1].body)).toEqual({ retry_failed: true })
 })
+
+it("syncs the list with the library", async () => {
+  ;(fetchAdmin as jest.Mock).mockImplementation(() => ok({ reverted: 1, released: 2, removed_from_library: 3 }))
+  expect(await importApi.sync(3)).toEqual({ reverted: 1, released: 2, removed_from_library: 3 })
+  expect((fetchAdmin as jest.Mock).mock.calls[0]).toEqual(["import/batches/3/sync", { method: "POST" }])
+})

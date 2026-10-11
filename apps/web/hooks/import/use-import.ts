@@ -22,6 +22,7 @@ export const pollInterval = (updates: number) => (updates < 30 ? 2000 : updates 
 export const PAGE_SIZE = 50
 
 const UPLOADS_IN_FLIGHT = 3
+const SYNC_EVERY_MS = 30_000
 const MAX_ROW_IDS = 500 // the server takes 1-500 ids per remove
 const RETRIES = 2
 
@@ -55,6 +56,9 @@ export function useImportLimits() {
 export function useImport(filter: RowFilter, page = 0) {
   const qc = useQueryClient()
   const [batchId, setBatchId] = useState<number | null>(null)
+  // The lists are read only after the first sync, so they never show rows the library has since moved on from.
+  const [syncedFor, setSyncedFor] = useState<number | null>(null)
+  const synced = batchId !== null && syncedFor === batchId
   const [phase, setPhase] = useState<Phase>({ kind: "idle" })
   const [error, setError] = useState<string | null>(null)
   // A browser cannot keep File objects across a reload, so after one they are re-attached by dropping
@@ -83,7 +87,7 @@ export function useImport(filter: RowFilter, page = 0) {
   const summary = useQuery({
     queryKey: ["import-batch", batchId],
     queryFn: () => importApi.batch(batchId!),
-    enabled: batchId !== null,
+    enabled: synced,
     staleTime: 0,
     refetchInterval: (q) => {
       const c = q.state.data?.counts
@@ -97,7 +101,7 @@ export function useImport(filter: RowFilter, page = 0) {
   const rows = useQuery({
     queryKey: ["import-rows", batchId, filter, page],
     queryFn: () => importApi.rows(batchId!, { ...filter, offset: page * PAGE_SIZE, limit: PAGE_SIZE }),
-    enabled: batchId !== null,
+    enabled: synced,
     staleTime: 0,
     placeholderData: keepPreviousData, // no blank list while the next page loads
   })
@@ -206,6 +210,30 @@ export function useImport(filter: RowFilter, page = 0) {
     restarted.current = true
     importApi.startMatch(batchId).then(refresh, () => {}) // the failure shows up as match.failed on the next poll
   }, [batchId, queuedRows, matchStatus, refresh])
+  // The saved list can be out of step with the library (books deleted since). Sync, and reload when it changed something.
+  const lastSync = useRef(0)
+  const syncList = useCallback(
+    async (id: number) => {
+      lastSync.current = Date.now()
+      try {
+        const r = await importApi.sync(id)
+        if (r.reverted || r.released || r.removed_from_library) refresh()
+      } catch {
+        // A stale list is no worse than before; the server also syncs when matching and importing start.
+      }
+    },
+    [refresh],
+  )
+  useEffect(() => {
+    if (batchId === null) return
+    syncList(batchId).finally(() => setSyncedFor(batchId))
+    const onFocus = () => {
+      if (Date.now() - lastSync.current >= SYNC_EVERY_MS) syncList(batchId)
+    }
+    window.addEventListener("focus", onFocus)
+    return () => window.removeEventListener("focus", onFocus)
+  }, [batchId, syncList])
+
   const addFiles = useCallback(
     async (picked: PickedFile[], opts: { silent?: boolean } = {}) => {
       if (!picked.length) return
@@ -217,6 +245,8 @@ export function useImport(filter: RowFilter, page = 0) {
       picked.forEach((p) => importFiles.add(p.file, p.path))
       setVersion((v) => v + 1)
       try {
+        // Sync first: a stale duplicate row would otherwise swallow a file whose book has since been deleted.
+        if (batchId !== null) await syncList(batchId)
         const limit = (await qc.ensureQueryData({ queryKey: ["import-limits"], queryFn: importApi.limits })).max_rows_per_call
         // Files that already have a row (same or different folder level) only need re-attaching, not a new row.
         // Imported books are history: the server frees their key, so dropping one again makes a new row.
@@ -242,22 +272,24 @@ export function useImport(filter: RowFilter, page = 0) {
           await importApi.startMatch(id)
           qc.invalidateQueries({ queryKey: ["import-batches"] })
         }
+        const parts: string[] = []
         if (batchId !== null && existing.length) {
           const ready = await recount(batchId)
-          const parts: string[] = []
           if (reconnects.length && ready.length) {
             parts.push(`Reconnected ${ready.filter((r) => importFiles.has(r)).length} of ${ready.length} files.`)
           }
-          const dup = dupRows.length + existingOnServer
-          if (dup > 0 && !opts.silent) {
-            parts.push(
-              created > 0
-                ? `Loaded ${created} new books. ${dup} ${dup === 1 ? "was" : "were"} already loaded.`
-                : `${dup === 1 ? "This file is" : `These ${dup} files are`} already loaded.`,
-            )
-          }
-          if (parts.length) setNotice(parts.join(" ").replace(/\.$/, ""))
         }
+        const dup = dupRows.length + existingOnServer
+        if (dup > 0 && !opts.silent) {
+          parts.push(
+            created > 0
+              ? `Loaded ${created} new books. ${dup} ${dup === 1 ? "was" : "were"} already loaded.`
+              : `${dup === 1 ? "This file is" : `These ${dup} files are`} already loaded.`,
+          )
+        }
+        // A drop must never end in silence.
+        if (!parts.length && created === 0 && !opts.silent) parts.push("Nothing new to load.")
+        if (parts.length) setNotice(parts.join(" ").replace(/\.$/, ""))
       } catch (e) {
         setError(errMsg(e))
       } finally {
@@ -265,7 +297,7 @@ export function useImport(filter: RowFilter, page = 0) {
         refresh()
       }
     },
-    [batchId, qc, refresh, recount],
+    [batchId, qc, refresh, recount, syncList],
   )
 
   /** Chromium: pick a folder with the directory picker and remember it for a one-click reconnect after a reload. */
@@ -469,7 +501,7 @@ export function useImport(filter: RowFilter, page = 0) {
     total: rows.data?.total ?? undefined,
     rowsLoading: rows.isLoading,
     resumed: batches.isSuccess,
-    loading: batches.isLoading || summary.isLoading,
+    loading: batches.isLoading || (batchId !== null && summary.isPending),
     phase,
     error,
     addFiles,

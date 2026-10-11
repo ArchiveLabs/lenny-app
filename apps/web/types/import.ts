@@ -52,6 +52,12 @@ export const ImportBatchSummarySchema = z.object({
 })
 export type ImportBatchSummary = z.infer<typeof ImportBatchSummarySchema>
 
+export const LibrarySyncSchema = z.object({
+  reverted: z.number().default(0), // duplicate rows whose book was deleted, matched again
+  released: z.number().default(0), // imported rows that let go of their key
+  removed_from_library: z.number().default(0),
+})
+
 export const ImportBatchListSchema = z.object({ batches: z.array(ImportBatchSummarySchema) })
 
 export const ImportRowSchema = z.object({
@@ -69,6 +75,7 @@ export const ImportRowSchema = z.object({
   encrypted: z.boolean().default(false),
   staged: z.boolean().default(false), // the file is on the server
   imported_at: z.string().nullish(), // ISO time the book was imported; null until then
+  in_library: z.boolean().default(true), // whether the book is in the Lenny library right now
   isbn: z.string().nullish(),
   title: z.string().nullish(), // from the EPUB
   author: z.string().nullish(),

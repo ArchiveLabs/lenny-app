@@ -89,3 +89,9 @@ it("reads when a row was imported, which is null or missing before that", () => 
   expect(ImportRowSchema.parse({ ...r, imported_at: null }).imported_at).toBeNull()
   expect(ImportRowSchema.parse(r).imported_at).toBeUndefined()
 })
+
+it("reads in_library on a row, assuming yes when the server does not say", () => {
+  const r = { id: 1, path: "a", size: 1, mtime: 1, state: "imported", decision: "auto" }
+  expect(ImportRowSchema.parse(r).in_library).toBe(true)
+  expect(ImportRowSchema.parse({ ...r, in_library: false }).in_library).toBe(false)
+})

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle2, ChevronRight } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@workspace/ui/components/table"
@@ -132,7 +133,14 @@ function GroupRows({ label, rows, onDetails }: { label: string; rows: ImportRow[
         return (
           <TableRow key={r.id}>
             <TableCell className="max-w-0 whitespace-normal">
-              <p className="truncate font-medium">{title}</p>
+              <p className="flex items-center gap-2">
+                <span className="truncate font-medium">{title}</span>
+                {r.in_library === false && (
+                  <Badge variant="secondary" className="shrink-0 text-muted-foreground" title={t("This book is no longer in your Lenny library. Drop the file again to import it again.")}>
+                    {t("Removed from library")}
+                  </Badge>
+                )}
+              </p>
               <p className="truncate text-sm text-muted-foreground">{displayAuthor(r)}</p>
             </TableCell>
             <TableCell>

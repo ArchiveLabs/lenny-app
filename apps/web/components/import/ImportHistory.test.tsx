@@ -138,3 +138,23 @@ describe("old rows with no matched title", () => {
     expect(screen.queryByText("Book 1")).not.toBeInTheDocument()
   })
 })
+
+describe("books no longer in the library", () => {
+  it("marks a history book that was deleted from the library, with a tooltip", async () => {
+    show([row(1, { in_library: false }), row(2)])
+    const badge = await screen.findByText("Removed from library")
+    expect(badge).toHaveAttribute("title", "This book is no longer in your Lenny library. Drop the file again to import it again.")
+    expect(screen.getAllByText("Removed from library")).toHaveLength(1)
+  })
+
+  it("marks nothing when every book is still in the library", async () => {
+    show([row(1), row(2)])
+    await screen.findByText("Book 1")
+    expect(screen.queryByText("Removed from library")).not.toBeInTheDocument()
+  })
+
+  it("keeps the View in Library link", async () => {
+    show([row(1, { in_library: false })])
+    expect(await screen.findByRole("link", { name: "View in Library" })).toBeInTheDocument()
+  })
+})
