@@ -11,7 +11,6 @@ import {
 import { Button } from "@workspace/ui/components/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@workspace/ui/components/dropdown-menu"
 import { Input } from "@workspace/ui/components/input"
-import { Skeleton } from "@workspace/ui/components/skeleton"
 import { useImport, useImportLimits } from "@/hooks/import/use-import"
 import { useWindowDrop } from "@/hooks/import/use-window-drop"
 import type { RowFilter } from "@/lib/import/api"
@@ -76,7 +75,8 @@ export function ImportTab() {
     else toast.success(t("Import finished."))
   }
 
-  if (imp.loading) return <Skeleton className="h-64 w-full rounded-xl" />
+  // Resuming a batch takes a moment; a grey block that then turns into something else looks like a glitch.
+  if (imp.loading) return null
 
   return (
     <div className="space-y-4">

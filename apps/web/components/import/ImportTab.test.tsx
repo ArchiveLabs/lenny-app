@@ -195,3 +195,9 @@ describe("reconnect banner", () => {
     expect(screen.queryByText(/Allow on every visit/)).not.toBeInTheDocument()
   })
 })
+
+it("renders nothing, not a placeholder block, while the saved list loads", () => {
+  setup({ loading: true, summary: undefined })
+  expect(screen.queryByText("Drop a folder or EPUB files here")).not.toBeInTheDocument()
+  expect(document.querySelector('[class*="animate-pulse"]')).toBeNull()
+})
