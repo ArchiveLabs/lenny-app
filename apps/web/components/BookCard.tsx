@@ -36,7 +36,6 @@ export function BookCard({
   const { t } = useTranslation()
   const coverUrl = book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null
   const author = book.author_name && book.author_name.length > 0 ? book.author_name.join(", ") : t("Unknown Author")
-  const copies = book.lenny.available_copies
   const format = FORMAT_LABELS[book.lenny.formats] // an unknown value is not worth showing
   const picked = !!selectMode && !!selected
 
@@ -92,9 +91,8 @@ export function BookCard({
       </div>
       <span className="line-clamp-2 min-h-10 text-sm font-semibold leading-tight" title={book.title}>{book.title}</span>
       <span className="line-clamp-1 text-xs text-muted-foreground">{author}</span>
-      <span className="text-xs text-muted-foreground">
-        {[format, `${copies} ${copies === 1 ? t("copy") : t("copies")}`].filter(Boolean).join(" · ")}
-      </span>
+      {/* The copy count lives in the book sheet: some records come without it. */}
+      {format && <span className="text-xs text-muted-foreground">{format}</span>}
     </div>
   )
 

@@ -49,17 +49,23 @@ describe("access and copies", () => {
     expect(screen.queryByText("Open")).not.toBeInTheDocument()
   })
 
-  it("says the format and how many copies, in words", () => {
+  it("says the format, and not how many copies: that is in the book sheet", () => {
     const { rerender } = render(<BookCard book={book()} />)
-    expect(screen.getByText("EPUB · 1 copy")).toBeInTheDocument()
-    rerender(<BookCard book={book({}, { available_copies: 3, formats: "EPUB_PDF" })} />)
-    expect(screen.getByText("EPUB + PDF · 3 copies")).toBeInTheDocument()
+    expect(screen.getByText("EPUB")).toBeInTheDocument()
+    expect(screen.queryByText(/cop(y|ies)/)).not.toBeInTheDocument()
+    rerender(<BookCard book={book({}, { formats: "EPUB_PDF", available_copies: 3 })} />)
+    expect(screen.getByText("EPUB + PDF")).toBeInTheDocument()
+    expect(screen.queryByText(/cop(y|ies)/)).not.toBeInTheDocument()
   })
 
-  it("leaves out a format it does not know rather than showing a raw value", () => {
+  it("never shows undefined, whatever the record is missing", () => {
+    const { container } = render(<BookCard book={book({}, { available_copies: undefined, formats: undefined })} />)
+    expect(container.textContent).not.toMatch(/undefined|NaN|null/)
+  })
+
+  it("shows no format line for a format it does not know", () => {
     render(<BookCard book={book({}, { formats: "1" })} />)
-    expect(screen.getByText("1 copy")).toBeInTheDocument()
-    expect(screen.queryByText(/^1 ·/)).not.toBeInTheDocument()
+    expect(screen.queryByText("1")).not.toBeInTheDocument()
   })
 })
 

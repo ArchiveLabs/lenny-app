@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 import { Button } from "@workspace/ui/components/button"
 import { useLibraryLinks } from "@/hooks/use-library-links"
+import { readerUrl } from "@/lib/library/links"
 import { copyText } from "@/lib/library/share"
 import { COPIED_TOAST_MS } from "./ShareButton"
 
@@ -42,7 +43,7 @@ export function LibraryLinksBar() {
           </Button>
         </div>
         <Button asChild variant="outline" className="font-semibold shadow-sm" title={t("Browse this library in Internet Archive's reader")}>
-          <a href={links.reader_url} target="_blank" rel="noopener noreferrer">
+          <a href={readerUrl(links)} target="_blank" rel="noopener noreferrer">
             <BookOpenText className="mr-2 h-4 w-4" aria-hidden />
             {t("Open in Internet Archive reader")}
           </a>

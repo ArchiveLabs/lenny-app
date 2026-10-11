@@ -46,3 +46,13 @@ describe("the response", () => {
     expect(fetchAdmin).toHaveBeenCalledWith("library/links")
   })
 })
+
+describe("readerUrl", () => {
+  const { readerUrl } = require("./links")
+  it("puts the feed after ?opds=, as Internet Archive's reader expects", () => {
+    expect(readerUrl(links({ opds_feed: "https://lender.briet.app/v1/api/opds" }))).toBe("https://reader.archive.org/?opds=https://lender.briet.app/v1/api/opds")
+  })
+  it("follows whatever domain the feed has", () => {
+    expect(readerUrl(links({ opds_feed: "http://localhost:8080/v1/api/opds" }))).toBe("https://reader.archive.org/?opds=http://localhost:8080/v1/api/opds")
+  })
+})

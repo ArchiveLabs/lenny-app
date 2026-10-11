@@ -180,9 +180,14 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
                 <span className="rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   {book.olid}
                 </span>
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  {t("{{count}} copies", { count: book.lenny.available_copies })}
-                </span>
+                {/* Some records come without the count: show it only when it is a number. */}
+                {typeof book.lenny.available_copies === "number" && (
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    {book.lenny.available_copies === 1
+                      ? t("1 copy available")
+                      : t("{{count}} copies available", { count: book.lenny.available_copies })}
+                  </span>
+                )}
               </div>
             </div>
           </div>

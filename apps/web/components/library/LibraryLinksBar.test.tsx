@@ -38,7 +38,7 @@ it("opens the OPDS feed in a new tab, with a hover text", () => {
 it("opens Internet Archive's reader in a new tab, with a hover text", () => {
   render(<LibraryLinksBar />)
   const reader = screen.getByRole("link", { name: "Open in Internet Archive reader" })
-  expect(reader).toHaveAttribute("href", expect.stringContaining("https://reader.archive.org/catalog?home="))
+  expect(reader).toHaveAttribute("href", "https://reader.archive.org/?opds=https://lenny.example/v1/api/opds")
   expect(reader).toHaveAttribute("target", "_blank")
   expect(reader).toHaveAttribute("rel", "noopener noreferrer")
   expect(reader).toHaveAttribute("title", "Browse this library in Internet Archive's reader")
@@ -75,4 +75,10 @@ describe("the warning that the links are not public", () => {
     render(<LibraryLinksBar />)
     expect(screen.queryByText(WARNING)).not.toBeInTheDocument()
   })
+})
+
+it("builds the reader link from the feed Lenny gives, so it follows the owner's domain", () => {
+  useLibraryLinks.mockReturnValue({ data: links({ opds_feed: "https://lender.briet.app/v1/api/opds", reader_url: "ignored" }) })
+  render(<LibraryLinksBar />)
+  expect(screen.getByRole("link", { name: "Open in Internet Archive reader" })).toHaveAttribute("href", "https://reader.archive.org/?opds=https://lender.briet.app/v1/api/opds")
 })

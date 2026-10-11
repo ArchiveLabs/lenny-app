@@ -18,5 +18,8 @@ export const fetchLibraryLinks = () => fetchAdmin("library/links").then((r) => h
 /** The number in an edition key: OL123M becomes 123. */
 export const editionNumber = (olid: string | number) => String(olid).replace(/\D/g, "")
 
+/** Internet Archive's reader takes the feed as ?opds=<feed>. Built from the feed Lenny gives us, so it follows the owner's domain. */
+export const readerUrl = (links: LibraryLinks) => `https://reader.archive.org/?opds=${links.opds_feed}`
+
 /** The OPDS link to share for one book. */
 export const bookLink = (links: LibraryLinks, olid: string | number) => links.opds_book_template.replace("{olid}", editionNumber(olid))

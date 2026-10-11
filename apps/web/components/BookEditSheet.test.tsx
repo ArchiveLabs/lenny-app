@@ -3,7 +3,9 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { BookEditSheet } from "./BookEditSheet"
 
-jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s }) }))
+jest.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])) }),
+}))
 jest.mock("sonner", () => ({ toast: { error: jest.fn(), success: jest.fn() } }))
 jest.mock("@/lib/api-client", () => ({
   ...jest.requireActual("@/lib/api-client"),
@@ -67,4 +69,37 @@ it("shows the share link, and tells it whether the book is encrypted", () => {
   open()
   expect(screen.getByText("share link for OL28933309M")).toBeInTheDocument()
   expect(linkField).toHaveBeenLastCalledWith(expect.objectContaining({ olid: "OL28933309M", encrypted: false }))
+})
+
+describe("copies in the sheet", () => {
+  const withCopies = (n) => ({ ...book, lenny: { ...book.lenny, available_copies: n } })
+  const openWith = (b) => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <BookEditSheet book={b}><button>open</button></BookEditSheet>
+      </QueryClientProvider>,
+    )
+    fireEvent.click(screen.getByText("open"))
+  }
+
+  it("says how many copies are available", () => {
+    openWith(withCopies(3))
+    expect(screen.getByText("3 copies available")).toBeInTheDocument()
+  })
+
+  it("uses the singular for one", () => {
+    openWith(withCopies(1))
+    expect(screen.getByText("1 copy available")).toBeInTheDocument()
+  })
+
+  it("says zero copies when there are none", () => {
+    openWith(withCopies(0))
+    expect(screen.getByText("0 copies available")).toBeInTheDocument()
+  })
+
+  it("shows nothing, not undefined, when the record has no count", () => {
+    openWith(withCopies(undefined))
+    expect(screen.queryByText(/cop(y|ies) available/)).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/undefined/)
+  })
 })
