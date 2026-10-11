@@ -59,18 +59,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   return (
     <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="px-4 pt-4 pb-2">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
-            >
-              <a href="#">
-                <div className="flex h-6 w-6 items-center justify-center p-0.5 rounded-sm bg-white dark:bg-black overflow-hidden ring-1 ring-border">
-                  <img src="/admin/lenny-transparent.png" className="w-full h-full object-contain" alt="Lenny Admin" />
+            <SidebarMenuButton asChild className="h-11 gap-3 rounded-lg px-1.5">
+              <a href="/admin" aria-label={t("Lenny Admin")}>
+                <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1 ring-1 ring-border dark:bg-black">
+                  <img src="/admin/lenny-transparent.png" className="h-full w-full object-contain" alt="" />
                 </div>
-                <span className="text-base font-semibold">{t("Lenny Admin")}</span>
+                <span className="text-base font-semibold tracking-tight">{t("Lenny Admin")}</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -80,7 +77,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain items={data.navMain} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="border-t px-3 py-2">
         <NavUser />
       </SidebarFooter>
     </Sidebar>

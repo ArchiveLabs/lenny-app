@@ -12,6 +12,7 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { ErrorNotice, errorKind } from "@/components/ErrorNotice"
 import { Notice } from "@/components/import/Notice"
 import { COVER_GRID, CoverCard } from "@/components/CoverCard"
+import { NativeSelect } from "@/components/NativeSelect"
 import { BookDetails } from "./BookDetails"
 import { EmptyPreload } from "./EmptyPreload"
 import { ProgressPanel } from "@/components/import/ProgressPanel"
@@ -31,7 +32,6 @@ function useDebounced<T>(value: T, ms = 300) {
 }
 
 const NEW_VIEW = "__new"
-const SELECT = "h-9 rounded-md border border-input bg-background px-2.5 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 const SORT_KEY = "lenny-free-books-sort"
 // Kept for the session only, and never required: a blocked store just means the default.
 const readSort = (): CatalogSort => {
@@ -258,18 +258,18 @@ export function FreeBooks() {
             className="h-9 w-full sm:w-64"
           />
           {(collections.length > 0 || (head?.new ?? 0) > 0) && (
-            <select aria-label={t("Show")} value={view} onChange={(e) => changeView(e.target.value)} className={SELECT}>
+            <NativeSelect aria-label={t("Show")} value={view} onChange={(e) => changeView(e.target.value)}>
               <option value="">{t("All books")}</option>
               {(head?.new ?? 0) > 0 && <option value={NEW_VIEW}>{t("New ({{n}})", { n: head!.new })}</option>}
               {collections.map((c) => (
                 <option key={c.id} value={c.id}>{`${c.name} (${c.count})`}</option>
               ))}
-            </select>
+            </NativeSelect>
           )}
-          <select aria-label={t("Sort")} value={sort} onChange={(e) => changeSort(e.target.value as CatalogSort)} className={SELECT}>
+          <NativeSelect aria-label={t("Sort")} value={sort} onChange={(e) => changeSort(e.target.value as CatalogSort)}>
             <option value="title">{t("A-Z")}</option>
             <option value="added_desc">{t("Newest first")}</option>
-          </select>
+          </NativeSelect>
           <label className="flex h-9 items-center gap-2 text-sm">
             <Checkbox checked={hideOwned} onCheckedChange={(c) => setHideOwned(c === true)} />
             {t("Not in my library")}

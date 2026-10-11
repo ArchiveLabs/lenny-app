@@ -575,3 +575,14 @@ describe("the free books cards use the shared cover card, without Share", () => 
     expect(line.className).toContain("line-clamp-1")
   })
 })
+
+describe("the dropdowns", () => {
+  it("are styled selects with their own chevron, not the browser's small arrow", () => {
+    setup({ select: false })
+    for (const name of ["Show", "Sort"]) {
+      const select = screen.getByLabelText(name)
+      expect(select.className).toContain("appearance-none")
+      expect(select.parentElement.querySelector("svg")).toBeInTheDocument()
+    }
+  })
+})
