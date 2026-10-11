@@ -210,13 +210,13 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="flex flex-col h-full space-y-8 p-2 md:p-6 lg:p-8">
+    <div className="flex flex-col h-full space-y-5 p-2 sm:space-y-8 md:p-6 lg:p-8">
       {/* Header: the title with the sharing links on the right, then one row of controls */}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 sm:gap-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-1">
-            <h2 className="text-3xl font-bold tracking-tight">{t("Lenny Library")}</h2>
-            <p className="max-w-2xl text-base text-muted-foreground">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("Lenny Library")}</h2>
+            <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
               {t("All books currently available in this Lenny instance, enriched with OpenLibrary metadata.")}
             </p>
           </div>
@@ -234,7 +234,7 @@ export default function LibraryPage() {
             />
           </div>
           <Select value={accessFilter} onValueChange={handleFilterChange}>
-            <SelectTrigger className="w-[150px] rounded-lg font-semibold">
+            <SelectTrigger className="min-w-0 flex-1 rounded-lg font-semibold sm:w-[150px] sm:flex-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -257,15 +257,15 @@ export default function LibraryPage() {
               </>
             ) : (
               displayBooks.length > 0 && (
-                <Button variant="outline" className="font-semibold shadow-sm" onClick={() => setSelectMode(true)}>
-                  <ListChecks className="mr-2 h-4 w-4" />
-                  {t("Select")}
+                <Button variant="outline" className="font-semibold shadow-sm" aria-label={t("Select")} onClick={() => setSelectMode(true)}>
+                  <ListChecks className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">{t("Select")}</span>
                 </Button>
               )
             )}
-            <Button variant="outline" className="font-semibold shadow-sm" onClick={handleRefetch} disabled={isFetching}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-              {t("Refresh")}
+            <Button variant="outline" className="font-semibold shadow-sm" aria-label={t("Refresh")} onClick={handleRefetch} disabled={isFetching}>
+              <RefreshCw className={`h-4 w-4 sm:mr-2 ${isFetching ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">{t("Refresh")}</span>
             </Button>
           </div>
         </div>

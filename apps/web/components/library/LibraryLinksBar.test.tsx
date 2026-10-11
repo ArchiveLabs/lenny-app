@@ -78,3 +78,21 @@ it("uses the reader link exactly as Lenny returns it, without building its own",
   render(<LibraryLinksBar />)
   expect(screen.getByRole("link", { name: "Open in Internet Archive reader" })).toHaveAttribute("href", "https://reader.archive.org/?opds=https://lender.briet.app/v1/api/opds")
 })
+
+describe("on a phone", () => {
+  it("keeps the full name for the reader link even where the label is shortened", () => {
+    render(<LibraryLinksBar />)
+    const reader = screen.getByRole("link", { name: "Open in Internet Archive reader" })
+    expect(reader).toHaveAttribute("aria-label", "Open in Internet Archive reader")
+    expect(reader).toHaveTextContent("Archive reader")
+  })
+
+  it("makes the buttons shorter below sm, and full size from sm up", () => {
+    render(<LibraryLinksBar />)
+    for (const el of [screen.getByRole("link", { name: "OPDS feed" }), screen.getByRole("link", { name: "Open in Internet Archive reader" })]) {
+      expect(el.className).toContain("h-8")
+      expect(el.className).toContain("sm:h-9")
+    }
+    expect(screen.getByRole("button", { name: "Copy the OPDS feed link" }).className).toContain("size-8")
+  })
+})

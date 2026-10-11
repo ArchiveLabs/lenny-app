@@ -480,7 +480,7 @@ function LoansPageContent() {
         <div className="flex flex-col h-full p-2 md:p-6 lg:p-8 space-y-6 animate-in fade-in duration-500">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-1">
-                    <h2 className="text-3xl font-bold tracking-tight">{t("Active Loans")}</h2>
+                    <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("Active Loans")}</h2>
                     <p className="text-muted-foreground">{t("Manage active book checkouts across all patrons.")}</p>
                 </div>
                 <CreateLoanSheet />

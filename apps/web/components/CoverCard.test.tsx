@@ -122,3 +122,16 @@ describe("as a button", () => {
     expect(click).not.toHaveBeenCalled()
   })
 })
+
+describe("on a phone", () => {
+  it("fits three covers across a phone-width screen: tiles from 104px with tighter gaps", () => {
+    expect(COVER_GRID.split(" ").filter((c) => !c.includes(":"))).toEqual(expect.arrayContaining(["grid-cols-[repeat(auto-fill,minmax(104px,1fr))]", "gap-x-3", "gap-y-5"]))
+    // 3 tiles of 104px and two 12px gaps fit in 340px
+    expect(3 * 104 + 2 * 12).toBeLessThanOrEqual(340)
+  })
+
+  it("goes back to the larger tiles from the sm breakpoint", () => {
+    expect(COVER_GRID).toContain("sm:grid-cols-[repeat(auto-fill,minmax(132px,1fr))]")
+    expect(COVER_GRID).toContain("sm:gap-x-4")
+  })
+})

@@ -5,7 +5,7 @@ import { BookOpen } from "lucide-react"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 
 /** The grid the cover cards sit in: compact, with room to breathe. Shared by the Library and the free books. */
-export const COVER_GRID = "grid grid-cols-[repeat(auto-fill,minmax(132px,1fr))] gap-x-4 gap-y-6"
+export const COVER_GRID = "grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-x-3 gap-y-5 sm:grid-cols-[repeat(auto-fill,minmax(132px,1fr))] sm:gap-x-4 sm:gap-y-6"
 
 export function CoverCardSkeleton() {
   return (

@@ -10,7 +10,7 @@ export default function ImportHub() {
     <div className="flex flex-col gap-10 p-2 md:p-6 lg:p-8 animate-in fade-in duration-500">
       <section className="space-y-4">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">{t("Import")}</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("Import")}</h1>
           <p className="text-muted-foreground">{t("Add EPUB files from your computer, or pick free books.")}</p>
         </div>
         <SourceList
@@ -33,7 +33,7 @@ export default function ImportHub() {
 
       <section className="space-y-4">
         <div className="space-y-1">
-          <h2 className="text-3xl font-bold tracking-tight">{t("Redeem")}</h2>
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("Redeem")}</h2>
           <p className="text-muted-foreground">{t("Choose a source to redeem a bundle or code from.")}</p>
         </div>
         <SourceList
