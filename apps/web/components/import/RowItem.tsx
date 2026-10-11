@@ -3,6 +3,7 @@
 import { memo } from "react"
 import { AlertTriangle, CheckCircle2, CircleSlash, Copy, Loader2, Lock, LockOpen, Pencil, RotateCw, SearchX, Trash2, XCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
@@ -102,7 +103,7 @@ export const RowItem = memo(function RowItem({
             </Badge>
           )}
           {upload === "uploading" && (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" role="img" aria-label={t("Uploading")} />
+            <Spinner className="text-muted-foreground" role="img" aria-label={t("Uploading")} />
           )}
           {upload === "failed" && (
             <Button size="sm" variant="outline" className="gap-1 border-red-300 text-red-700" onClick={onRetryUpload} title={t("Try uploading again")}>

@@ -2,8 +2,9 @@
 
 import { useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ExternalLink, Loader2 } from "lucide-react"
+import { ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { Button } from "@workspace/ui/components/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@workspace/ui/components/sheet"
 import { importApi } from "@/lib/import/api"
@@ -62,7 +63,7 @@ export function EditionSheet({
         <div className="space-y-6 px-4 pb-6">
           <section className="space-y-2" aria-live="polite">
             <h3 className="text-sm font-semibold">{t("Suggestions from Open Library")}</h3>
-            {candidates.isLoading && <Loader2 className="h-4 w-4 animate-spin" aria-label={t("Loading")} />}
+            {candidates.isLoading && <Spinner aria-label={t("Loading")} />}
             {candidates.isError && <EditionError error={candidates.error} onRetry={() => candidates.refetch()} onStartOver={onStartOver} />}
             {candidates.data?.candidates.length === 0 && (
               <p className="text-sm text-muted-foreground">{t("No suggestions for this book.")}</p>

@@ -2,10 +2,11 @@
 
 import { forwardRef, useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { ExternalLink, Loader2 } from "lucide-react"
+import { ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { Label } from "@workspace/ui/components/label"
 import { importApi } from "@/lib/import/api"
 import type { ImportRow } from "@/types/import"
@@ -78,7 +79,7 @@ export const EditionSearch = forwardRef<HTMLInputElement, { batchId: number; row
             aria-controls="edition-results"
             aria-activedescendant={active >= 0 ? `edition-result-${active}` : undefined}
           />
-          {search.isFetching && <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-muted-foreground" aria-label={t("Searching")} />}
+          {search.isFetching && <Spinner className="absolute right-3 top-2.5 text-muted-foreground" aria-label={t("Searching")} />}
         </div>
         {text.trim().length > 0 && text.trim().length < MIN_CHARS && (
           <p className="text-xs text-muted-foreground">{t("Type at least 2 characters.")}</p>

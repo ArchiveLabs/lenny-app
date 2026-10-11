@@ -1,16 +1,19 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ExternalLink, Loader2, RefreshCw, Trash2 } from "lucide-react"
+import { ExternalLink, RefreshCw, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@workspace/ui/components/alert-dialog"
+import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
+import { Progress as ProgressBar } from "@workspace/ui/components/progress"
+import { Spinner } from "@workspace/ui/components/spinner"
 import { PAGE_SIZE, useImport, useImportLimits } from "@/hooks/import/use-import"
 import { useWindowDrop } from "@/hooks/import/use-window-drop"
 import type { RowFilter } from "@/lib/import/api"
@@ -38,10 +41,26 @@ function Progress({ label, done, total }: { label: string; done: number; total: 
         <span>{label}</span>
         <span className="tabular-nums text-muted-foreground">{done} / {total}</span>
       </div>
-      <div role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={label} className="h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
-      </div>
+      <ProgressBar value={pct} aria-label={label} className="bg-muted" />
     </div>
+  )
+}
+
+const TONES = {
+  error: "border-red-200 bg-red-50 text-red-900",
+  warning: "border-amber-200 bg-amber-50 text-amber-900",
+  info: "bg-muted/40 text-foreground",
+} as const
+
+/** A banner with an optional action on the right. Errors are announced at once (alert); the rest politely (status). */
+function Notice({ tone, action, children }: { tone: keyof typeof TONES; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Alert role={tone === "error" ? "alert" : "status"} className={`${TONES[tone]} flex items-center`}>
+      <AlertDescription className="flex w-full flex-wrap items-center gap-3 text-inherit">
+        <span className="mr-auto">{children}</span>
+        {action}
+      </AlertDescription>
+    </Alert>
   )
 }
 
@@ -120,9 +139,7 @@ export function ImportTab() {
           </div>
         </div>
       )}
-      {imp.error && (
-        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{imp.error}</p>
-      )}
+      {imp.error && <Notice tone="error">{imp.error}</Notice>}
 
       <DropZone onPick={pick} onChooseFolder={imp.folderSupported ? imp.chooseFolder : undefined} compact={hasList} disabled={busy} />
 
@@ -154,13 +171,10 @@ export function ImportTab() {
           </div>
 
           {match?.status === "failed" ? (
-            <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-              <p className="mr-auto">
-                {t("Matching stopped.")} {match.error}
-                {match.retry_after ? ` ${t("Try again in about {{n}} seconds.", { n: Math.ceil(match.retry_after) })}` : ""}
-              </p>
-              <Button size="sm" onClick={() => imp.recheck("queued")} disabled={busy}>{t("Retry matching")}</Button>
-            </div>
+            <Notice tone="error" action={<Button size="sm" onClick={() => imp.recheck("queued")} disabled={busy}>{t("Retry matching")}</Button>}>
+              {t("Matching stopped.")} {match.error}
+              {match.retry_after ? ` ${t("Try again in about {{n}} seconds.", { n: Math.ceil(match.retry_after) })}` : ""}
+            </Notice>
           ) : (
             queued > 0 && (
               <Progress
@@ -173,33 +187,27 @@ export function ImportTab() {
 
           {imp.uploading && <Progress label={t("Uploading files")} done={summary.staged} total={summary.staged + summary.unstaged} />}
           {imp.uploadFailed > 0 && !imp.uploading && (
-            <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
-              <p className="mr-auto">{t("{{n}} files could not be uploaded.", { n: imp.uploadFailed })}</p>
-              <Button size="sm" onClick={imp.retryUploads}>{t("Try again")}</Button>
-            </div>
+            <Notice tone="error" action={<Button size="sm" onClick={imp.retryUploads}>{t("Try again")}</Button>}>
+              {t("{{n}} files could not be uploaded.", { n: imp.uploadFailed })}
+            </Notice>
           )}
           <p className="text-sm text-muted-foreground">{t("Files are uploaded as books are matched, so you can leave this page.")}</p>
 
-          {imp.notice && <p role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">{t(imp.notice)}</p>}
+          {imp.notice && <Notice tone="info">{t(imp.notice)}</Notice>}
           {imp.missing > 0 && !imp.reconnecting && (
-            <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              <p className="mr-auto">
-                {t("Drop the same folder again to reconnect {{n}} files. Your choices are kept.", { n: imp.missing })}
-                {imp.folderName && ` ${t("Chrome can remember this: choose “Allow on every visit” when it asks.")}`}
-              </p>
-              {imp.folderName && (
-                <Button size="sm" onClick={imp.reconnectFolder} disabled={busy}>
-                  {t("Reconnect folder")}
-                </Button>
-              )}
-            </div>
+            <Notice
+              tone="warning"
+              action={imp.folderName && <Button size="sm" onClick={imp.reconnectFolder} disabled={busy}>{t("Reconnect folder")}</Button>}
+            >
+              {t("Drop the same folder again to reconnect {{n}} files. Your choices are kept.", { n: imp.missing })}
+              {imp.folderName && ` ${t("Chrome can remember this: choose “Allow on every visit” when it asks.")}`}
+            </Notice>
           )}
 
           {summary.skipped > 0 && (
-            <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
-              <p className="mr-auto">{t("{{n}} books were skipped earlier", { n: summary.skipped })}</p>
-              <Button size="sm" variant="outline" onClick={() => imp.bulk("remove", undefined, { skipped: true })}>{t("Remove them")}</Button>
-            </div>
+            <Notice tone="info" action={<Button size="sm" variant="outline" onClick={() => imp.bulk("remove", undefined, { skipped: true })}>{t("Remove them")}</Button>}>
+              {t("{{n}} books were skipped earlier", { n: summary.skipped })}
+            </Notice>
           )}
 
           <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
@@ -332,7 +340,7 @@ export function ImportTab() {
               <Button variant="outline" onClick={imp.cancelImport}>{t("Stop after current books")}</Button>
             ) : (
               <Button disabled={busy || summary.ready === 0} onClick={startImport}>
-                {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {busy && <Spinner className="mr-2" aria-hidden />}
                 {t("Import {{n}} books", { n: summary.ready })}
               </Button>
             )}
