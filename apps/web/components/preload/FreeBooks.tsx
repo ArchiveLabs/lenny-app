@@ -48,13 +48,13 @@ const writeSort = (v: CatalogSort) => {
   }
 }
 
-function BookTile({ book, selected, onToggle, onOpen }: { book: PreloadBook; selected: boolean; onToggle: () => void; onOpen: () => void }) {
+function BookTile({ book, selected, selecting, onToggle, onOpen }: { book: PreloadBook; selected: boolean; selecting: boolean; onToggle: () => void; onOpen: () => void }) {
   const { t } = useTranslation()
   const owned = book.in_library
   return (
     <li className={`relative rounded-xl border transition-colors hover:bg-muted/50 ${selected ? "border-primary ring-2 ring-primary" : ""}`}>
-      {/* The card opens the details; the checkbox, on its own, picks the book. */}
-      <button type="button" onClick={onOpen} className="flex h-full w-full flex-col gap-2 rounded-xl p-2 text-left">
+      {/* A card opens the details. While selecting, it picks the book instead, and the checkbox shows what is picked. */}
+      <button type="button" onClick={selecting && !owned ? onToggle : onOpen} className="flex h-full w-full flex-col gap-2 rounded-xl p-2 text-left">
         <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted">
           {book.cover_url && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -70,7 +70,7 @@ function BookTile({ book, selected, onToggle, onOpen }: { book: PreloadBook; sel
           {[book.authors.join(", "), book.year].filter(Boolean).join(" · ")}
         </span>
       </button>
-      {!owned && (
+      {selecting && !owned && (
         <Checkbox
           checked={selected}
           onCheckedChange={onToggle}
@@ -89,6 +89,7 @@ export function FreeBooks() {
   const [collection, setCollection] = useState("")
   const [hideOwned, setHideOwned] = useState(false)
   const [newOnly, setNewOnly] = useState(false)
+  const [selecting, setSelecting] = useState(false) // checkboxes only show while picking books to add
   const [viewing, setViewing] = useState<number | null>(null) // the book whose details are open
   const [sort, setSort] = useState<CatalogSort>(readSort)
   // One "Show" menu replaces the rows of chips: all books, the new ones, or a collection.
@@ -319,15 +320,26 @@ export function FreeBooks() {
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <p className="text-muted-foreground">{t("{{n}} books shown", { n: books.length })}</p>
           <div className="flex items-center gap-1">
-            {selectable.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={() => setPicked(new Map([...picked, ...selectable.map((b) => [b.olid, b] as const)]))}>
-                {t("Select all shown")}
-              </Button>
-            )}
-            {current && (
-              <Button size="sm" variant="outline" disabled={running || load.isPending} onClick={() => run({ collection })}>
-                {t("Add all of {{name}}", { name: current.name })}
-              </Button>
+            {selecting ? (
+              <>
+                {selectable.length > 0 && (
+                  <Button size="sm" variant="ghost" onClick={() => setPicked(new Map([...picked, ...selectable.map((b) => [b.olid, b] as const)]))}>
+                    {t("Select all shown")}
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => { setSelecting(false); setPicked(new Map()) }}>{t("Cancel")}</Button>
+              </>
+            ) : (
+              <>
+                {selectable.length > 0 && (
+                  <Button size="sm" variant="ghost" onClick={() => setSelecting(true)}>{t("Select books")}</Button>
+                )}
+                {current && (
+                  <Button size="sm" variant="outline" disabled={running || load.isPending} onClick={() => run({ collection })}>
+                    {t("Add all of {{name}}", { name: current.name })}
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -338,7 +350,7 @@ export function FreeBooks() {
           className={`grid grid-cols-2 gap-3 transition-opacity sm:grid-cols-4 lg:grid-cols-6 ${catalog.isPlaceholderData ? "opacity-60" : ""}`}
           aria-busy={catalog.isPlaceholderData}
         >
-          {books.map((b) => <BookTile key={b.olid} book={b} selected={picked.has(b.olid)} onToggle={() => toggle(b)} onOpen={() => setViewing(b.olid)} />)}
+          {books.map((b) => <BookTile key={b.olid} book={b} selected={picked.has(b.olid)} selecting={selecting} onToggle={() => toggle(b)} onOpen={() => setViewing(b.olid)} />)}
         </ul>
       )}
       {catalog.hasNextPage && (

@@ -28,7 +28,7 @@ const refresh = jest.fn()
 const idleBook = { data: undefined, isLoading: false, isError: false, isFetching: false, error: null, refetch: jest.fn() }
 const progress = (over = {}) => ({ jobs: [], active: 0, done: 0, failed: [], ...over })
 
-const setup = ({ cat = catalog([book(1), book(2), book(3, { in_library: true })]), prog = progress(), refreshState = {}, bookState = idleBook } = {}) => {
+const setup = ({ cat = catalog([book(1), book(2), book(3, { in_library: true })]), prog = progress(), refreshState = {}, bookState = idleBook, select = true } = {}) => {
   useCatalog.mockReturnValue(cat)
   useCatalogRefresh.mockReturnValue({ checking: false, error: null, refresh, ...refreshState })
   usePreloadBook.mockReturnValue(bookState)
@@ -36,9 +36,13 @@ const setup = ({ cat = catalog([book(1), book(2), book(3, { in_library: true })]
   useLoadBooks.mockReturnValue({ mutateAsync, isPending: false })
   useLoadProgress.mockReturnValue(prog)
   render(<FreeBooks />)
+  // Most tests are about picking books, which only happens in select mode.
+  const toggle = screen.queryByRole("button", { name: "Select books" })
+  if (select && toggle) fireEvent.click(toggle)
 }
 
 beforeEach(() => {
+  usePreloadBook.mockClear()
   refresh.mockReset()
   toast.info.mockReset()
   sessionStorage.clear()
@@ -100,7 +104,7 @@ it("parses a pasted list and reports queued, owned and unknown counts", async ()
 })
 
 it("adds a whole collection", async () => {
-  setup()
+  setup({ select: false })
   fireEvent.change(screen.getByLabelText("Show"), { target: { value: "poetry" } })
   expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ collection: "poetry" }))
   fireEvent.click(screen.getByRole("button", { name: "Add all of Poetry" }))
@@ -432,7 +436,7 @@ describe("the toolbar", () => {
   })
 
   it("adds Add all of the collection to that header once one is chosen", () => {
-    setup()
+    setup({ select: false })
     expect(screen.queryByRole("button", { name: /Add all of/ })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Show"), { target: { value: "poetry" } })
     expect(screen.getByRole("button", { name: "Add all of Poetry" })).toBeInTheDocument()
@@ -459,11 +463,11 @@ describe("searching", () => {
 describe("opening a book's details", () => {
   const details = (over = {}) => ({ ...idleBook, data: { ...book(1), languages: [], all_subjects: [], links: {}, details_loaded: true, ...over } })
 
-  it("opens the details from the card, not by picking it", () => {
-    setup()
+  it("opens the details from the card, with no checkboxes until Select books", () => {
+    setup({ select: false })
+    expect(screen.queryByRole("checkbox", { name: /Select Book/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
     expect(usePreloadBook).toHaveBeenLastCalledWith(1)
-    expect(screen.getByRole("checkbox", { name: "Select Book 1", hidden: true })).not.toBeChecked()
     expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
   })
 
@@ -475,7 +479,7 @@ describe("opening a book's details", () => {
   })
 
   it("adds the one book from the sheet through the same add flow", async () => {
-    setup({ bookState: details() })
+    setup({ bookState: details(), select: false })
     fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
     fireEvent.click(await screen.findByRole("button", { name: "Add to my library" }))
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ olids: [1] }))
@@ -487,5 +491,62 @@ describe("opening a book's details", () => {
     fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
     await waitFor(() => expect(cat.refetch).toHaveBeenCalled())
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+})
+
+describe("select mode", () => {
+  it("shows no checkboxes at first, only a Select books button", () => {
+    setup({ select: false })
+    expect(screen.queryByRole("checkbox", { name: /Select Book/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Select books" })).toBeInTheDocument()
+    expect(screen.queryByText("Pick books to add")).not.toBeInTheDocument()
+  })
+
+  it("shows checkboxes on the books that can be added once Select books is pressed, but not on owned ones", () => {
+    setup({ select: false })
+    fireEvent.click(screen.getByRole("button", { name: "Select books" }))
+    expect(screen.getByRole("checkbox", { name: "Select Book 1" })).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "Select Book 2" })).toBeInTheDocument()
+    expect(screen.queryByRole("checkbox", { name: "Select Book 3" })).not.toBeInTheDocument()
+  })
+
+  it("swaps the header actions: Select all shown and Cancel replace Select books and Add all of", () => {
+    setup({ select: false })
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "poetry" } })
+    expect(screen.getByRole("button", { name: "Add all of Poetry" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Select books" }))
+    expect(screen.getByRole("button", { name: "Select all shown" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Add all of/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Select books" })).not.toBeInTheDocument()
+  })
+
+  it("picks a book when its card is clicked, instead of opening the details", () => {
+    setup()
+    fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+    expect(screen.getByText("1 selected")).toBeInTheDocument()
+    expect(usePreloadBook).not.toHaveBeenCalledWith(1)
+  })
+
+  it("still opens the details of a book already in the library", () => {
+    setup()
+    fireEvent.click(screen.getByRole("button", { name: /Book 3/ }))
+    expect(usePreloadBook).toHaveBeenLastCalledWith(3)
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
+  })
+
+  it("leaves select mode and forgets the picks on Cancel", () => {
+    setup()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Book 1" }))
+    expect(screen.getByText("1 selected")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("checkbox", { name: /Select Book/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Select books" })).toBeInTheDocument()
+  })
+
+  it("offers no Select books when every shown book is already in the library", () => {
+    setup({ cat: catalog([book(1, { in_library: true })]), select: false })
+    expect(screen.queryByRole("button", { name: "Select books" })).not.toBeInTheDocument()
   })
 })
