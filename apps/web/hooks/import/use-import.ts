@@ -219,7 +219,8 @@ export function useImport(filter: RowFilter, page = 0) {
       try {
         const limit = (await qc.ensureQueryData({ queryKey: ["import-limits"], queryFn: importApi.limits })).max_rows_per_call
         // Files that already have a row (same or different folder level) only need re-attaching, not a new row.
-        const existing = batchId !== null ? await allRows(batchId, {}) : []
+        // Imported books are history: the server frees their key, so dropping one again makes a new row.
+        const existing = batchId !== null ? await allRows(batchId, { exclude_state: "imported" }) : []
         const { known, fresh } = splitKnown(picked, existing)
         // Rows that had no file here and none on the server only needed reconnecting; they are not "dropped again".
         const reconnects = matchedRows(known.filter((p) => !held.has(p)), existing).filter((r) => r.state === "matched" && !r.staged)
@@ -249,11 +250,10 @@ export function useImport(filter: RowFilter, page = 0) {
           }
           const dup = dupRows.length + existingOnServer
           if (dup > 0 && !opts.silent) {
-            const imported = dupRows.filter((r) => r.state === "imported").length
             parts.push(
               created > 0
                 ? `Loaded ${created} new books. ${dup} ${dup === 1 ? "was" : "were"} already loaded.`
-                : `${dup === 1 ? "This file is" : `These ${dup} files are`} already loaded${imported ? ` (${imported} already imported)` : ""}.`,
+                : `${dup === 1 ? "This file is" : `These ${dup} files are`} already loaded.`,
             )
           }
           if (parts.length) setNotice(parts.join(" ").replace(/\.$/, ""))

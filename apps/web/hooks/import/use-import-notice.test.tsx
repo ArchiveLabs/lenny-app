@@ -14,7 +14,7 @@ const batch = { id: 7, created_at: "", expires_at: "", total: 3, counts: {}, ski
 
 const setup = async (rows) => {
   importApi.rows.mockImplementation(async (_id, f) => ({
-    rows: rows.filter((r) => (f.state === undefined || r.state === f.state) && (f.skipped === undefined || r.skipped === f.skipped)),
+    rows: rows.filter((r) => (f.state === undefined || r.state === f.state) && (f.skipped === undefined || r.skipped === f.skipped) && f.exclude_state !== r.state),
     next_cursor: null,
   }))
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -49,10 +49,12 @@ it("uses the singular for one file", async () => {
   expect(result.current.notice).toBe("This file is already loaded")
 })
 
-it("adds how many were already imported", async () => {
-  const result = await setup([mk(1, { state: "imported" }), mk(2, { staged: true }), mk(3, { state: "imported" })])
-  await act(() => result.current.addFiles(drop(1, 2, 3)))
-  expect(result.current.notice).toBe("These 3 files are already loaded (2 already imported)")
+it("treats a re-dropped imported book as new: it is history now, and the server makes a fresh row", async () => {
+  const result = await setup([mk(1, { state: "imported" }), mk(2, { staged: true })])
+  await act(() => result.current.addFiles(drop(1, 2)))
+  expect(importApi.rows).toHaveBeenCalledWith(7, expect.objectContaining({ exclude_state: "imported" }))
+  expect(importApi.putRows.mock.calls[0][1].map((r) => r.path)).toEqual(["L/b1.epub"])
+  expect(result.current.notice).toBe("Loaded 1 new books. 1 was already loaded")
 })
 
 it("says how many were added and how many were already there", async () => {
