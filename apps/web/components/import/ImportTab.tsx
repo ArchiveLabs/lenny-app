@@ -142,10 +142,11 @@ export function ImportTab() {
           )}
 
           {imp.notice && <p role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">{t(imp.notice)}</p>}
-          {imp.missing > 0 && (
+          {imp.missing > 0 && !imp.reconnecting && (
             <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <p className="mr-auto">
                 {t("Drop the same folder again to reconnect {{n}} files. Your choices are kept.", { n: imp.missing })}
+                {imp.folderName && ` ${t("Chrome can remember this: choose “Allow on every visit” when it asks.")}`}
               </p>
               {imp.folderName && (
                 <Button size="sm" onClick={imp.reconnectFolder} disabled={busy}>

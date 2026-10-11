@@ -84,3 +84,15 @@ describe("splitKnown", () => {
 it("looseKey ignores directories", () => {
   expect(looseKey(row("a/b/c.epub"))).toBe(looseKey(row("c.epub")))
 })
+
+it("remove forgets the file, and the name fallback only when it is that same file", () => {
+  const idx = new FileIndex()
+  const a = new File(["x"], "a.epub", { lastModified: 5 })
+  const b = new File(["x"], "a.epub", { lastModified: 5 })
+  idx.add(a, "One/a.epub")
+  idx.add(b, "Two/a.epub")
+  idx.remove({ path: "Two/a.epub", size: 1, mtime: 5 })
+  expect(idx.get({ path: "Two/a.epub", size: 1, mtime: 5 })).toBe(a) // falls back to the other copy by name
+  idx.remove({ path: "One/a.epub", size: 1, mtime: 5 })
+  expect(idx.get({ path: "One/a.epub", size: 1, mtime: 5 })).toBeUndefined()
+})

@@ -33,11 +33,24 @@ export class FileIndex {
     return this.exact.size
   }
 
+  /** Forget a removed row's file. The name fallback goes only if it points at this same file. */
+  remove(row: Ident) {
+    const f = this.get(row)
+    this.exact.delete(exactKey(row))
+    if (f && this.loose.get(looseKey(row)) === f) this.loose.delete(looseKey(row))
+  }
+
   clear() {
     this.exact.clear()
     this.loose.clear()
   }
 }
+
+/**
+ * The attached files. Module-level on purpose: they must outlive the page component, so leaving for the hub
+ * or Free books and coming back keeps them. Cleared by Start over, never by a remount.
+ */
+export const importFiles = new FileIndex()
 
 /** Split picked files into ones that already have a row (by exact or loose match) and brand-new ones. */
 export function splitKnown(picked: PickedFile[], rows: Ident[]) {

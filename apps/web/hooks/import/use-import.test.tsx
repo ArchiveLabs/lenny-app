@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { pollInterval, useImport } from "./use-import"
 import { importApi } from "@/lib/import/api"
+import { importFiles } from "@/lib/import/files"
 
 jest.mock("@/lib/import/api", () => ({ importApi: {} }))
 jest.mock("@/lib/query-client", () => ({ forceFreshLibraryOnNextVisit: jest.fn() }))
@@ -18,6 +19,7 @@ const pick = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ file: new File(["x"], `b${i}.epub`), path: `L/b${i}.epub` }))
 
 beforeEach(() => {
+  importFiles.clear() // the store is module-level, so tests must not share it
   Object.assign(importApi, {
     limits: jest.fn().mockResolvedValue({ max_rows_per_call: 500 }),
     listBatches: jest.fn().mockResolvedValue({ batches: [summary(7), summary(3)] }),

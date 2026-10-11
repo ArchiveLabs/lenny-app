@@ -169,3 +169,29 @@ it("passes a row's Remove to the hook", () => {
   fireEvent.click(screen.getByRole("button", { name: "remove Dune" }))
   expect(imp.removeRow).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }))
 })
+
+describe("reconnect banner", () => {
+  it("is hidden while files are held in memory", () => {
+    setup({ missing: 0 })
+    expect(screen.queryByText(/Drop the same folder again/)).not.toBeInTheDocument()
+  })
+
+  it("is hidden during a silent reconnect", () => {
+    setup({ missing: 2, folderName: "Library", reconnecting: true })
+    expect(screen.queryByText(/Drop the same folder again/)).not.toBeInTheDocument()
+  })
+
+  it("offers the button and the Chrome hint when the browser needs a click", () => {
+    const imp = setup({ missing: 2, folderName: "Library", folderSupported: true })
+    expect(screen.getByText(/Allow on every visit/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Reconnect folder" }))
+    expect(imp.reconnectFolder).toHaveBeenCalled()
+  })
+
+  it("asks to drop again, with no button or hint, when there is no remembered folder", () => {
+    setup({ missing: 2 })
+    expect(screen.getByText(/Drop the same folder again to reconnect 2 files/)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reconnect folder" })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Allow on every visit/)).not.toBeInTheDocument()
+  })
+})

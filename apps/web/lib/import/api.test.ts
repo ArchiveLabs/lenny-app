@@ -43,8 +43,8 @@ it("surfaces API errors", async () => {
   await expect(importApi.batch(1)).rejects.toThrow("Batch expired")
 })
 
-it("DELETEs a single row", async () => {
-  ;(fetchAdmin as jest.Mock).mockReturnValue(Promise.resolve(new Response(null, { status: 204 })))
-  await importApi.removeRow(3, 9)
+it("DELETEs a single row and returns the updated batch", async () => {
+  ;(fetchAdmin as jest.Mock).mockReturnValue(ok({ id: 3, created_at: "t", expires_at: "t", total: 1, counts: {} }))
+  expect((await importApi.removeRow(3, 9)).total).toBe(1)
   expect(fetchAdmin).toHaveBeenCalledWith("import/batches/3/rows/9", { method: "DELETE" })
 })

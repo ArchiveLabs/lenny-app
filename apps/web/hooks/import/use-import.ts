@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { forceFreshLibraryOnNextVisit } from "@/lib/query-client"
 import { importApi, type RowFilter } from "@/lib/import/api"
-import { FileIndex, splitKnown } from "@/lib/import/files"
-import { clearHandle, ensureReadPermission, loadHandle, pickDirectory, saveHandle, supportsDirectoryPicker, walkDirectory } from "@/lib/import/fsa"
+import { importFiles, splitKnown } from "@/lib/import/files"
+import { clearHandle, ensureReadPermission, hasReadPermission, loadHandle, pickDirectory, saveHandle, supportsDirectoryPicker, walkDirectory } from "@/lib/import/fsa"
 import { chunk, ingest, pool } from "@/lib/import/ingest"
 import type { PickedFile } from "@/lib/import/walk"
 import type { ImportRow } from "@/types/import"
@@ -42,14 +42,14 @@ export function useImport(filter: RowFilter) {
   const [batchId, setBatchId] = useState<number | null>(null)
   const [phase, setPhase] = useState<Phase>({ kind: "idle" })
   const [error, setError] = useState<string | null>(null)
-  // A browser cannot keep File objects across a reload. They live here, found by exact path then by
-  // name/size/mtime, and are re-attached by dropping again or by reconnecting a remembered folder.
-  // Only clearBatch ever empties this: errors must never lose the files.
-  const files = useRef(new FileIndex())
+  // A browser cannot keep File objects across a reload, so after one they are re-attached by dropping
+  // again or by reconnecting the remembered folder. Between routes they stay in the module-level
+  // importFiles. Only clearBatch and removeRow shrink it: errors must never lose the files.
   const cancelled = useRef(false)
   const [missing, setMissing] = useState(0) // matched, unskipped rows with no file attached
   const [notice, setNotice] = useState<string | null>(null)
   const [version, setVersion] = useState(0) // bumps when files are attached, to recount
+  const [reconnecting, setReconnecting] = useState(false) // silent reconnect in progress
   const [folderName, setFolderName] = useState<string | null>(null) // remembered folder (Chromium)
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export function useImport(filter: RowFilter) {
 
   const recount = useCallback(async (id: number) => {
     const ready = await allRows(id, { state: "matched", skipped: false })
-    setMissing(ready.filter((r) => !files.current.has(r)).length)
+    setMissing(ready.filter((r) => !importFiles.has(r)).length)
     return ready
   }, [])
 
@@ -112,7 +112,7 @@ export function useImport(filter: RowFilter) {
   // Leaving now would lose the attached files (and stop a running import).
   const importing = phase.kind === "importing"
   useEffect(() => {
-    if (!(importing || (files.current.size > 0 && (ready ?? 0) > 0))) return
+    if (!(importing || (importFiles.size > 0 && (ready ?? 0) > 0))) return
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ""
@@ -139,7 +139,7 @@ export function useImport(filter: RowFilter) {
       setError(null)
       setNotice(null)
       // Attach first: whatever goes wrong below, the files stay.
-      picked.forEach((p) => files.current.add(p.file, p.path))
+      picked.forEach((p) => importFiles.add(p.file, p.path))
       setVersion((v) => v + 1)
       try {
         const limit = (await qc.ensureQueryData({ queryKey: ["import-limits"], queryFn: importApi.limits })).max_rows_per_call
@@ -161,7 +161,7 @@ export function useImport(filter: RowFilter) {
         if (batchId !== null && existing.length) {
           const ready = await recount(batchId)
           if (ready.length) {
-            const n = ready.filter((r) => files.current.has(r)).length
+            const n = ready.filter((r) => importFiles.has(r)).length
             setNotice(`Reconnected ${n} of ${ready.length} files`)
           }
         }
@@ -186,6 +186,21 @@ export function useImport(filter: RowFilter) {
       setError(`Could not read the folder: ${errMsg(e)}`)
     }
   }, [addFiles])
+
+  // After a reload the remembered folder may already be readable: reconnect without a click. If the browser
+  // wants a prompt, the Reconnect folder button stays. Once per mount, never a loop.
+  const triedSilent = useRef(false)
+  useEffect(() => {
+    if (triedSilent.current || !folderName || batchId === null || missing === 0 || phase.kind !== "idle") return
+    triedSilent.current = true
+    setReconnecting(true)
+    loadHandle()
+      .then(async (h) => {
+        if (h && (await hasReadPermission(h))) await addFiles(await walkDirectory(h))
+      })
+      .catch(() => {}) // folder moved or unreadable: the banner offers the manual route
+      .finally(() => setReconnecting(false))
+  }, [folderName, batchId, missing, phase.kind, addFiles])
 
   const reconnectFolder = useCallback(async () => {
     try {
@@ -231,6 +246,8 @@ export function useImport(filter: RowFilter) {
       if (batchId === null) return
       try {
         await importApi.removeRow(batchId, row.id)
+        importFiles.remove(row)
+        setVersion((v) => v + 1)
       } catch (e) {
         setError(errMsg(e))
       } finally {
@@ -265,14 +282,14 @@ export function useImport(filter: RowFilter) {
       setError(errMsg(e))
       return { missing: 0, failed: 0 }
     }
-    const sendable = ready.filter((r) => files.current.has(r))
+    const sendable = ready.filter((r) => importFiles.has(r))
     let done = 0
     let failed = 0
     setPhase({ kind: "importing", done, total: sendable.length, failed })
     await pool(sendable, UPLOADS_IN_FLIGHT, async (row) => {
       if (cancelled.current) return
       try {
-        const res = await importApi.uploadFile(batchId, row.id, files.current.get(row)!)
+        const res = await importApi.uploadFile(batchId, row.id, importFiles.get(row)!)
         if (res.state === "failed" || res.state === "not_epub") failed++
       } catch {
         failed++ // the file stays attached, so Import can simply be pressed again
@@ -292,7 +309,7 @@ export function useImport(filter: RowFilter) {
   const clearBatch = useCallback(async () => {
     if (batchId === null) return
     await importApi.deleteBatch(batchId)
-    files.current.clear()
+    importFiles.clear()
     clearHandle()
     setFolderName(null)
     setMissing(0)
@@ -321,14 +338,15 @@ export function useImport(filter: RowFilter) {
     runImport,
     cancelImport,
     clearBatch,
-    attachedCount: files.current.size,
+    reconnecting,
+    attachedCount: importFiles.size,
     missing,
     notice,
     folderName,
     folderSupported: supportsDirectoryPicker(),
     chooseFolder,
     reconnectFolder,
-    hasFile: (r: ImportRow) => files.current.has(r),
+    hasFile: (r: ImportRow) => importFiles.has(r),
     refresh,
   }
 }

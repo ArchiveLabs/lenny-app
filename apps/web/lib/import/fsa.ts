@@ -57,6 +57,10 @@ export const loadHandle = () =>
   run<FileSystemDirectoryHandle | undefined>("readonly", (s) => s.get(KEY)).catch(() => undefined)
 export const clearHandle = () => run("readwrite", (s) => s.delete(KEY)).then(() => undefined, () => undefined)
 
+/** True when the folder is readable right now without asking (so it can be reattached silently). */
+export const hasReadPermission = async (h: FileSystemDirectoryHandle) =>
+  (await (h as Dir).queryPermission({ mode: "read" })) === "granted"
+
 /** Must be called from a click: requestPermission needs a user gesture. */
 export async function ensureReadPermission(h: FileSystemDirectoryHandle): Promise<boolean> {
   const d = h as Dir
