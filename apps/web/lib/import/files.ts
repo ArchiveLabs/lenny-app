@@ -52,6 +52,14 @@ export class FileIndex {
  */
 export const importFiles = new FileIndex()
 
+/** The rows that picked files already belong to (by exact path, or by name when dropped from another folder level). */
+export function matchedRows<T extends Ident>(picked: PickedFile[], rows: T[]): T[] {
+  const ids = picked.map((p) => ({ path: p.path, size: p.file.size, mtime: p.file.lastModified }))
+  const exact = new Set(ids.map(exactKey))
+  const loose = new Set(ids.map(looseKey))
+  return rows.filter((r) => exact.has(exactKey(r)) || loose.has(looseKey(r)))
+}
+
 /** Split picked files into ones that already have a row (by exact or loose match) and brand-new ones. */
 export function splitKnown(picked: PickedFile[], rows: Ident[]) {
   const exact = new Set(rows.map(exactKey))

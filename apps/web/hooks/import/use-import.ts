@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
 import { forceFreshLibraryOnNextVisit } from "@/lib/query-client"
 import { importApi, type RowFilter } from "@/lib/import/api"
-import { importFiles, splitKnown } from "@/lib/import/files"
+import { importFiles, matchedRows, splitKnown } from "@/lib/import/files"
 import { clearHandle, ensureReadPermission, hasReadPermission, loadHandle, pickDirectory, saveHandle, supportsDirectoryPicker, walkDirectory } from "@/lib/import/fsa"
 import { chunk, ingest, pool } from "@/lib/import/ingest"
 import type { PickedFile } from "@/lib/import/walk"
@@ -201,10 +201,12 @@ export function useImport(filter: RowFilter, page = 0) {
     importApi.startMatch(batchId).then(refresh, () => {}) // the failure shows up as match.failed on the next poll
   }, [batchId, queuedRows, matchStatus, refresh])
   const addFiles = useCallback(
-    async (picked: PickedFile[]) => {
+    async (picked: PickedFile[], opts: { silent?: boolean } = {}) => {
       if (!picked.length) return
       setError(null)
       setNotice(null)
+      // Which of these did we already hold? A re-drop of those is "already in your list"; the rest are reconnects.
+      const held = new Set(picked.filter((p) => importFiles.has({ path: p.path, size: p.file.size, mtime: p.file.lastModified })))
       // Attach first: whatever goes wrong below, the files stay.
       picked.forEach((p) => importFiles.add(p.file, p.path))
       setVersion((v) => v + 1)
@@ -212,7 +214,13 @@ export function useImport(filter: RowFilter, page = 0) {
         const limit = (await qc.ensureQueryData({ queryKey: ["import-limits"], queryFn: importApi.limits })).max_rows_per_call
         // Files that already have a row (same or different folder level) only need re-attaching, not a new row.
         const existing = batchId !== null ? await allRows(batchId, {}) : []
-        const { fresh } = splitKnown(picked, existing)
+        const { known, fresh } = splitKnown(picked, existing)
+        // Rows that had no file here and none on the server only needed reconnecting; they are not "dropped again".
+        const reconnects = matchedRows(known.filter((p) => !held.has(p)), existing).filter((r) => r.state === "matched" && !r.staged)
+        const reconnectIds = new Set(reconnects.map((r) => r.id))
+        const dupRows = matchedRows(known, existing).filter((r) => !reconnectIds.has(r.id))
+        let created = 0
+        let existingOnServer = 0
         if (fresh.length) {
           setPhase({ kind: "reading", done: 0, total: fresh.length })
           const newRows = await ingest(fresh, (done, total) => setPhase({ kind: "reading", done, total }))
@@ -220,17 +228,29 @@ export function useImport(filter: RowFilter, page = 0) {
           setBatchId(id)
           for (const [i, g] of chunk(newRows, limit).entries()) {
             setPhase({ kind: "saving", done: i * limit, total: newRows.length })
-            await importApi.putRows(id, g)
+            const res = await importApi.putRows(id, g)
+            created += res.created
+            existingOnServer += res.existing
           }
           await importApi.startMatch(id)
           qc.invalidateQueries({ queryKey: ["import-batches"] })
         }
         if (batchId !== null && existing.length) {
           const ready = await recount(batchId)
-          if (ready.length) {
-            const n = ready.filter((r) => importFiles.has(r)).length
-            setNotice(`Reconnected ${n} of ${ready.length} files`)
+          const parts: string[] = []
+          if (reconnects.length && ready.length) {
+            parts.push(`Reconnected ${ready.filter((r) => importFiles.has(r)).length} of ${ready.length} files.`)
           }
+          const dup = dupRows.length + existingOnServer
+          if (dup > 0 && !opts.silent) {
+            const imported = dupRows.filter((r) => r.state === "imported").length
+            parts.push(
+              created > 0
+                ? `Added ${created} new books. ${dup} ${dup === 1 ? "was" : "were"} already in your list.`
+                : `${dup === 1 ? "This file is" : `These ${dup} files are`} already in your list${imported ? ` (${imported} already imported)` : ""}.`,
+            )
+          }
+          if (parts.length) setNotice(parts.join(" ").replace(/\.$/, ""))
         }
       } catch (e) {
         setError(errMsg(e))
@@ -263,7 +283,7 @@ export function useImport(filter: RowFilter, page = 0) {
     setReconnecting(true)
     loadHandle()
       .then(async (h) => {
-        if (h && (await hasReadPermission(h))) await addFiles(await walkDirectory(h))
+        if (h && (await hasReadPermission(h))) await addFiles(await walkDirectory(h), { silent: true })
       })
       .catch(() => {}) // folder moved or unreadable: the banner offers the manual route
       .finally(() => setReconnecting(false))

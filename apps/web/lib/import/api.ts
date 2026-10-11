@@ -49,7 +49,7 @@ export const importApi = {
   deleteBatch: (id: number) => fetchAdmin(base(id), { method: "DELETE" }).then((r) => handleApiResponse(r)),
   putRows: (id: number, rows: NewRow[]) =>
     fetchAdmin(`${base(id)}/rows`, json("PUT", { rows })).then((r) =>
-      handleApiResponse(r, z.object({ created: z.number(), existing: z.number() })),
+      handleApiResponse(r, z.object({ created: z.number(), existing: z.number(), existing_states: z.record(z.string(), z.number()).default({}) })),
     ),
   rows: (id: number, f: RowFilter & { cursor?: string; limit?: number; offset?: number }) =>
     fetchAdmin(`${base(id)}/rows${query({ ...f, limit: f.limit ?? 100 })}`).then((r) =>

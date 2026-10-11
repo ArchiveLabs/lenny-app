@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { FileIndex, baseName, exactKey, looseKey, normPath, splitKnown } from "./files"
+import { FileIndex, matchedRows, baseName, exactKey, looseKey, normPath, splitKnown } from "./files"
 
 const file = (name: string, size = 1, mtime = 100) => {
   const f = new File(["x".repeat(size)], name, { lastModified: mtime })
@@ -95,4 +95,10 @@ it("remove forgets the file, and the name fallback only when it is that same fil
   expect(idx.get({ path: "Two/a.epub", size: 1, mtime: 5 })).toBe(a) // falls back to the other copy by name
   idx.remove({ path: "One/a.epub", size: 1, mtime: 5 })
   expect(idx.get({ path: "One/a.epub", size: 1, mtime: 5 })).toBeUndefined()
+})
+
+it("matchedRows finds the rows that dropped files belong to, by path or by name", () => {
+  const f = (path) => ({ file: new File(["x"], path.split("/").pop(), { lastModified: 5 }), path })
+  const rows = [{ id: 1, path: "A/a.epub", size: 1, mtime: 5 }, { id: 2, path: "A/b.epub", size: 1, mtime: 5 }, { id: 3, path: "A/c.epub", size: 1, mtime: 9 }]
+  expect(matchedRows([f("A/a.epub"), f("sub/b.epub")], rows).map((r) => r.id)).toEqual([1, 2])
 })
