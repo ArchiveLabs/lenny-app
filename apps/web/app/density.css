@@ -4,7 +4,7 @@
  * components) follows --root-size, so tune the numbers below and nothing else.
  *
  * Rule:
- *  - touch devices (pointer: coarse): 13px on phones and tablets;
+ *  - touch devices (pointer: coarse): 14px on phones and tablets;
  *  - mouse devices (pointer: fine): 16px below 768px, then 15px, then 14px from
  *    1024px (~ a laptop with the browser zoomed to 85-90%), back up to 15px at
  *    1920px and 16px at 2560px so very wide screens do not look tiny.
@@ -16,8 +16,8 @@
  *  - touch tap targets are >= --tap-target (36px) whatever the root is.
  */
 :root {
-  --root-size-touch-phone: 13px;
-  --root-size-touch-tablet: 13px; /* touch, >= 768px */
+  --root-size-touch-phone: 14px;
+  --root-size-touch-tablet: 14px; /* touch, >= 768px */
   --root-size-mouse-small: 16px;  /* mouse, < 768px */
   --root-size-mouse-medium: 15px; /* mouse, 768-1023px */
   --root-size-mouse-large: 14px;  /* mouse, 1024-1919px */
