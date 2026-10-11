@@ -8,6 +8,8 @@ export interface EpubMeta {
   language?: string
   publisher?: string
   year?: number
+  /** More ISBNs found in the file (13 digits), besides `isbn`. */
+  isbns?: string[]
 }
 
 export type EpubResult =
@@ -93,29 +95,133 @@ const clean = (s: string) =>
     .replace(/\s+/g, " ")
     .trim()
 
-const tags = (xml: string, name: string) =>
-  [...xml.matchAll(new RegExp(`<(?:dc:)?${name}\\b[^>]*>([\\s\\S]*?)</(?:dc:)?${name}>`, "gi"))]
-    .map((m) => clean(m[1]!))
-    .filter(Boolean)
+interface El {
+  attrs: Record<string, string>
+  text: string
+}
+
+const attrsOf = (raw: string): Record<string, string> => {
+  const out: Record<string, string> = {}
+  for (const m of raw.matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) out[m[1]!.toLowerCase()] = m[2] ?? m[3] ?? ""
+  return out
+}
+
+/** Elements named `name` (with or without the dc: prefix), in file order, with their attributes and cleaned text. */
+const els = (xml: string, name: string, prefix = "(?:dc:)?"): El[] =>
+  [...xml.matchAll(new RegExp(`<${prefix}${name}\\b([^>]*?)(?:/>|>([\\s\\S]*?)</${prefix}${name}>)`, "gi"))].map((m) => ({
+    attrs: attrsOf(m[1] ?? ""),
+    text: clean(m[2] ?? ""),
+  }))
+
+const tags = (xml: string, name: string) => els(xml, name).map((e) => e.text).filter(Boolean)
+const metas = (xml: string) => els(xml, "meta", "")
+const attr = (e: El, ...names: string[]) => names.map((n) => e.attrs[n]).find((v) => v !== undefined)
+
+/** EPUB 3 `<meta refines="#id" property="x">value</meta>` values for one element id. */
+const refined = (xml: string, id: string | undefined, property: string) =>
+  id ? metas(xml).filter((m) => m.attrs.refines === `#${id}` && m.attrs.property === property).map((m) => m.text) : []
 
 const ISBN = /(?:^|[^0-9])(97[89]\d{10}|\d{9}[\dXx])(?![0-9])/
 
+function isbn13(code: string): string | null {
+  const c = code.toUpperCase()
+  if (/^\d{13}$/.test(c)) {
+    const sum = [...c].slice(0, 12).reduce((n, d, i) => n + Number(d) * (i % 2 ? 3 : 1), 0)
+    return (10 - (sum % 10)) % 10 === Number(c[12]) ? c : null
+  }
+  if (/^\d{9}[\dX]$/.test(c)) {
+    const sum = [...c].slice(0, 9).reduce((n, d, i) => n + Number(d) * (10 - i), 0) + (c[9] === "X" ? 10 : Number(c[9]))
+    if (sum % 11 !== 0) return null
+    const body = `978${c.slice(0, 9)}`
+    const check = (10 - ([...body].reduce((n, d, i) => n + Number(d) * (i % 2 ? 3 : 1), 0) % 10)) % 10
+    return body + check
+  }
+  return null
+}
+
+const isbnIn = (text: string) => {
+  const found = text.replace(/[-\s]/g, "").match(ISBN)?.[1]
+  return found ? isbn13(found) : null
+}
+
+/** Every valid ISBN, as 13 digits, identifiers first (they name this edition), then dc:source (often the print edition). */
+function isbnsOf(opf: string): string[] {
+  const seen = new Set<string>()
+  for (const text of [...tags(opf, "identifier"), ...tags(opf, "source")]) {
+    const code = isbnIn(text)
+    if (code) seen.add(code)
+  }
+  return [...seen]
+}
+
+const MAX_EXTRA_ISBNS = 5
+const MIN_YEAR = 1400
+const PLACEHOLDER_YEAR = 1900 // what many tools write when they have no real date
+
+const yearOf = (text: string | undefined, now = new Date().getFullYear()): number | null => {
+  const y = Number(text?.match(/(?<!\d)(\d{4})(?!\d)/)?.[1])
+  return y >= MIN_YEAR && y <= now + 1 && y !== PLACEHOLDER_YEAR ? y : null
+}
+
+/**
+ * The year this edition was published. A dc:date is often the file's creation or modification date, so the order is
+ * publication event, dcterms:issued, schema:datePublished, then a plain date; modification and original-publication
+ * dates, and any date equal to the modified date, are ignored.
+ */
+function publicationYear(opf: string): number | null {
+  const m = metas(opf)
+  const modified = m.find((e) => e.attrs.property === "dcterms:modified")?.text.slice(0, 10)
+  const dates = els(opf, "date").filter((d) => d.text && !(modified && d.text.slice(0, 10) === modified))
+  const event = (d: El) => attr(d, "opf:event", "event")?.toLowerCase()
+  const ordered = [
+    ...dates.filter((d) => event(d) === "publication").map((d) => d.text),
+    ...m.filter((e) => e.attrs.property === "dcterms:issued").map((e) => e.text),
+    ...m.filter((e) => e.attrs.property === "schema:datePublished").map((e) => e.text),
+    ...dates.filter((d) => !event(d)).map((d) => d.text),
+  ]
+  for (const text of ordered) {
+    const y = yearOf(text)
+    if (y) return y
+  }
+  return null
+}
+
+const SUB_TITLE_KINDS = new Set(["short", "collection", "edition", "expanded"])
+
+/** "Title: Subtitle" when the OPF marks a subtitle (title-type refines, or a second dc:title). */
+function fullTitle(opf: string): string | undefined {
+  const titles = els(opf, "title").filter((t) => t.text)
+  if (!titles.length) return undefined
+  const kind = (t: El) => refined(opf, t.attrs.id, "title-type")[0]?.toLowerCase()
+  const typed = titles.some((t) => kind(t))
+  const main = titles.find((t) => kind(t) === "main") ?? titles.find((t) => !kind(t) || !SUB_TITLE_KINDS.has(kind(t)!) && kind(t) !== "subtitle") ?? titles[0]!
+  const sub = typed ? titles.find((t) => kind(t) === "subtitle") : titles.find((t) => t !== main)
+  return sub && !main.text.toLowerCase().includes(sub.text.toLowerCase()) ? `${main.text}: ${sub.text}` : main.text
+}
+
+/** Authors only: a creator with no role counts, and editors, translators and illustrators are left out unless nothing else exists. */
+function authors(opf: string): string[] {
+  const all = els(opf, "creator").filter((c) => c.text)
+  const role = (c: El) => (attr(c, "opf:role", "role") ?? refined(opf, c.attrs.id, "role")[0])?.toLowerCase()
+  const only = all.filter((c) => !role(c) || role(c) === "aut")
+  return (only.length ? only : all).map((c) => c.text)
+}
+
 export function parseOpf(opf: string): EpubMeta {
   const meta: EpubMeta = {}
-  const [title] = tags(opf, "title")
+  const title = fullTitle(opf)
   const [language] = tags(opf, "language")
   const [publisher] = tags(opf, "publisher")
-  const authors = tags(opf, "creator")
-  const year = tags(opf, "date")[0]?.match(/\d{4}/)?.[0]
-  const isbn = tags(opf, "identifier")
-    .map((id) => id.replace(/[-\s]/g, "").match(ISBN)?.[1])
-    .find(Boolean)
+  const names = authors(opf)
+  const year = publicationYear(opf)
+  const [isbn, ...more] = isbnsOf(opf)
   if (title) meta.title = title
-  if (authors.length) meta.author = authors.join(", ")
+  if (names.length) meta.author = names.join(", ")
   if (language) meta.language = language
   if (publisher) meta.publisher = publisher
-  if (year) meta.year = Number(year)
-  if (isbn) meta.isbn = isbn.toUpperCase()
+  if (year) meta.year = year
+  if (isbn) meta.isbn = isbn
+  if (more.length) meta.isbns = more.slice(0, MAX_EXTRA_ISBNS)
   return meta
 }
 

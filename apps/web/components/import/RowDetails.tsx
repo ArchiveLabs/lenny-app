@@ -111,6 +111,11 @@ export function RowDetails({ row, onClose, onChangeEdition }: { row: ImportRow |
                         <TableCell className="whitespace-normal break-words">{row.match_author || dash}</TableCell>
                       </TableRow>
                       <TableRow>
+                        <TableCell className="text-muted-foreground">{t("Publisher")}</TableCell>
+                        <TableCell className="whitespace-normal break-words">{row.publisher || dash}</TableCell>
+                        <TableCell>{dash}</TableCell>
+                      </TableRow>
+                      <TableRow>
                         <TableCell className="text-muted-foreground">{t("Year")}</TableCell>
                         <TableCell>{row.year || dash}</TableCell>
                         <TableCell>{row.match_year || dash}</TableCell>
@@ -124,8 +129,7 @@ export function RowDetails({ row, onClose, onChangeEdition }: { row: ImportRow |
               </section>
 
               <Group title={t("Details from the file")}>
-                <Field label={t("Publisher")}>{row.publisher}</Field>
-                <Field label={t("ISBN")}>{row.isbn}</Field>
+                <Field label={t("ISBN")}>{[row.isbn, ...(row.isbn_alt ? row.isbn_alt.split(" ") : [])].filter(Boolean).join(", ")}</Field>
                 <Field label={t("Language")}>{row.language}</Field>
               </Group>
 

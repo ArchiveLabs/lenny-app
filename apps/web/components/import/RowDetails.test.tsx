@@ -42,8 +42,10 @@ it("compares the file's title and author with Open Library's in a table", () => 
   expect(rows[1]).toHaveTextContent("Dune (Ace)")
   expect(rows[2]).toHaveTextContent("Frank Herbert")
   expect(rows[2]).toHaveTextContent("F. Herbert")
-  expect(rows[3]).toHaveTextContent("1965") // the file's year
-  expect(rows[3]).toHaveTextContent("1966") // Open Library's
+  expect(rows[3]).toHaveTextContent("Publisher")
+  expect(rows[3]).toHaveTextContent("Ace") // the file's publisher, so you can see why an edition was chosen
+  expect(rows[4]).toHaveTextContent("1965") // the file's year
+  expect(rows[4]).toHaveTextContent("1966") // Open Library's
   expect(screen.getByText("4 other editions were suggested.")).toBeInTheDocument()
 })
 
@@ -104,4 +106,9 @@ it("titles a linked book with Open Library's title, or its OL id when there is n
   show(row({ match_title: null, match_author: null }))
   expect(screen.getAllByText("OL123M").length).toBeGreaterThan(0)
   expect(screen.queryByText("Frank Herbert", { selector: "p" })).not.toBeInTheDocument()
+})
+
+it("lists the file's other ISBNs next to the first", () => {
+  show(row({ isbn: "9780441172719", isbn_alt: "9780441013593 9780451524935" }))
+  expect(screen.getByText("9780441172719, 9780441013593, 9780451524935")).toBeInTheDocument()
 })

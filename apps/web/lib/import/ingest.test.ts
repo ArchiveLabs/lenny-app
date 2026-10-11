@@ -42,6 +42,13 @@ describe("ingest", () => {
     expect(readEpubMetadata).toHaveBeenCalledTimes(1)
   })
 
+  it("sends everything the matcher uses: year, publisher, language and every ISBN", async () => {
+    const meta = { title: "Dune: The Desert Planet", author: "Frank Herbert", year: 2019, publisher: "Ace", language: "en", isbn: "9780441172719", isbns: ["9780441013593"] }
+    readEpubMetadata.mockResolvedValue({ kind: "epub", meta })
+    const [row] = await ingest([pick("L/a.epub")])
+    expect(row).toMatchObject(meta)
+  })
+
   it("marks a .epub that is not a valid EPUB as not_epub; read errors keep the row without metadata", async () => {
     readEpubMetadata
       .mockResolvedValueOnce({ kind: "not_epub" })

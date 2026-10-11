@@ -29,6 +29,7 @@ export interface NewRow {
   size: number
   mtime: number
   isbn?: string
+  isbns?: string[]
   title?: string
   author?: string
   language?: string

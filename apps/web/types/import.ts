@@ -77,6 +77,7 @@ export const ImportRowSchema = z.object({
   imported_at: z.string().nullish(), // ISO time the book was imported; null until then
   in_library: z.boolean().default(true), // whether the book is in the Lenny library right now
   isbn: z.string().nullish(),
+  isbn_alt: z.string().nullish(), // more ISBNs from the EPUB, space separated
   title: z.string().nullish(), // from the EPUB
   author: z.string().nullish(),
   match_title: z.string().nullish(), // from the Open Library record
