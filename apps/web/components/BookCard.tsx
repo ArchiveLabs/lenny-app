@@ -74,25 +74,30 @@ export function BookCard({
             Open
           </Badge>
         )}
-        <div className="absolute right-2 top-2" onClick={(e) => e.stopPropagation()}>
-          {selectMode ? (
+        {selectMode && (
+          <div className="absolute right-2 top-2" onClick={(e) => e.stopPropagation()}>
             <Checkbox
               checked={!!selected}
               onCheckedChange={(c) => onSelectChange?.(!!c)}
               aria-label={`Select ${book.title}`}
               className="h-5 w-5 bg-background shadow-sm"
             />
-          ) : (
-            <span className="flex rounded-full bg-background/90 shadow-sm">
+          </div>
+        )}
+      </div>
+      <span className="line-clamp-2 min-h-10 text-sm font-semibold leading-tight" title={book.title}>{book.title}</span>
+      <span className="line-clamp-1 text-xs text-muted-foreground">{author}</span>
+      {/* The copy count lives in the book sheet: some records come without it. Share is quiet, bottom right. */}
+      {(format || !selectMode) && (
+        <div className="-mb-1 flex min-h-7 items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">{format}</span>
+          {!selectMode && (
+            <span className="-mr-1">
               <ShareButton olid={book.olid} title={book.title} />
             </span>
           )}
         </div>
-      </div>
-      <span className="line-clamp-2 min-h-10 text-sm font-semibold leading-tight" title={book.title}>{book.title}</span>
-      <span className="line-clamp-1 text-xs text-muted-foreground">{author}</span>
-      {/* The copy count lives in the book sheet: some records come without it. */}
-      {format && <span className="text-xs text-muted-foreground">{format}</span>}
+      )}
     </div>
   )
 

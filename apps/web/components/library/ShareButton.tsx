@@ -28,7 +28,7 @@ export function ShareButton({ olid, title }: { olid: string | number; title: str
           type="button"
           size="icon"
           variant="ghost"
-          className="h-8 w-8 text-muted-foreground"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground"
           aria-label={t("Share {{title}}", { title })}
           title={t("Share this book's OPDS link")}
           onClick={async (e) => {

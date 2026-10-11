@@ -137,3 +137,36 @@ it("has a skeleton in the same shape", () => {
   const { container } = render(<BookCardSkeleton />)
   expect(container.querySelector(".aspect-\\[2\\/3\\]")).toBeInTheDocument()
 })
+
+describe("where Share sits", () => {
+  it("is in a quiet bottom row of the card, not on the cover", () => {
+    const { container } = render(<BookCard book={book()} />)
+    const cover = container.querySelector(".aspect-\\[2\\/3\\]")
+    expect(cover).not.toContainElement(screen.getByText("share Database Internals"))
+    const row = screen.getByText("share Database Internals").closest(".justify-between")
+    expect(row).toHaveTextContent("EPUB")
+  })
+
+  it("is still there, on the right, when the format is not known", () => {
+    render(<BookCard book={book({}, { formats: "1" })} />)
+    expect(screen.getByText("share Database Internals")).toBeInTheDocument()
+  })
+
+  it("leaves the bottom row out while selecting a book with no known format", () => {
+    const { container } = render(<BookCard book={book({}, { formats: "1" })} selectMode selected={false} onSelectChange={jest.fn()} />)
+    expect(container.querySelector(".justify-between")).not.toBeInTheDocument()
+  })
+
+  it("keeps the format in the bottom row while selecting, with no Share", () => {
+    render(<BookCard book={book()} selectMode selected={false} onSelectChange={jest.fn()} />)
+    expect(screen.getByText("EPUB")).toBeInTheDocument()
+    expect(screen.queryByText(/^share /)).not.toBeInTheDocument()
+  })
+
+  it("has no bubble around Share", () => {
+    render(<BookCard book={book()} />)
+    const share = screen.getByText("share Database Internals")
+    expect(share.parentElement!.className).not.toContain("rounded-full")
+    expect(share.parentElement!.className).not.toContain("bg-background")
+  })
+})
