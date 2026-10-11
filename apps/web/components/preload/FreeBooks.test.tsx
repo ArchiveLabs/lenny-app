@@ -149,13 +149,34 @@ describe("the page's chrome", () => {
     expect(screen.queryByText("Free books")).not.toBeInTheDocument()
   })
 
-  it("says plainly that the service is missing on a 404, not a bare Not Found", () => {
+  it("says no books are added yet on a 404, instead of a bare error", () => {
+    setup({ cat: failedCatalog(new ApiError("Not Found", 404)) })
+    expect(screen.getByText("No books added yet")).toBeInTheDocument()
+    expect(screen.queryByText(/not available on this server/)).not.toBeInTheDocument()
+    expect(screen.queryByText("Not Found")).not.toBeInTheDocument()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("offers to preload by browsing the catalog, which asks for it again", () => {
     const cat = failedCatalog(new ApiError("Not Found", 404))
     setup({ cat })
-    expect(screen.getByRole("alert")).toHaveTextContent("Free books are not available on this server yet.")
-    expect(screen.queryByText("Not Found")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Try again" })) // the route may only be missing while the server reloads
+    fireEvent.click(screen.getByRole("button", { name: "Preload books" }))
     expect(cat.refetch).toHaveBeenCalled()
+  })
+
+  it("offers to preload by pasting a list, which opens the list box and focuses it", async () => {
+    setup({ cat: failedCatalog(new ApiError("Not Found", 404)) })
+    const box = screen.getByLabelText("Add a list")
+    expect(box.closest("details")).not.toHaveAttribute("open")
+    fireEvent.click(screen.getByRole("button", { name: "Paste a list" }))
+    await waitFor(() => expect(box.closest("details")).toHaveAttribute("open"))
+    await waitFor(() => expect(box).toHaveFocus())
+  })
+
+  it("does not show the empty state for other failures", () => {
+    setup({ cat: failedCatalog(new ApiError("boom", 500)) })
+    expect(screen.queryByText("No books added yet")).not.toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent("Something went wrong. Try again.")
   })
 
   it("says Open Library did not answer only for a 502", () => {
@@ -164,7 +185,7 @@ describe("the page's chrome", () => {
   })
 
   it("hides search, filters and collections when the catalog could not load", () => {
-    setup({ cat: failedCatalog(new ApiError("Not Found", 404)) })
+    setup({ cat: failedCatalog(new ApiError("boom", 500)) })
     expect(screen.queryByLabelText("Search title, author or subject")).not.toBeInTheDocument()
     expect(screen.queryByRole("group", { name: "Collections" })).not.toBeInTheDocument()
   })

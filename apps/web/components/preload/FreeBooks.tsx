@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Check, ChevronRight, RefreshCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@workspace/ui/components/badge"
@@ -9,8 +9,9 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Spinner } from "@workspace/ui/components/spinner"
-import { ErrorNotice } from "@/components/ErrorNotice"
+import { ErrorNotice, errorKind } from "@/components/ErrorNotice"
 import { Notice } from "@/components/import/Notice"
+import { EmptyPreload } from "./EmptyPreload"
 import { ProgressPanel } from "@/components/import/ProgressPanel"
 import { ApiError } from "@/types/api"
 import { useCatalog, useCollections, useLoadBooks, useLoadProgress } from "@/hooks/preload/use-preload"
@@ -68,8 +69,12 @@ export function FreeBooks() {
   const [list, setList] = useState("")
   const [listResult, setListResult] = useState<PreloadImportResult | null>(null)
   const [runError, setRunError] = useState<unknown>(null)
+  const [listOpen, setListOpen] = useState(false)
+  const listBox = useRef<HTMLTextAreaElement>(null)
 
   const catalog = useCatalog({ q, collection, hideOwned })
+  // No catalog on the server (a 404) is "nothing preloaded yet": offer ways to start rather than a bare error.
+  const noCatalog = catalog.isError && errorKind(catalog.error) === "gone"
   const collections = useCollections().data?.collections ?? []
   const load = useLoadBooks()
   const [since, setSince] = useState<number | null>(null)
@@ -141,7 +146,7 @@ export function FreeBooks() {
             error={runError}
             onRetry={() => setRunError(null)}
             retryOn={[]}
-            texts={{ gone: "Adding books is not available on this server yet.", unreachable: "Open Library did not answer. Try again in a moment." }}
+            texts={{ gone: "Books cannot be added right now. Try again in a moment.", unreachable: "Open Library did not answer. Try again in a moment." }}
           />
         ))}
 
@@ -218,13 +223,22 @@ export function FreeBooks() {
           </div>
         </div>
       )}
-      {catalog.isError && (
+      {noCatalog && (
+        <EmptyPreload
+          browsing={catalog.isFetching}
+          onBrowse={() => catalog.refetch()}
+          onPasteList={() => {
+            setListOpen(true)
+            setTimeout(() => listBox.current?.focus(), 0)
+          }}
+        />
+      )}
+      {catalog.isError && !noCatalog && (
         <ErrorNotice
           boxed
           error={catalog.error}
           onRetry={() => catalog.refetch()}
-          retryOn={["unreachable", "other", "gone"]}
-          texts={{ unreachable: "Open Library did not answer. Try again in a moment.", gone: "Free books are not available on this server yet." }}
+          texts={{ unreachable: "Open Library did not answer. Try again in a moment." }}
         />
       )}
       {catalog.isSuccess && books.length === 0 && <p className="rounded-xl border p-8 text-center text-muted-foreground">{t("No books match.")}</p>}
@@ -243,7 +257,7 @@ export function FreeBooks() {
         </div>
       )}
 
-      <details className="group rounded-xl border">
+      <details className="group rounded-xl border" open={listOpen} onToggle={(e) => setListOpen(e.currentTarget.open)}>
         <summary className="flex cursor-pointer list-none items-center gap-2 p-4 font-semibold">
           <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" aria-hidden />
           {t("Add a list of books")}
@@ -253,6 +267,7 @@ export function FreeBooks() {
           <p className="text-sm text-muted-foreground">{t("Paste Standard Ebooks ids or links, such as jane-austen/pride-and-prejudice. One per line or separated by commas.")}</p>
           <textarea
             id="book-list"
+            ref={listBox}
             value={list}
             onChange={(e) => setList(e.target.value)}
             rows={4}
