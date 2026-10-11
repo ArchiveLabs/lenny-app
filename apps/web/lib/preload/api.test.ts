@@ -47,3 +47,10 @@ it("fetches one book's details", async () => {
   expect(fetchAdmin).toHaveBeenCalledWith("preload/books/7")
   expect(b).toMatchObject({ olid: 7, details_loaded: false, languages: [], all_subjects: [], links: {} })
 })
+
+it("fetches a library book's metadata, even when Open Library did not answer and the title is null", async () => {
+  fetchAdmin.mockImplementation(() => ok({ olid: 5, title: null, source_id: null, links: { open_library: "https://o" }, details_loaded: false }))
+  const m = await preloadApi.libraryBook(5)
+  expect(fetchAdmin).toHaveBeenCalledWith("items/5/metadata")
+  expect(m).toMatchObject({ title: null, details_loaded: false, links: { open_library: "https://o" }, languages: [], all_subjects: [] })
+})

@@ -54,3 +54,9 @@ it("keeps the existing sections: wrong edition and danger zone", () => {
   expect(screen.getByText("Wrong edition or file attached?")).toBeInTheDocument()
   expect(screen.getByText("Danger zone")).toBeInTheDocument()
 })
+
+it("brings the Library list up to date when the book turns out to be gone", () => {
+  open()
+  const props = loader.mock.calls.at(-1)[0]
+  expect(typeof props.onGone).toBe("function")
+})

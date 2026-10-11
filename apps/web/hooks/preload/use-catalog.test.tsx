@@ -58,3 +58,22 @@ describe("usePreloadBook", () => {
     expect(preloadApi.book).toHaveBeenCalledWith(7)
   })
 })
+
+describe("useLibraryBookMetadata", () => {
+  const { useLibraryBookMetadata } = require("./use-preload")
+  const wrapper = ({ children }) => <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+
+  it("asks for nothing until the section is opened", () => {
+    preloadApi.libraryBook = jest.fn()
+    renderHook(() => useLibraryBookMetadata(null), { wrapper })
+    expect(preloadApi.libraryBook).not.toHaveBeenCalled()
+  })
+
+  it("asks once for the book when opened, and does not retry a failure by itself", async () => {
+    preloadApi.libraryBook = jest.fn().mockRejectedValue(new Error("boom"))
+    const { result } = renderHook(() => useLibraryBookMetadata(5), { wrapper })
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(preloadApi.libraryBook).toHaveBeenCalledTimes(1)
+    expect(preloadApi.libraryBook).toHaveBeenCalledWith(5)
+  })
+})

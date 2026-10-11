@@ -1,6 +1,6 @@
 "use client"
 
-import { ReactNode, useRef, useState } from "react"
+import { ReactNode, useCallback, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { BookOpen, Loader2, Trash2, ChevronDown } from "lucide-react"
@@ -39,6 +39,8 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [detailsOpened, setDetailsOpened] = useState(false)
+  // The book left the library behind our back (a 404): bring the list in step.
+  const refetchLibrary = useCallback(() => queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY }), [queryClient])
   const editionNumber = Number(book.olid.replace(/\D/g, "")) || null
   const [encrypted, setEncrypted] = useState(book.lenny.encrypted)
   const [loanDuration, setLoanDuration] = useState(
@@ -234,7 +236,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
             </summary>
             <div className="px-4 pb-4">
               {/* Asked for only when opened: Open Library is queried on the first look. */}
-              <BookInfoLoader olid={detailsOpened ? editionNumber : null} />
+              <BookInfoLoader olid={detailsOpened ? editionNumber : null} onGone={refetchLibrary} />
             </div>
           </details>
 

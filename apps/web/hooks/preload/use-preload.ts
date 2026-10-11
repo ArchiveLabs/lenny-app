@@ -40,6 +40,17 @@ export function usePreloadBook(olid: number | null) {
   })
 }
 
+/** A library book's details, for the Library sheet. Asked for only once `olid` is given (when the section is opened). */
+export function useLibraryBookMetadata(olid: number | null) {
+  return useQuery({
+    queryKey: ["library-book-metadata", olid],
+    queryFn: () => preloadApi.libraryBook(olid!),
+    enabled: olid !== null,
+    staleTime: 5 * 60_000,
+    retry: false, // a failure is not cached by the server, so trying again on purpose can work
+  })
+}
+
 export function useCollections() {
   return useQuery({ queryKey: ["preload-collections"], queryFn: preloadApi.collections, staleTime: 5 * 60_000 })
 }

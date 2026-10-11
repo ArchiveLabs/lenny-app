@@ -36,6 +36,14 @@ export const PreloadBookDetailsSchema = PreloadBookSchema.extend({
 })
 export type PreloadBookDetails = z.infer<typeof PreloadBookDetailsSchema>
 
+// GET /admin/items/{olid}/metadata: the same shape for any book in the library. A book that is not from Standard
+// Ebooks has no source_id, size or added_at, and when Open Library did not answer even the title is null.
+export const LibraryBookMetadataSchema = PreloadBookDetailsSchema.extend({
+  title: z.string().nullish(),
+  source_id: z.string().nullish(),
+})
+export type LibraryBookMetadata = z.infer<typeof LibraryBookMetadataSchema>
+
 export const PreloadCatalogSchema = z.object({
   books: z.array(PreloadBookSchema),
   total: z.number(),

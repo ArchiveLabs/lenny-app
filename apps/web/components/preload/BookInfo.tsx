@@ -1,14 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { ErrorNotice } from "@/components/ErrorNotice"
-import { usePreloadBook } from "@/hooks/preload/use-preload"
-import type { PreloadBookDetails } from "@/types/preload"
+import { useLibraryBookMetadata } from "@/hooks/preload/use-preload"
+import type { LibraryBookMetadata } from "@/types/preload"
 
 /** "eng" becomes "English"; a code the browser does not know stays as it is. */
 export function languageName(code: string): string {
@@ -61,7 +61,7 @@ function Description({ text }: { text: string }) {
 
 
 /** The facts about a book: rows, description, subject chips and links. Empty values are left out. */
-export function BookInfo({ data, subjects }: { data: PreloadBookDetails; subjects: string[] }) {
+export function BookInfo({ data, subjects }: { data: Omit<LibraryBookMetadata, "title" | "source_id"> & { source_id?: string | null }; subjects: string[] }) {
   const { t } = useTranslation()
   const links = data.links ?? {}
   const linkList = [
@@ -110,10 +110,18 @@ export function BookInfo({ data, subjects }: { data: PreloadBookDetails; subject
   )
 }
 
-/** Loads and shows one book's details, with its own loading, error and "more unavailable" states. */
-export function BookInfoLoader({ olid }: { olid: number | null }) {
+/** Nothing to show: no row, description, subjects or link. */
+export const hasNoInfo = (d: Parameters<typeof BookInfo>[0]["data"], subjects: string[]) =>
+  !d.publisher && !d.publish_date && !d.pages && !d.isbn && d.languages.length === 0 && !d.description && subjects.length === 0 && !(d.size && d.size > 0) && !d.added_at && !d.source_id && !d.links?.open_library && !d.links?.standard_ebooks && !d.links?.archive_org
+
+/** Loads one library book's details when `olid` is given, with its own loading, error and "more unavailable" states. */
+export function BookInfoLoader({ olid, onGone }: { olid: number | null; onGone?: () => void }) {
   const { t } = useTranslation()
-  const q = usePreloadBook(olid)
+  const q = useLibraryBookMetadata(olid)
+  const gone = q.isError && (q.error as { status?: number })?.status === 404
+  useEffect(() => {
+    if (gone) onGone?.()
+  }, [gone, onGone])
   if (q.isLoading) {
     return (
       <div className="space-y-3" role="status" aria-label={t("Loading")}>
@@ -122,9 +130,8 @@ export function BookInfoLoader({ olid }: { olid: number | null }) {
     )
   }
   if (q.isError) {
-    const gone = (q.error as { status?: number })?.status === 404
     return gone ? (
-      <p className="text-sm text-muted-foreground">{t("No more details are available for this book.")}</p>
+      <p className="text-sm text-muted-foreground">{t("This book is no longer in your library.")}</p>
     ) : (
       <ErrorNotice error={q.error} onRetry={() => q.refetch()} texts={{ unreachable: "Open Library did not answer. Try again in a moment." }} />
     )
@@ -139,7 +146,11 @@ export function BookInfoLoader({ olid }: { olid: number | null }) {
           <Button size="sm" variant="outline" onClick={() => q.refetch()} disabled={q.isFetching}>{t("Try again")}</Button>
         </p>
       )}
-      <BookInfo data={q.data} subjects={subjects} />
+      {q.data.details_loaded && hasNoInfo(q.data, subjects) ? (
+        <p className="text-sm text-muted-foreground">{t("No more details are available for this book.")}</p>
+      ) : (
+        <BookInfo data={q.data} subjects={subjects} />
+      )}
     </div>
   )
 }

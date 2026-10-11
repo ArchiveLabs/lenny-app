@@ -1,4 +1,4 @@
-import { PreloadBookDetailsSchema, PreloadCatalogSchema, formatSize, parseBookList } from "./preload"
+import { LibraryBookMetadataSchema, PreloadBookDetailsSchema, PreloadCatalogSchema, formatSize, parseBookList } from "./preload"
 
 describe("parseBookList", () => {
   it("splits on whitespace, commas and newlines, and dedupes", () => {
@@ -82,5 +82,15 @@ describe("a book's details", () => {
 
   it("assumes the details loaded when the server does not say", () => {
     expect(PreloadBookDetailsSchema.parse({ olid: 7, title: "T", source_id: "a/b" }).details_loaded).toBe(true)
+  })
+})
+
+describe("a library book's metadata", () => {
+  it("accepts a book that is not from Standard Ebooks: no source, size or added date", () => {
+    const m = LibraryBookMetadataSchema.parse({ olid: 5, title: "Database Internals", authors: ["A"], source_id: null, size: null, added_at: null, links: { open_library: "https://o", standard_ebooks: null, archive_org: null }, publisher: "O'Reilly" })
+    expect(m).toMatchObject({ source_id: null, publisher: "O'Reilly", details_loaded: true })
+  })
+  it("accepts the answer when Open Library did not answer", () => {
+    expect(LibraryBookMetadataSchema.parse({ olid: 5, title: null, links: { open_library: "https://o" }, details_loaded: false }).title).toBeNull()
   })
 })
