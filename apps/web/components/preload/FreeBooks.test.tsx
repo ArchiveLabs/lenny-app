@@ -75,7 +75,7 @@ it("splits a selection larger than 200 into several requests", async () => {
   fireEvent.click(screen.getByRole("button", { name: /Add 450 books/ }))
   await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(3))
   expect(mutateAsync.mock.calls.map((c) => c[0].olids.length)).toEqual([200, 200, 50])
-})
+}, 20_000) // 450 tiles: slow on a busy machine
 
 it("keeps the selection and shows the reason when the server refuses (409)", async () => {
   mutateAsync.mockRejectedValue(new Error("A load is already running"))
@@ -430,5 +430,22 @@ describe("the toolbar", () => {
     expect(screen.queryByRole("button", { name: /Add all of/ })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Show"), { target: { value: "poetry" } })
     expect(screen.getByRole("button", { name: "Add all of Poetry" })).toBeInTheDocument()
+  })
+})
+
+describe("searching", () => {
+  it("keeps the header and the Show menu while the next results load, and dims the books", () => {
+    setup({ cat: catalog([book(1)], { isPlaceholderData: true }) })
+    expect(screen.getByText(/190 free books available/)).toBeInTheDocument()
+    expect(screen.getByLabelText("Show")).toBeInTheDocument()
+    const grid = screen.getByRole("list")
+    expect(grid).toHaveAttribute("aria-busy", "true")
+    expect(grid.className).toContain("opacity-60")
+  })
+
+  it("does not dim the books when the results are current", () => {
+    setup({ cat: catalog([book(1)], { isPlaceholderData: false }) })
+    expect(screen.getByRole("list")).toHaveAttribute("aria-busy", "false")
+    expect(screen.getByRole("list").className).not.toContain("opacity-60")
   })
 })

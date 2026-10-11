@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useState } from "react"
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { preloadApi } from "@/lib/preload/api"
 import { toMs } from "@/lib/preload/time"
@@ -24,6 +24,7 @@ export function useCatalog(f: { q: string; collection: string; hideOwned: boolea
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (p) => p.next_cursor ?? undefined,
     staleTime: 60_000,
+    placeholderData: keepPreviousData, // typing in the search box must not blank the page while the next answer loads
     retry: false, // a 502 means Open Library is down; let the admin retry on purpose
   })
 }
