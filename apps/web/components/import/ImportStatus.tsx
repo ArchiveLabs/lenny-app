@@ -1,7 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
-import { Info } from "lucide-react"
+import { CheckCircle2, Info, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 import { Button } from "@workspace/ui/components/button"
@@ -31,6 +32,7 @@ export function ImportStatus({
   onViewHistory?: () => void
 }) {
   const { t } = useTranslation()
+  const [dismissed, setDismissed] = useState<string | null>(null) // a finished result can be put away; a new job shows again
   const job = summary.import ?? null
   const rowsImporting = summary.counts.importing ?? 0
 
@@ -70,7 +72,7 @@ export function ImportStatus({
     )
   }
 
-  if (job?.status === "done" && job.total > 0) {
+  if (job?.status === "done" && job.total > 0 && job.id !== dismissed) {
     const parts = [t("{{n}} imported.", { n: n(job.imported) })]
     if (job.duplicate > 0) parts.push(t("{{n}} were already in your library.", { n: n(job.duplicate) }))
     if (job.failed > 0) parts.push(t("{{n}} failed.", { n: n(job.failed) }))
@@ -78,6 +80,7 @@ export function ImportStatus({
       <Alert role="status" className={`flex items-start ${job.failed > 0 ? "border-amber-200 bg-amber-50 text-amber-900" : "border-green-200 bg-green-50 text-green-900"}`}>
         <AlertDescription className="w-full space-y-2 text-inherit">
           <div className="flex flex-wrap items-center gap-3">
+            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
             <p className="mr-auto font-medium">{parts.join(" ")}</p>
             {job.failed > 0 && (
               <>
@@ -88,6 +91,9 @@ export function ImportStatus({
             {onViewHistory && <Button size="sm" variant="outline" onClick={onViewHistory}>{t("View history")}</Button>}
             <Button size="sm" variant="outline" asChild>
               <Link href="/library">{t("View in Library")}</Link>
+            </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={t("Dismiss")} onClick={() => setDismissed(job.id)}>
+              <X className="h-4 w-4" aria-hidden />
             </Button>
           </div>
           {job.waiting > 0 && (

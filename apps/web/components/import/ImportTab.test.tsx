@@ -532,3 +532,52 @@ describe("filling in old rows", () => {
     expect(imp.patchRow).not.toHaveBeenCalled()
   })
 })
+
+describe("progress in one panel", () => {
+  it("shows reading, matching and uploading together while they all run", () => {
+    setup({
+      phase: { kind: "reading", done: 5, total: 10 },
+      uploading: true,
+      summary: summary({ total: 10, counts: { queued: 4, matched: 6 }, staged: 2, unstaged: 4, match: { id: "j", status: "running", total: 10, done: 6 } }),
+    })
+    expect(screen.getByRole("progressbar", { name: "Reading books" })).toBeInTheDocument()
+    expect(screen.getByRole("progressbar", { name: "Matched 6 of 10" })).toBeInTheDocument()
+    expect(screen.getByRole("progressbar", { name: "Uploading files" })).toBeInTheDocument()
+  })
+
+  it("shows no progress panel when nothing is running", () => {
+    setup()
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument()
+  })
+})
+
+describe("when everything loaded has been imported", () => {
+  const done = { summary: summary({ total: 3, counts: { imported: 3 }, ready: 0 }), rows: [] }
+
+  it("shows a friendly empty state, not empty filters, a search box and a dead Import button", () => {
+    setup(done)
+    expect(screen.getByText("Nothing waiting to be imported")).toBeInTheDocument()
+    expect(screen.queryByRole("group", { name: "Filter books" })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Search title or file")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Import 0 books/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/ready to import/)).not.toBeInTheDocument()
+    expect(screen.queryByText("Nothing here.")).not.toBeInTheDocument()
+  })
+
+  it("keeps the big drop zone, since nothing is loaded", () => {
+    setup(done)
+    expect(screen.getByText("Drop a folder or EPUB files here")).toBeInTheDocument()
+  })
+
+  it("takes you to the history from the empty state", async () => {
+    setup(done)
+    fireEvent.click(screen.getByRole("button", { name: "View history (3)" }))
+    expect(await screen.findByText("history of 3")).toBeInTheDocument()
+  })
+
+  it("keeps the compact drop zone and the list while books are loaded", () => {
+    setup()
+    expect(screen.getByText("Drop more EPUBs or a folder")).toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "Filter books" })).toBeInTheDocument()
+  })
+})

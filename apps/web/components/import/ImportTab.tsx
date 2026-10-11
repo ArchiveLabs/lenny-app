@@ -12,7 +12,6 @@ import { Button } from "@workspace/ui/components/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
-import { Progress as ProgressBar } from "@workspace/ui/components/progress"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { useBackfillMatchDetails } from "@/hooks/import/use-backfill"
 import { PAGE_SIZE, useImport, useImportLimits } from "@/hooks/import/use-import"
@@ -25,6 +24,8 @@ import { ImportHistory } from "./ImportHistory"
 import { Notice } from "./Notice"
 import { ADD_ON_OPEN_LIBRARY_URL, EditionSheet } from "./EditionSheet"
 import { ImportStatus } from "./ImportStatus"
+import { EmptyLoaded } from "./EmptyLoaded"
+import { ProgressPanel, type Stage } from "./ProgressPanel"
 import { Pager } from "./Pager"
 import { RowDetails } from "./RowDetails"
 import { RowList } from "./RowList"
@@ -38,19 +39,6 @@ const FILTERS = [
   { id: "duplicate", label: "Duplicate", filter: { state: "duplicate" }, count: (s: ImportBatchSummary) => s.counts.duplicate ?? 0 },
   { id: "failed", label: "Failed", filter: { state: "failed" }, count: (s: ImportBatchSummary) => s.counts.failed ?? 0 },
 ] as const satisfies readonly { id: string; label: string; filter: RowFilter; count: (s: ImportBatchSummary) => number }[]
-
-function Progress({ label, done, total }: { label: string; done: number; total: number }) {
-  const pct = total ? Math.round((done / total) * 100) : 0
-  return (
-    <div className="space-y-1" aria-live="polite">
-      <div className="flex justify-between text-sm">
-        <span>{label}</span>
-        <span className="tabular-nums text-muted-foreground">{done} / {total}</span>
-      </div>
-      <ProgressBar value={pct} aria-label={label} className="bg-muted" />
-    </div>
-  )
-}
 
 export function ImportTab() {
   const { t } = useTranslation()
@@ -109,6 +97,27 @@ export function ImportTab() {
   const hasList = !!summary && summary.total > 0
   const importedCount = counts.imported ?? 0
   const loadedCount = summary ? summary.total - importedCount : 0
+  // What is working right now. Matching and uploading run side by side, so more than one can show.
+  const stages: Stage[] = []
+  if (phase.kind === "reading") stages.push({ key: "reading", label: t("Reading books"), done: phase.done, total: phase.total })
+  if (phase.kind === "saving") stages.push({ key: "saving", label: t("Saving the list"), done: phase.done, total: phase.total })
+  if (summary && queued > 0 && match?.status !== "failed") {
+    stages.push({
+      key: "matching",
+      label: match?.status === "running" ? t("Matched {{done}} of {{total}}", { done: match.done, total: match.total }) : t("Matching with Open Library"),
+      done: loadedCount - queued - (counts.not_epub ?? 0),
+      total: loadedCount - (counts.not_epub ?? 0),
+    })
+  }
+  if (summary && imp.uploading) {
+    stages.push({
+      key: "uploading",
+      label: t("Uploading files"),
+      done: summary.staged,
+      total: summary.staged + summary.unstaged,
+      hint: t("Files are uploaded as books are matched, so you can leave this page."),
+    })
+  }
   const [tab, setTab] = useState<"loaded" | "history">("loaded")
   const noMatch = counts.no_match ?? 0
   const busy = phase.kind !== "idle"
@@ -135,10 +144,9 @@ export function ImportTab() {
       )}
       {imp.error && <Notice tone="error">{imp.error}</Notice>}
 
-      <DropZone onPick={pick} onChooseFolder={imp.folderSupported ? imp.chooseFolder : undefined} compact={hasList} disabled={busy} />
+      <DropZone onPick={pick} onChooseFolder={imp.folderSupported ? imp.chooseFolder : undefined} compact={loadedCount > 0} disabled={busy} />
 
-      {phase.kind === "reading" && <Progress label={t("Reading books")} done={phase.done} total={phase.total} />}
-      {phase.kind === "saving" && <Progress label={t("Saving the list")} done={phase.done} total={phase.total} />}
+      <ProgressPanel stages={stages} />
 
       {hasList && (
         <>
@@ -148,15 +156,7 @@ export function ImportTab() {
               {t("Matching stopped.")} {match.error}
               {match.retry_after ? ` ${t("Try again in about {{n}} seconds.", { n: Math.ceil(match.retry_after) })}` : ""}
             </Notice>
-          ) : (
-            queued > 0 && (
-              <Progress
-                label={match?.status === "running" ? t("Matched {{done}} of {{total}}", { done: match.done, total: match.total }) : t("Matching with Open Library")}
-                done={loadedCount - queued - (counts.not_epub ?? 0)}
-                total={loadedCount - (counts.not_epub ?? 0)}
-              />
-            )
-          )}
+          ) : null}
 
           <ImportStatus
             summary={summary}
@@ -201,13 +201,11 @@ export function ImportTab() {
             </AlertDialog>
             </div>
             <TabsContent value="loaded" className="mt-4 space-y-4">
+            {loadedCount === 0 ? (
+              <EmptyLoaded importedCount={importedCount} onViewHistory={() => setTab("history")} />
+            ) : (
+              <>
 
-          {imp.uploading && (
-            <div className="space-y-1">
-              <Progress label={t("Uploading files")} done={summary.staged} total={summary.staged + summary.unstaged} />
-              <p className="text-xs text-muted-foreground">{t("Files are uploaded as books are matched, so you can leave this page.")}</p>
-            </div>
-          )}
           {imp.uploadFailed > 0 && !imp.uploading && (
             <Notice tone="error" action={<Button size="sm" onClick={imp.retryUploads}>{t("Try again")}</Button>}>
               {t("{{n}} files could not be uploaded.", { n: imp.uploadFailed })}
@@ -388,6 +386,8 @@ export function ImportTab() {
               imp.clearBatch()
             }}
           />
+              </>
+            )}
             </TabsContent>
             <TabsContent value="history" className="mt-4">
               <ImportHistory batchId={imp.batchId!} total={importedCount} retentionDays={retention} />

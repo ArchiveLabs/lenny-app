@@ -104,3 +104,25 @@ it("offers View history when the result is shown and a handler is given", () => 
   fireEvent.click(screen.getByRole("button", { name: "View history" }))
   expect(onViewHistory).toHaveBeenCalled()
 })
+
+describe("dismissing the result", () => {
+  it("puts the result away", () => {
+    show(summary({ import: job() }))
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+    expect(screen.queryByText(/imported\./)).not.toBeInTheDocument()
+  })
+
+  it("shows the next import's result again", () => {
+    const { rerender } = render(<ImportStatus summary={summary({ import: job({ id: "a" }) })} onShowFailed={jest.fn()} onRetryFailed={jest.fn()} onStartAgain={jest.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+    rerender(<ImportStatus summary={summary({ import: job({ id: "a" }) })} onShowFailed={jest.fn()} onRetryFailed={jest.fn()} onStartAgain={jest.fn()} />)
+    expect(screen.queryByText(/imported\./)).not.toBeInTheDocument()
+    rerender(<ImportStatus summary={summary({ import: job({ id: "b", imported: 7 }) })} onShowFailed={jest.fn()} onRetryFailed={jest.fn()} onStartAgain={jest.fn()} />)
+    expect(screen.getByText(/7 imported\./)).toBeInTheDocument()
+  })
+
+  it("does not offer to dismiss a running import", () => {
+    show(summary({ import: job({ status: "running" }) }))
+    expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument()
+  })
+})
