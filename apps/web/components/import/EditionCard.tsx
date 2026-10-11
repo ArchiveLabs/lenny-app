@@ -3,7 +3,7 @@
 import { useTranslation } from "react-i18next"
 import { Badge } from "@workspace/ui/components/badge"
 import type { ImportCandidate } from "@/types/import"
-import { editionKey } from "./RowItem"
+import { editionKey } from "@/lib/import/display"
 
 /** What the percentage line says: a score under this is relative to the file and reads as alarming, so it is hidden. */
 export const SHOW_SCORE_FROM = 60

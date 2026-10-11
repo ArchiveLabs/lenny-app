@@ -9,7 +9,7 @@ import { Separator } from "@workspace/ui/components/separator"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@workspace/ui/components/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@workspace/ui/components/table"
 import type { ImportRow } from "@/types/import"
-import { editionKey } from "./RowItem"
+import { displayAuthor, displayTitle, editionKey } from "@/lib/import/display"
 
 export const openLibraryUrl = (olid: number) => `https://openlibrary.org/books/${editionKey(olid)}`
 
@@ -62,8 +62,8 @@ export function RowDetails({ row, onClose, onChangeEdition }: { row: ImportRow |
         {row && status && (
           <>
             <SheetHeader className="space-y-2 border-b">
-              <SheetTitle className="pr-8 leading-snug">{row.match_title || row.title || row.path.split("/").pop()}</SheetTitle>
-              <SheetDescription className="line-clamp-2">{row.match_author || row.author}</SheetDescription>
+              <SheetTitle className="pr-8 leading-snug">{displayTitle(row)}</SheetTitle>
+              <SheetDescription className="line-clamp-2">{displayAuthor(row)}</SheetDescription>
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <Badge variant="outline" className={status.className}>{t(status.label)}</Badge>
                 {row.olid ? (

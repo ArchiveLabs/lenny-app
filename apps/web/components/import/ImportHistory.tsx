@@ -2,18 +2,19 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckCircle2, ChevronRight } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@workspace/ui/components/button"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@workspace/ui/components/table"
+import { useBackfillMatchDetails } from "@/hooks/import/use-backfill"
 import { importApi } from "@/lib/import/api"
 import type { ImportRow } from "@/types/import"
 import { Notice } from "./Notice"
 import { Pager } from "./Pager"
 import { RowDetails, openLibraryUrl } from "./RowDetails"
-import { editionKey } from "./RowItem"
+import { displayAuthor, displayTitle, editionKey } from "@/lib/import/display"
 
 export const HISTORY_PAGE_SIZE = 50
 
@@ -61,6 +62,10 @@ export function ImportHistory({ batchId, total, retentionDays, now }: { batchId:
     retry: false,
   })
   const rows = history.data?.rows ?? []
+  const qc = useQueryClient()
+  useBackfillMatchDetails(rows, (r) =>
+    importApi.patchRow(batchId, r.id, { olid: r.olid! }).then(() => qc.invalidateQueries({ queryKey: ["import-rows", batchId] })),
+  )
   const count = history.data?.total ?? total
 
   if (history.isError) {
@@ -123,12 +128,12 @@ function GroupRows({ label, rows, onDetails }: { label: string; rows: ImportRow[
         </TableCell>
       </TableRow>
       {rows.map((r) => {
-        const title = r.match_title || r.title || r.path.split("/").pop()
+        const title = displayTitle(r)
         return (
           <TableRow key={r.id}>
             <TableCell className="max-w-0 whitespace-normal">
               <p className="truncate font-medium">{title}</p>
-              <p className="truncate text-sm text-muted-foreground">{r.match_author || r.author}</p>
+              <p className="truncate text-sm text-muted-foreground">{displayAuthor(r)}</p>
             </TableCell>
             <TableCell>
               {r.olid && (

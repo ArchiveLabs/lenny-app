@@ -516,3 +516,19 @@ describe("the list header and selection", () => {
     expect(screen.getByText("Books matching this search")).toBeInTheDocument()
   })
 })
+
+describe("filling in old rows", () => {
+  const old = { id: 1, title: "Game Show Zine", state: "matched", olid: 62577329, match_title: null, encrypted: false }
+
+  it("asks the server once to fill in a linked row that has no matched title", async () => {
+    const imp = setup({ rows: [old] })
+    await waitFor(() => expect(imp.patchRow).toHaveBeenCalledWith(old, { olid: 62577329 }))
+    expect(imp.patchRow).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not ask for a row that already has its details", async () => {
+    const imp = setup({ rows: [{ ...old, match_title: "Hmm Daily Game Show Zine" }] })
+    await new Promise((ok) => setTimeout(ok, 10))
+    expect(imp.patchRow).not.toHaveBeenCalled()
+  })
+})

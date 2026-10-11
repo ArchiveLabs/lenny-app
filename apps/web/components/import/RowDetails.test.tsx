@@ -99,3 +99,9 @@ it("formats sizes and links", () => {
   expect(fileSize(5 * 1024 ** 2)).toBe("5.0 MB")
   expect(openLibraryUrl(7)).toBe("https://openlibrary.org/books/OL7M")
 })
+
+it("titles a linked book with Open Library's title, or its OL id when there is none yet, never the file's", () => {
+  show(row({ match_title: null, match_author: null }))
+  expect(screen.getAllByText("OL123M").length).toBeGreaterThan(0)
+  expect(screen.queryByText("Frank Herbert", { selector: "p" })).not.toBeInTheDocument()
+})

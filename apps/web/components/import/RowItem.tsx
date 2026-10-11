@@ -7,9 +7,8 @@ import { Spinner } from "@workspace/ui/components/spinner"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
+import { displayAuthor, displayTitle, displayYear, editionKey } from "@/lib/import/display"
 import type { ImportRow } from "@/types/import"
-
-export const editionKey = (olid: number) => `OL${olid}M`
 
 /** An auto-picked match under this gets a "Check" badge; at or above it the match needs no comment. */
 export const CHECK_BELOW = 95
@@ -73,8 +72,8 @@ export const RowItem = memo(function RowItem({
 }) {
   const { t } = useTranslation()
   const badge = statusBadge(row)
-  const title = row.match_title || row.title || row.path.split("/").pop()
-  const author = row.match_author || row.author
+  const title = displayTitle(row)
+  const author = displayAuthor(row)
   const locked = row.state === "imported" || row.state === "not_epub" || row.state === "importing"
   const canPick = !locked && row.state !== "duplicate"
   const mustChoose = row.state === "needs_review" || row.state === "no_match"
@@ -91,7 +90,7 @@ export const RowItem = memo(function RowItem({
       <div className="flex min-w-0 flex-1 flex-col gap-2 @2xl:flex-row @2xl:items-center @2xl:gap-4">
         <div className="min-w-0 flex-1 space-y-0.5">
           <p className="truncate font-semibold">{title}</p>
-          <p className="truncate text-sm text-muted-foreground">{[author, row.olid ? (row.match_year ?? row.year) : row.year].filter(Boolean).join(" · ") || " "}</p>
+          <p className="truncate text-sm text-muted-foreground">{[author, displayYear(row)].filter(Boolean).join(" · ") || " "}</p>
           <p className="truncate text-xs text-muted-foreground/70" title={row.path}>{row.path}</p>
           {row.error && <p className="text-xs text-red-700">{row.error}</p>}
           {needsFile && row.state === "matched" && !row.staged && (

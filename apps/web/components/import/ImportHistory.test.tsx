@@ -7,14 +7,14 @@ import { importApi } from "@/lib/import/api"
 jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])) }),
 }))
-jest.mock("@/lib/import/api", () => ({ importApi: { rows: jest.fn() } }))
+jest.mock("@/lib/import/api", () => ({ importApi: { rows: jest.fn(), patchRow: jest.fn() } }))
 
 // Local times, so the tests do not depend on the machine's time zone.
 const at = (y, mo, d, h = 12, mi = 0) => new Date(y, mo - 1, d, h, mi).toISOString()
 const NOW = new Date(2026, 9, 11, 18, 40) // Oct 11 2026, 6:40 PM
 const row = (id, over = {}) => ({
   id, path: `L/b${id}.epub`, size: 1, mtime: 1, state: "imported", decision: "auto", staged: false, encrypted: false,
-  auto_picked: true, candidates_count: 0, title: `Book ${id}`, author: `Author ${id}`, olid: 100 + id, imported_at: at(2026, 10, 11, 18, 36), ...over,
+  auto_picked: true, candidates_count: 0, title: `Book ${id}`, author: `Author ${id}`, match_title: `Book ${id}`, match_author: `Author ${id}`, olid: 100 + id, imported_at: at(2026, 10, 11, 18, 36), ...over,
 })
 const show = (rows, extra = {}) => {
   importApi.rows.mockResolvedValue({ rows, next_cursor: null, total: rows.length, ...extra })
@@ -125,5 +125,16 @@ describe("the history table", () => {
     expect(await screen.findByText("Could not load the history.")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
     await screen.findByText("Book 1")
+  })
+})
+
+describe("old rows with no matched title", () => {
+  it("asks the server to fill them in once, and shows the OL id meanwhile", async () => {
+    importApi.patchRow.mockResolvedValue({})
+    show([row(1, { match_title: null, match_author: null })])
+    await screen.findByText("1 imported. History is kept for 30 days.")
+    await waitFor(() => expect(importApi.patchRow).toHaveBeenCalledWith(7, 1, { olid: 101 }))
+    expect(importApi.patchRow).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText("Book 1")).not.toBeInTheDocument()
   })
 })

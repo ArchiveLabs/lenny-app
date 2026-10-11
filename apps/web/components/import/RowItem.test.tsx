@@ -8,7 +8,7 @@ jest.mock("react-i18next", () => ({
 
 const row = (over = {}) => ({
   id: 1, path: "L/a.epub", size: 1, mtime: 1, state: "matched", decision: "auto", skipped: false, staged: false,
-  encrypted: false, auto_picked: true, confidence: 100, candidates_count: 0, title: "Dune", ...over,
+  encrypted: false, auto_picked: true, confidence: 100, candidates_count: 0, title: "Dune", match_title: "Dune", ...over,
 })
 const show = (r, props = {}) => {
   const fns = { onOpen: jest.fn(), onDetails: jest.fn(), onRemove: jest.fn(), onToggleEncrypted: jest.fn(), onSelect: jest.fn(), onRetryUpload: jest.fn() }
@@ -166,7 +166,7 @@ it("asks for the file again only when it is neither staged nor in memory", () =>
 
 describe("link to Open Library and details", () => {
   it("shows a linked check with the OL id that opens the edition", () => {
-    show(row({ olid: 3413631, author: "Ben Ehrenreich", year: 1900 }))
+    show(row({ olid: 3413631, match_author: "Ben Ehrenreich", match_year: 1900 }))
     const link = screen.getByRole("link", { name: /OL3413631M/ })
     expect(link).toHaveAttribute("href", "https://openlibrary.org/books/OL3413631M")
     expect(link).toHaveAttribute("title", "Linked to Open Library")
@@ -201,7 +201,7 @@ describe("alignment", () => {
   })
 
   it("puts the Open Library id with the controls, not in the author line", () => {
-    show(row({ olid: 5, author: "Frank Herbert" }))
+    show(row({ olid: 5, match_author: "Frank Herbert" }))
     const line = screen.getByText("Frank Herbert")
     expect(line.closest("p")).not.toContainElement(screen.getByRole("link", { name: /OL5M/ }))
   })
@@ -227,17 +227,40 @@ it("left-aligns the Open Library id in its column so the check icons line up", (
   expect(link.className).toContain("@2xl:w-40")
 })
 
-describe("year shown next to the author", () => {
-  it("uses Open Library's year for a linked book, not the file's", () => {
-    show(row({ olid: 5, author: "Frank Herbert", year: 1900, match_year: 1965 }))
-    expect(screen.getByText("Frank Herbert · 1965")).toBeInTheDocument()
+describe("what a row shows", () => {
+  it("shows Open Library's title, author and year for a linked book", () => {
+    show(row({ olid: 5, title: "File title", author: "File Author", year: 1900, match_title: "Matched title", match_author: "Matched Author", match_year: 1965 }))
+    expect(screen.getByText("Matched title")).toBeInTheDocument()
+    expect(screen.getByText("Matched Author · 1965")).toBeInTheDocument()
+    expect(screen.queryByText(/File title|File Author|1900/)).not.toBeInTheDocument()
   })
-  it("falls back to the file's year when the match has none", () => {
-    show(row({ olid: 5, author: "Frank Herbert", year: 1900, match_year: null }))
-    expect(screen.getByText("Frank Herbert · 1900")).toBeInTheDocument()
+
+  it("never shows the file's year, and shows no year when the match has none", () => {
+    show(row({ olid: 5, author: "F", match_author: "Frank Herbert", year: 1900, match_year: null }))
+    expect(screen.getByText("Frank Herbert")).toBeInTheDocument()
+    expect(screen.queryByText(/1900/)).not.toBeInTheDocument()
   })
-  it("uses the file's year when there is no match", () => {
-    show(row({ olid: null, state: "no_match", author: "Frank Herbert", year: 1900, match_year: 1965 }))
-    expect(screen.getByText("Frank Herbert · 1900")).toBeInTheDocument()
+
+  it("shows the OL id in the title's place when a linked book has no matched title yet (old data)", () => {
+    show(row({ olid: 5, title: "Game Show Zine", match_title: null, match_author: null }))
+    expect(screen.getAllByText("OL5M").length).toBeGreaterThan(0)
+    expect(screen.queryByText("Game Show Zine")).not.toBeInTheDocument()
+  })
+
+  it("does not borrow the file's author for a linked book", () => {
+    show(row({ olid: 5, author: "File Author", match_author: null }))
+    expect(screen.queryByText("File Author")).not.toBeInTheDocument()
+  })
+
+  it("shows the file's own title and author, but no year, for a book with no match", () => {
+    show(row({ olid: null, state: "no_match", title: "Game Show Zine", author: "Joe MacLeod", year: 1900, match_title: null }))
+    expect(screen.getByText("Game Show Zine")).toBeInTheDocument()
+    expect(screen.getByText("Joe MacLeod")).toBeInTheDocument()
+    expect(screen.queryByText(/1900/)).not.toBeInTheDocument()
+  })
+
+  it("falls back to the file name when an unlinked book has no title", () => {
+    show(row({ olid: null, state: "no_match", title: null, path: "L/zine.epub", match_title: null }))
+    expect(screen.getByText("zine.epub")).toBeInTheDocument()
   })
 })

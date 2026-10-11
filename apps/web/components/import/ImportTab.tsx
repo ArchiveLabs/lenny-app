@@ -14,6 +14,7 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
 import { Progress as ProgressBar } from "@workspace/ui/components/progress"
 import { Spinner } from "@workspace/ui/components/spinner"
+import { useBackfillMatchDetails } from "@/hooks/import/use-backfill"
 import { PAGE_SIZE, useImport, useImportLimits } from "@/hooks/import/use-import"
 import { useWindowDrop } from "@/hooks/import/use-window-drop"
 import type { RowFilter } from "@/lib/import/api"
@@ -71,6 +72,7 @@ export function ImportTab() {
   const filter: RowFilter = { ...FILTERS.find((f) => f.id === filterId)!.filter, ...(q.trim() ? { q: q.trim() } : {}) }
   const [page, setPage] = useState(0) // 0-based; back to the first page whenever the filter or search changes
   const imp = useImport(filter, page)
+  useBackfillMatchDetails(imp.rows, (r) => imp.patchRow(r, { olid: r.olid! }))
   const allEncrypted = imp.rows.length > 0 && imp.rows.every((r) => r.encrypted)
   const anyEncrypted = imp.rows.some((r) => r.encrypted)
   const activeCount = imp.summary ? FILTERS.find((f) => f.id === filterId)!.count(imp.summary) : 0
