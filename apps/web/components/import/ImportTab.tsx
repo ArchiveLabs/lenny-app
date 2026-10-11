@@ -51,6 +51,11 @@ export function ImportTab() {
   const [selected, setSelected] = useState<ReadonlyMap<number, ImportRow>>(new Map())
   const [confirmSelected, setConfirmSelected] = useState(false)
   const [selectAll, setSelectAll] = useState(false) // every book in this view, not only the ones on this page
+  // Start over can fail (the server is down); say so instead of leaving an unhandled rejection.
+  const startOver = () =>
+    Promise.resolve(importedCount > 0 ? imp.clearLoaded() : imp.clearBatch()).catch((e) =>
+      imp.reportError(e instanceof Error ? e.message : t("Something went wrong")),
+    )
   const clearSelection = () => {
     setSelected(new Map())
     setSelectAll(false)
@@ -195,7 +200,7 @@ export function ImportTab() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => (importedCount > 0 ? imp.clearLoaded() : imp.clearBatch())}>{t("Clear loaded books")}</AlertDialogAction>
+                  <AlertDialogAction onClick={startOver}>{t("Clear loaded books")}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>

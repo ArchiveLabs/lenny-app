@@ -581,3 +581,36 @@ describe("when everything loaded has been imported", () => {
     expect(screen.getByRole("group", { name: "Filter books" })).toBeInTheDocument()
   })
 })
+
+describe("Start over failing", () => {
+  const withImported = { summary: summary({ total: 4, counts: { matched: 1, imported: 3 } }) }
+
+  it("shows the reason instead of leaving an unhandled rejection (clearing the loaded books)", async () => {
+    const imp = setup({ ...withImported, clearLoaded: jest.fn().mockRejectedValue(new Error("Server is down")) })
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Clear loaded books" }))
+    await waitFor(() => expect(imp.reportError).toHaveBeenCalledWith("Server is down"))
+  })
+
+  it("does the same when deleting the whole list", async () => {
+    const imp = setup({ clearBatch: jest.fn().mockRejectedValue(new Error("Nope")) })
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Clear loaded books" }))
+    await waitFor(() => expect(imp.reportError).toHaveBeenCalledWith("Nope"))
+  })
+
+  it("uses a plain message when the failure is not an Error", async () => {
+    const imp = setup({ clearBatch: jest.fn().mockRejectedValue("boom") })
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Clear loaded books" }))
+    await waitFor(() => expect(imp.reportError).toHaveBeenCalledWith("Something went wrong"))
+  })
+
+  it("says nothing when it works", async () => {
+    const imp = setup({ clearBatch: jest.fn().mockResolvedValue(undefined) })
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Clear loaded books" }))
+    await waitFor(() => expect(imp.clearBatch).toHaveBeenCalled())
+    expect(imp.reportError).not.toHaveBeenCalled()
+  })
+})
