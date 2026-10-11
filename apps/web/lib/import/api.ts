@@ -67,6 +67,9 @@ export const importApi = {
   job: (jobId: string) => fetchAdmin(`import/match/${jobId}`).then((r) => handleApiResponse(r, MatchJobSchema)),
   candidates: (id: number, rowId: number) =>
     fetchAdmin(`${base(id)}/rows/${rowId}/candidates`).then((r) => handleApiResponse(r, ImportCandidatesSchema)),
+  /** Live search scored against the row: words, an ISBN, an edition key or an openlibrary.org link. q is 2+ characters. */
+  searchEditions: (id: number, rowId: number, q: string) =>
+    fetchAdmin(`${base(id)}/rows/${rowId}/search${query({ q })}`).then((r) => handleApiResponse(r, ImportCandidatesSchema)),
   lookupEdition: (key: string) =>
     fetchAdmin(`import/editions/lookup${query({ key })}`).then((r) => handleApiResponse(r, EditionLookupSchema)),
   checkDuplicates: (olids: number[]) =>

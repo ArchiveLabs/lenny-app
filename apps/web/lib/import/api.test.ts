@@ -68,3 +68,10 @@ it("stages a file with PUT multipart and imports a staged row with a bodyless PO
   await importApi.importRow(3, 9)
   expect((fetchAdmin as jest.Mock).mock.calls[1]).toEqual(["import/batches/3/rows/9/import", { method: "POST" }])
 })
+
+it("searches editions for a row with the text encoded", async () => {
+  ;(fetchAdmin as jest.Mock).mockReturnValue(ok({ candidates: [{ olid: 1, title: "T", in_library: true }] }))
+  const res = await importApi.searchEditions(3, 9, "dune & co")
+  expect(fetchAdmin).toHaveBeenCalledWith("import/batches/3/rows/9/search?q=dune+%26+co")
+  expect(res.candidates[0].in_library).toBe(true)
+})

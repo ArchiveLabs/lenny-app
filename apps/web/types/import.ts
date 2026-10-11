@@ -73,6 +73,7 @@ export const ImportCandidateSchema = z.object({
   language: z.string().nullish(),
   isbn: z.string().nullish(),
   score: z.number().nullish(),
+  in_library: z.boolean().default(false),
 })
 export type ImportCandidate = z.infer<typeof ImportCandidateSchema>
 
