@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { EditionSheet } from "./EditionSheet"
 import { importApi } from "@/lib/import/api"
+import { ApiError } from "@/types/api"
 
 jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s }) }))
 jest.mock("@/lib/import/api", () => ({ importApi: { candidates: jest.fn(), searchEditions: jest.fn() } }))
@@ -15,11 +16,22 @@ it("focuses the search box on open and still lists the suggestions", async () =>
   const onClose = jest.fn()
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <EditionSheet batchId={7} row={row} onClose={onClose} onPick={onPick} />
+      <EditionSheet batchId={7} row={row} onClose={onClose} onPick={onPick} onStartOver={jest.fn()} />
     </QueryClientProvider>,
   )
   await waitFor(() => expect(screen.getByLabelText("Search Open Library")).toHaveFocus())
   fireEvent.click(await screen.findByText("Dune (1965)"))
   await waitFor(() => expect(onPick).toHaveBeenCalledWith(row, 9))
   expect(onClose).toHaveBeenCalled()
+})
+
+it("shows the honest reason when the suggestions fail", async () => {
+  importApi.candidates.mockRejectedValue(new ApiError("Not found.", 404))
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <EditionSheet batchId={7} row={row} onClose={jest.fn()} onPick={jest.fn()} onStartOver={jest.fn()} />
+    </QueryClientProvider>,
+  )
+  expect(await screen.findByText("This book is no longer in the list.")).toBeInTheDocument()
+  expect(screen.queryByText(/Open Library did not answer/)).not.toBeInTheDocument()
 })

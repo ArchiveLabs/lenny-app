@@ -338,7 +338,12 @@ export function ImportTab() {
             )}
           </div>
 
-          <EditionSheet batchId={imp.batchId!} row={editing} onClose={() => setEditing(null)} onPick={(r, olid) => imp.patchRow(r, { olid })} />
+          <EditionSheet batchId={imp.batchId!} row={editing} onClose={() => setEditing(null)} onPick={(r, olid) => imp.patchRow(r, { olid })}
+            onStartOver={() => {
+              setEditing(null)
+              imp.clearBatch()
+            }}
+          />
         </>
       )}
     </div>

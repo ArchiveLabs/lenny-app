@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { importApi } from "@/lib/import/api"
 import type { ImportRow } from "@/types/import"
 import { EditionCard } from "./EditionCard"
+import { EditionError } from "./EditionError"
 import { ADD_ON_OPEN_LIBRARY_URL, EditionSearch } from "./EditionSearch"
 
 export { ADD_ON_OPEN_LIBRARY_URL }
@@ -18,11 +19,14 @@ export function EditionSheet({
   row,
   onClose,
   onPick,
+  onStartOver,
 }: {
   batchId: number
   row: ImportRow | null
   onClose: () => void
   onPick: (row: ImportRow, olid: number) => Promise<void>
+  /** The list expired: clear it and begin again. */
+  onStartOver: () => void
 }) {
   const { t } = useTranslation()
   const searchBox = useRef<HTMLInputElement>(null)
@@ -59,12 +63,7 @@ export function EditionSheet({
           <section className="space-y-2" aria-live="polite">
             <h3 className="text-sm font-semibold">{t("Suggestions from Open Library")}</h3>
             {candidates.isLoading && <Loader2 className="h-4 w-4 animate-spin" aria-label={t("Loading")} />}
-            {candidates.isError && (
-              <div className="space-y-2 text-sm">
-                <p className="text-red-700">{t("Open Library did not answer. Try again in a moment.")}</p>
-                <Button size="sm" variant="outline" onClick={() => candidates.refetch()}>{t("Try again")}</Button>
-              </div>
-            )}
+            {candidates.isError && <EditionError error={candidates.error} onRetry={() => candidates.refetch()} onStartOver={onStartOver} />}
             {candidates.data?.candidates.length === 0 && (
               <p className="text-sm text-muted-foreground">{t("No suggestions for this book.")}</p>
             )}
@@ -77,7 +76,7 @@ export function EditionSheet({
             </ul>
           </section>
 
-          {row && <EditionSearch key={row.id} ref={searchBox} batchId={batchId} row={row} onPick={pick} />}
+          {row && <EditionSearch key={row.id} ref={searchBox} batchId={batchId} row={row} onPick={pick} onStartOver={onStartOver} />}
 
           <a
             href={ADD_ON_OPEN_LIBRARY_URL}

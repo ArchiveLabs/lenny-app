@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { EditionSearch } from "./EditionSearch"
 import { importApi } from "@/lib/import/api"
+import { ApiError } from "@/types/api"
 
 jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s }) }))
 jest.mock("@/lib/import/api", () => ({ importApi: { searchEditions: jest.fn() } }))
@@ -13,7 +14,7 @@ const setup = () => {
   const onPick = jest.fn()
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <EditionSearch batchId={7} row={row} onPick={onPick} />
+      <EditionSearch batchId={7} row={row} onPick={onPick} onStartOver={jest.fn()} />
     </QueryClientProvider>,
   )
   return { onPick, box: screen.getByLabelText("Search Open Library") }
@@ -113,11 +114,11 @@ it("offers the Open Library add link when nothing is found", async () => {
   expect(screen.getByRole("link", { name: /Add it on Open Library/ })).toHaveAttribute("href", "https://openlibrary.org/books/add")
 })
 
-it("says Open Library is not answering and retries", async () => {
-  importApi.searchEditions.mockRejectedValueOnce(new Error("502")).mockResolvedValue({ candidates: [cand(1)] })
+it("says Open Library is not answering on a 502 and retries", async () => {
+  importApi.searchEditions.mockRejectedValueOnce(new ApiError("bad gateway", 502)).mockResolvedValue({ candidates: [cand(1)] })
   const { box } = setup()
   type(box, "dune")
-  await screen.findByText("Open Library is not answering. Try again.")
+  await screen.findByText("Open Library did not answer. Try again in a moment.")
   fireEvent.click(screen.getByRole("button", { name: "Try again" }))
   await screen.findByText("Book 1")
 })

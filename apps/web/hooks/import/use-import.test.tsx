@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { pollInterval, useImport } from "./use-import"
 import { importApi } from "@/lib/import/api"
 import { importFiles } from "@/lib/import/files"
+import { ApiError } from "@/types/api"
 
 jest.mock("@/lib/import/api", () => ({ importApi: {} }))
 jest.mock("@/lib/query-client", () => ({ forceFreshLibraryOnNextVisit: jest.fn() }))
@@ -274,5 +275,22 @@ describe("removing several rows", () => {
     await act(() => result.current.removeRows(rows))
     expect(result.current.error).toBe("down")
     expect(importFiles.has(rows[0])).toBe(true)
+  })
+})
+
+describe("Start over on an expired list", () => {
+  it("still clears the page when the server says the list is gone", async () => {
+    importApi.deleteBatch = jest.fn().mockRejectedValue(new ApiError("gone", 410))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.clearBatch())
+    await waitFor(() => expect(result.current.batchId).toBeNull())
+  })
+
+  it("surfaces any other failure", async () => {
+    importApi.deleteBatch = jest.fn().mockRejectedValue(new ApiError("boom", 500))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await expect(act(() => result.current.clearBatch())).rejects.toThrow("boom")
   })
 })

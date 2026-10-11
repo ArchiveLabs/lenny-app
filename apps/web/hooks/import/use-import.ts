@@ -7,6 +7,7 @@ import { importApi, type RowFilter } from "@/lib/import/api"
 import { importFiles, matchedRows, splitKnown } from "@/lib/import/files"
 import { clearHandle, ensureReadPermission, hasReadPermission, loadHandle, pickDirectory, saveHandle, supportsDirectoryPicker, walkDirectory } from "@/lib/import/fsa"
 import { chunk, ingest, pool } from "@/lib/import/ingest"
+import { ApiError } from "@/types/api"
 import type { PickedFile } from "@/lib/import/walk"
 import type { ImportRow } from "@/types/import"
 
@@ -419,7 +420,12 @@ export function useImport(filter: RowFilter, page = 0) {
 
   const clearBatch = useCallback(async () => {
     if (batchId === null) return
-    await importApi.deleteBatch(batchId)
+    try {
+      await importApi.deleteBatch(batchId)
+    } catch (e) {
+      // An expired or already-removed list is what Start over wants anyway.
+      if (!(e instanceof ApiError && (e.status === 404 || e.status === 410))) throw e
+    }
     importFiles.clear()
     clearHandle()
     setFolderName(null)

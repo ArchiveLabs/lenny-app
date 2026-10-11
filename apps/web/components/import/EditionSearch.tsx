@@ -10,14 +10,15 @@ import { Label } from "@workspace/ui/components/label"
 import { importApi } from "@/lib/import/api"
 import type { ImportRow } from "@/types/import"
 import { EditionCard, SHOW_SCORE_FROM } from "./EditionCard"
+import { EditionError } from "./EditionError"
 
 export const ADD_ON_OPEN_LIBRARY_URL = "https://openlibrary.org/books/add"
 const MIN_CHARS = 2 // the server refuses less
 const DEBOUNCE_MS = 400
 
 /** Search box for the edition panel: words, ISBN, OL key or link. Pass a new `key` per row to reset it. */
-export const EditionSearch = forwardRef<HTMLInputElement, { batchId: number; row: ImportRow; onPick: (olid: number) => void }>(
-  function EditionSearch({ batchId, row, onPick }, inputRef) {
+export const EditionSearch = forwardRef<HTMLInputElement, { batchId: number; row: ImportRow; onPick: (olid: number) => void; onStartOver: () => void }>(
+  function EditionSearch({ batchId, row, onPick, onStartOver }, inputRef) {
     const { t } = useTranslation()
     const [text, setText] = useState("")
     const [q, setQ] = useState("") // what is actually searched
@@ -84,12 +85,7 @@ export const EditionSearch = forwardRef<HTMLInputElement, { batchId: number; row
         )}
 
         <div aria-live="polite" className="space-y-2">
-          {search.isError && (
-            <div className="space-y-2 text-sm">
-              <p className="text-red-700">{t("Open Library is not answering. Try again.")}</p>
-              <Button size="sm" variant="outline" onClick={() => search.refetch()}>{t("Try again")}</Button>
-            </div>
-          )}
+          {search.isError && <EditionError error={search.error} onRetry={() => search.refetch()} onStartOver={onStartOver} />}
           {enabled && search.isSuccess && results.length === 0 && (
             <p className="text-sm text-muted-foreground">
               {t("No editions found.")}{" "}
