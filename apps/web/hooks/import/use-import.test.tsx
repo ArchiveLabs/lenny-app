@@ -387,3 +387,18 @@ describe("changing a row's edition or encryption", () => {
     expect(spy).toHaveBeenCalledWith({ queryKey: ["import-candidates", 7, 5] })
   })
 })
+
+describe("Start over that keeps History", () => {
+  it("removes every book except the imported ones, and forgets the files", async () => {
+    importApi.action = jest.fn().mockResolvedValue({ updated: 4 })
+    importApi.deleteBatch = jest.fn()
+    importFiles.add(new File(["x"], "a.epub", { lastModified: 1 }), "L/a.epub")
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.clearLoaded())
+    expect(importApi.action).toHaveBeenCalledWith(7, { action: "remove", exclude_state: "imported" })
+    expect(importApi.deleteBatch).not.toHaveBeenCalled()
+    expect(importFiles.size).toBe(0)
+    expect(result.current.batchId).toBe(7) // the batch, and so the history, stays
+  })
+})

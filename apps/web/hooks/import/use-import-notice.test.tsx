@@ -36,29 +36,29 @@ beforeEach(() => {
   })
 })
 
-it("says the files are already in the list when dropped again", async () => {
+it("says the files are already loaded when dropped again", async () => {
   const result = await setup([mk(1, { staged: true }), mk(2, { staged: true })])
   await act(() => result.current.addFiles(drop(1, 2)))
-  expect(result.current.notice).toBe("These 2 files are already in your list")
+  expect(result.current.notice).toBe("These 2 files are already loaded")
   expect(importApi.putRows).not.toHaveBeenCalled()
 })
 
 it("uses the singular for one file", async () => {
   const result = await setup([mk(1, { staged: true })])
   await act(() => result.current.addFiles(drop(1)))
-  expect(result.current.notice).toBe("This file is already in your list")
+  expect(result.current.notice).toBe("This file is already loaded")
 })
 
 it("adds how many were already imported", async () => {
   const result = await setup([mk(1, { state: "imported" }), mk(2, { staged: true }), mk(3, { state: "imported" })])
   await act(() => result.current.addFiles(drop(1, 2, 3)))
-  expect(result.current.notice).toBe("These 3 files are already in your list (2 already imported)")
+  expect(result.current.notice).toBe("These 3 files are already loaded (2 already imported)")
 })
 
 it("says how many were added and how many were already there", async () => {
   const result = await setup([mk(1, { staged: true })])
   await act(() => result.current.addFiles(drop(1, 2, 3)))
-  expect(result.current.notice).toBe("Added 2 new books. 1 was already in your list")
+  expect(result.current.notice).toBe("Loaded 2 new books. 1 was already loaded")
 })
 
 it("adds up the chunks before saying how many were added", async () => {
@@ -66,7 +66,7 @@ it("adds up the chunks before saying how many were added", async () => {
   const result = await setup([mk(1, { staged: true })])
   await act(() => result.current.addFiles(drop(1, 2, 3, 4, 5)))
   expect(importApi.putRows).toHaveBeenCalledTimes(2)
-  expect(result.current.notice).toBe("Added 4 new books. 1 was already in your list")
+  expect(result.current.notice).toBe("Loaded 4 new books. 1 was already loaded")
 })
 
 it("shows no notice when everything is new", async () => {
@@ -75,17 +75,17 @@ it("shows no notice when everything is new", async () => {
   expect(result.current.notice).toBeNull()
 })
 
-it("only says Reconnected, not already in your list, when the rows just needed their files", async () => {
+it("only says Reconnected, not already loaded, when the rows just needed their files", async () => {
   const result = await setup([mk(1), mk(2)]) // matched, not on the server, no files here (a reload)
   await act(() => result.current.addFiles(drop(1, 2)))
   expect(result.current.notice).toBe("Reconnected 2 of 2 files")
 })
 
-it("counts a re-drop of files already attached as already in your list, not a reconnect", async () => {
+it("counts a re-drop of files already attached as already loaded, not a reconnect", async () => {
   const result = await setup([mk(1)])
   await act(() => result.current.addFiles(drop(1))) // reconnects
   await act(() => result.current.addFiles(drop(1))) // dropped again
-  expect(result.current.notice).toBe("This file is already in your list")
+  expect(result.current.notice).toBe("This file is already loaded")
 })
 
 it("stays quiet about duplicates on a silent reconnect", async () => {

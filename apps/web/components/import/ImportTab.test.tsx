@@ -17,6 +17,7 @@ jest.mock("./RowList", () => ({
     <ul>{rows.map((r) => <li key={r.id}><button onClick={() => onOpen(r)}>{r.title}</button><button onClick={() => onRemove(r)}>remove {r.title}</button><button onClick={() => onDetails(r)}>details {r.title}</button><input type="checkbox" aria-label={`pick ${r.title}`} checked={selected.has(r.id)} onChange={(e) => onSelect(r, e.target.checked)} /></li>)}</ul>
   ),
 }))
+jest.mock("./ImportHistory", () => ({ ImportHistory: ({ total }) => <div>history of {total}</div> }))
 jest.mock("./EditionSheet", () => ({
   ADD_ON_OPEN_LIBRARY_URL: "https://openlibrary.org/books/add",
   EditionSheet: ({ row }) => (row ? <div>editing {row.title}</div> : null),
@@ -31,7 +32,7 @@ const base = (over = {}) => ({
   loading: false, phase: { kind: "idle" }, error: null, attachedCount: 1,
   addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), removeRow: jest.fn(), removeRows: jest.fn(), failedUploads: new Set(), patchRow: jest.fn(), bulk: jest.fn(),
   runImport: jest.fn().mockResolvedValue({ missing: 0, failed: 0 }), cancelImport: jest.fn(),
-  clearBatch: jest.fn(), hasFile: () => true, missing: 0, notice: null, folderName: null,
+  clearBatch: jest.fn(), clearLoaded: jest.fn(), hasFile: () => true, missing: 0, notice: null, folderName: null,
   folderSupported: false, chooseFolder: jest.fn(), reconnectFolder: jest.fn(), ...over,
 })
 const setup = (over?) => {
@@ -382,22 +383,6 @@ describe("book details panel", () => {
 describe("server-side import", () => {
   const job = (over = {}) => ({ id: "j", status: "done", total: 10, done: 10, imported: 7, duplicate: 1, failed: 2, waiting: 0, error: null, ...over })
 
-  it("shows an Imported filter chip with its count only once something is imported", () => {
-    setup({ summary: summary({ counts: { matched: 2, imported: 6 } }) })
-    expect(screen.getByRole("button", { name: /^Imported/ })).toHaveTextContent("6")
-  })
-
-  it("has no Imported chip before any import", () => {
-    setup()
-    expect(screen.queryByRole("button", { name: /^Imported/ })).not.toBeInTheDocument()
-  })
-
-  it("asks the hook for the Imported filter when its chip is chosen", () => {
-    setup({ summary: summary({ counts: { matched: 2, imported: 6 } }) })
-    fireEvent.click(screen.getByRole("button", { name: /^Imported/ }))
-    expect(useImport).toHaveBeenLastCalledWith({ state: "imported" }, 0)
-  })
-
   it("disables Import and says Importing… while the server runs it", () => {
     setup({ importing: true })
     const button = screen.getByRole("button", { name: /Importing…/ })
@@ -435,5 +420,57 @@ describe("server-side import", () => {
     fireEvent.click(screen.getByRole("button", { name: "Import 2 books" }))
     expect(imp.runImport).toHaveBeenCalledTimes(1)
     expect(imp.runImport).toHaveBeenCalledWith()
+  })
+})
+
+describe("Loaded and History tabs", () => {
+  const withImported = (over = {}) => ({ summary: summary({ total: 4, counts: { matched: 1, imported: 3 }, ...over }) })
+
+  it("counts loaded books and imported books separately", () => {
+    setup(withImported())
+    expect(screen.getByRole("tab", { name: /Loaded/ })).toHaveTextContent("1")
+    expect(screen.getByRole("tab", { name: /History/ })).toHaveTextContent("3")
+  })
+
+  it("lists only loaded books under All: imported ones are left out", () => {
+    setup(withImported())
+    expect(useImport).toHaveBeenLastCalledWith({ exclude_state: "imported" }, 0)
+    expect(screen.queryByRole("button", { name: /^Imported/ })).not.toBeInTheDocument()
+  })
+
+  it("shows the loaded list first, and the history when its tab is chosen", async () => {
+    setup(withImported())
+    expect(screen.getByText("Dune")).toBeInTheDocument()
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /History/ }))
+    expect(await screen.findByText("history of 3")).toBeInTheDocument()
+    expect(screen.queryByText("Dune")).not.toBeInTheDocument()
+  })
+
+  it("opens the history from the result panel", async () => {
+    setup(withImported({ import: { id: "j", status: "done", total: 3, done: 3, imported: 3, duplicate: 0, failed: 0, waiting: 0 } }))
+    fireEvent.click(screen.getByRole("button", { name: "View history" }))
+    expect(await screen.findByText("history of 3")).toBeInTheDocument()
+  })
+
+  it("says how many books are loaded, not how many ever were", () => {
+    setup(withImported())
+    expect(screen.getByText(/1 books loaded/)).toBeInTheDocument()
+  })
+
+  it("keeps History when starting over: only the loaded books are cleared", async () => {
+    const imp = setup(withImported())
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }))
+    expect(await screen.findByText("Books already imported stay in the library and in History.")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Clear loaded books" }))
+    expect(imp.clearLoaded).toHaveBeenCalled()
+    expect(imp.clearBatch).not.toHaveBeenCalled()
+  })
+
+  it("deletes the whole list when nothing was ever imported", async () => {
+    const imp = setup()
+    fireEvent.click(screen.getByRole("button", { name: "Start over" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Clear loaded books" }))
+    expect(imp.clearBatch).toHaveBeenCalled()
+    expect(imp.clearLoaded).not.toHaveBeenCalled()
   })
 })

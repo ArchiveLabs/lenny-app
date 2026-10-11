@@ -18,6 +18,9 @@ export interface RowFilter {
   q?: string
   skipped?: boolean
   staged?: boolean
+  /** Leave out rows in this state, e.g. the books already imported. */
+  exclude_state?: ImportRowState
+  order?: "imported_at_desc"
   auto_picked?: boolean
 }
 

@@ -9,6 +9,7 @@ import {
 } from "@workspace/ui/components/alert-dialog"
 import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 import { Button } from "@workspace/ui/components/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
 import { Progress as ProgressBar } from "@workspace/ui/components/progress"
@@ -19,6 +20,8 @@ import type { RowFilter } from "@/lib/import/api"
 import type { PickedFile } from "@/lib/import/walk"
 import type { ImportBatchSummary, ImportRow } from "@/types/import"
 import { DropZone } from "./DropZone"
+import { ImportHistory } from "./ImportHistory"
+import { Notice } from "./Notice"
 import { ADD_ON_OPEN_LIBRARY_URL, EditionSheet } from "./EditionSheet"
 import { ImportStatus } from "./ImportStatus"
 import { Pager } from "./Pager"
@@ -26,12 +29,12 @@ import { RowDetails } from "./RowDetails"
 import { RowList } from "./RowList"
 
 const FILTERS = [
-  { id: "all", label: "All", filter: {}, count: (s: ImportBatchSummary) => s.total },
+  // Loaded books only: the imported ones live in the History tab.
+  { id: "all", label: "All", filter: { exclude_state: "imported" }, count: (s: ImportBatchSummary) => s.total - (s.counts.imported ?? 0) },
   { id: "matched", label: "Matched", filter: { state: "matched" }, count: (s: ImportBatchSummary) => s.counts.matched ?? 0 },
   { id: "needs_review", label: "Needs review", filter: { state: "needs_review" }, count: (s: ImportBatchSummary) => s.counts.needs_review ?? 0 },
   { id: "no_match", label: "No match", filter: { state: "no_match" }, count: (s: ImportBatchSummary) => s.counts.no_match ?? 0 },
   { id: "duplicate", label: "Duplicate", filter: { state: "duplicate" }, count: (s: ImportBatchSummary) => s.counts.duplicate ?? 0 },
-  { id: "imported", label: "Imported", filter: { state: "imported" }, count: (s: ImportBatchSummary) => s.counts.imported ?? 0 },
   { id: "failed", label: "Failed", filter: { state: "failed" }, count: (s: ImportBatchSummary) => s.counts.failed ?? 0 },
 ] as const satisfies readonly { id: string; label: string; filter: RowFilter; count: (s: ImportBatchSummary) => number }[]
 
@@ -45,24 +48,6 @@ function Progress({ label, done, total }: { label: string; done: number; total: 
       </div>
       <ProgressBar value={pct} aria-label={label} className="bg-muted" />
     </div>
-  )
-}
-
-const TONES = {
-  error: "border-red-200 bg-red-50 text-red-900",
-  warning: "border-amber-200 bg-amber-50 text-amber-900",
-  info: "bg-muted/40 text-foreground",
-} as const
-
-/** A banner with an optional action on the right. Errors are announced at once (alert); the rest politely (status). */
-function Notice({ tone, action, children }: { tone: keyof typeof TONES; action?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <Alert role={tone === "error" ? "alert" : "status"} className={`${TONES[tone]} flex items-center`}>
-      <AlertDescription className="flex w-full flex-wrap items-center gap-3 text-inherit">
-        <span className="mr-auto">{children}</span>
-        {action}
-      </AlertDescription>
-    </Alert>
   )
 }
 
@@ -111,6 +96,9 @@ export function ImportTab() {
   const match = summary?.match
   // An empty batch (nothing added yet, or everything removed) gets the big drop zone, not the list chrome.
   const hasList = !!summary && summary.total > 0
+  const importedCount = counts.imported ?? 0
+  const loadedCount = summary ? summary.total - importedCount : 0
+  const [tab, setTab] = useState<"loaded" | "history">("loaded")
   const noMatch = counts.no_match ?? 0
   const busy = phase.kind !== "idle"
   const retention = limits?.retention_days ?? 30
@@ -145,7 +133,7 @@ export function ImportTab() {
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">
-              {t("{{n}} books. This list is kept for {{days}} days after your last change, then cleared.", { n: summary.total, days: retention })}
+              {t("{{n}} books loaded. The list is kept for {{days}} days after your last change, then cleared.", { n: loadedCount, days: retention })}
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -153,12 +141,14 @@ export function ImportTab() {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>{t("Clear this list?")}</AlertDialogTitle>
-                  <AlertDialogDescription>{t("Books already imported stay in the library.")}</AlertDialogDescription>
+                  <AlertDialogTitle>{t("Clear the loaded books?")}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {importedCount > 0 ? t("Books already imported stay in the library and in History.") : t("Books already imported stay in the library.")}
+                  </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => imp.clearBatch()}>{t("Clear list")}</AlertDialogAction>
+                  <AlertDialogAction onClick={() => (importedCount > 0 ? imp.clearLoaded() : imp.clearBatch())}>{t("Clear loaded books")}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -173,8 +163,8 @@ export function ImportTab() {
             queued > 0 && (
               <Progress
                 label={match?.status === "running" ? t("Matched {{done}} of {{total}}", { done: match.done, total: match.total }) : t("Matching with Open Library")}
-                done={summary.total - queued - (counts.not_epub ?? 0)}
-                total={summary.total - (counts.not_epub ?? 0)}
+                done={loadedCount - queued - (counts.not_epub ?? 0)}
+                total={loadedCount - (counts.not_epub ?? 0)}
               />
             )
           )}
@@ -182,7 +172,9 @@ export function ImportTab() {
           <ImportStatus
             summary={summary}
             disabled={busy || imp.importing}
+            onViewHistory={() => setTab("history")}
             onShowFailed={() => {
+              setTab("loaded")
               setFilterId("failed")
               setPage(0)
               setSelected(new Map())
@@ -190,6 +182,17 @@ export function ImportTab() {
             onRetryFailed={() => imp.runImport(true)}
             onStartAgain={() => imp.runImport()}
           />
+
+          <Tabs value={tab} onValueChange={(v) => setTab(v as "loaded" | "history")}>
+            <TabsList>
+              <TabsTrigger value="loaded">
+                {t("Loaded")} <span className="ml-1 tabular-nums opacity-70">{loadedCount}</span>
+              </TabsTrigger>
+              <TabsTrigger value="history">
+                {t("History")} <span className="ml-1 tabular-nums opacity-70">{importedCount}</span>
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="loaded" className="mt-4 space-y-4">
 
           {imp.uploading && <Progress label={t("Uploading files")} done={summary.staged} total={summary.staged + summary.unstaged} />}
           {imp.uploadFailed > 0 && !imp.uploading && (
@@ -254,7 +257,7 @@ export function ImportTab() {
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Filter books")}>
             {FILTERS.map((f) => {
               const n = f.count(summary)
-              if ((f.id === "failed" || f.id === "imported") && !n) return null
+              if (f.id === "failed" && !n) return null
               return (
                 <Button key={f.id} size="sm" variant={filterId === f.id ? "default" : "outline"} aria-pressed={filterId === f.id} onClick={() => { setFilterId(f.id); setPage(0); setSelected(new Map()) }}>
                   {t(f.label)} <span className="ml-1 tabular-nums opacity-80">{n}</span>
@@ -363,6 +366,11 @@ export function ImportTab() {
               imp.clearBatch()
             }}
           />
+            </TabsContent>
+            <TabsContent value="history" className="mt-4">
+              <ImportHistory batchId={imp.batchId!} total={importedCount} retentionDays={retention} />
+            </TabsContent>
+          </Tabs>
         </>
       )}
     </div>

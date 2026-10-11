@@ -68,6 +68,7 @@ export const ImportRowSchema = z.object({
   confidence: z.number().nullish(), // 0-100
   encrypted: z.boolean().default(false),
   staged: z.boolean().default(false), // the file is on the server
+  imported_at: z.string().nullish(), // ISO time the book was imported; null until then
   isbn: z.string().nullish(),
   title: z.string().nullish(), // from the EPUB
   author: z.string().nullish(),

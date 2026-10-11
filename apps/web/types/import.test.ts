@@ -82,3 +82,10 @@ it("reads the import job on a batch, which may be missing or null", () => {
   expect(ImportBatchSummarySchema.parse({ ...b, import: null }).import).toBeNull()
   expect(ImportBatchSummarySchema.parse(b).import).toBeUndefined()
 })
+
+it("reads when a row was imported, which is null or missing before that", () => {
+  const r = { id: 1, path: "a", size: 1, mtime: 1, state: "imported", decision: "auto" }
+  expect(ImportRowSchema.parse({ ...r, imported_at: "2026-10-11T13:06:00Z" }).imported_at).toBe("2026-10-11T13:06:00Z")
+  expect(ImportRowSchema.parse({ ...r, imported_at: null }).imported_at).toBeNull()
+  expect(ImportRowSchema.parse(r).imported_at).toBeUndefined()
+})

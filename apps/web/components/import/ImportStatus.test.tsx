@@ -97,3 +97,10 @@ it("disables the retry buttons while disabled", () => {
   render(<ImportStatus summary={summary({ import: job() })} disabled onShowFailed={jest.fn()} onRetryFailed={jest.fn()} onStartAgain={jest.fn()} />)
   expect(screen.getByRole("button", { name: "Retry failed" })).toBeDisabled()
 })
+
+it("offers View history when the result is shown and a handler is given", () => {
+  const onViewHistory = jest.fn()
+  render(<ImportStatus summary={summary({ import: job() })} onShowFailed={jest.fn()} onRetryFailed={jest.fn()} onStartAgain={jest.fn()} onViewHistory={onViewHistory} />)
+  fireEvent.click(screen.getByRole("button", { name: "View history" }))
+  expect(onViewHistory).toHaveBeenCalled()
+})

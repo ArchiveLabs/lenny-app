@@ -21,12 +21,14 @@ export function ImportStatus({
   onShowFailed,
   onRetryFailed,
   onStartAgain,
+  onViewHistory,
 }: {
   summary: ImportBatchSummary
   disabled?: boolean
   onShowFailed: () => void
   onRetryFailed: () => void
   onStartAgain: () => void
+  onViewHistory?: () => void
 }) {
   const { t } = useTranslation()
   const job = summary.import ?? null
@@ -83,6 +85,7 @@ export function ImportStatus({
                 <Button size="sm" variant="outline" onClick={onRetryFailed} disabled={disabled}>{t("Retry failed")}</Button>
               </>
             )}
+            {onViewHistory && <Button size="sm" variant="outline" onClick={onViewHistory}>{t("View history")}</Button>}
             <Button size="sm" variant="outline" asChild>
               <Link href="/library">{t("View in Library")}</Link>
             </Button>

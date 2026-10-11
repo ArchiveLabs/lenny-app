@@ -252,8 +252,8 @@ export function useImport(filter: RowFilter, page = 0) {
             const imported = dupRows.filter((r) => r.state === "imported").length
             parts.push(
               created > 0
-                ? `Added ${created} new books. ${dup} ${dup === 1 ? "was" : "were"} already in your list.`
-                : `${dup === 1 ? "This file is" : `These ${dup} files are`} already in your list${imported ? ` (${imported} already imported)` : ""}.`,
+                ? `Loaded ${created} new books. ${dup} ${dup === 1 ? "was" : "were"} already loaded.`
+                : `${dup === 1 ? "This file is" : `These ${dup} files are`} already loaded${imported ? ` (${imported} already imported)` : ""}.`,
             )
           }
           if (parts.length) setNotice(parts.join(" ").replace(/\.$/, ""))
@@ -414,6 +414,19 @@ export function useImport(filter: RowFilter, page = 0) {
     [batchId, stage, refresh],
   )
 
+  /** Start over without losing History: clear every loaded book, keep the imported ones. */
+  const clearLoaded = useCallback(async () => {
+    if (batchId === null) return
+    await importApi.action(batchId, { action: "remove", exclude_state: "imported" })
+    importFiles.clear()
+    clearHandle()
+    setFolderName(null)
+    setMissing(0)
+    setNotice(null)
+    setVersion((v) => v + 1)
+    refresh()
+  }, [batchId, refresh])
+
   const clearBatch = useCallback(async () => {
     if (batchId === null) return
     try {
@@ -452,6 +465,7 @@ export function useImport(filter: RowFilter, page = 0) {
     importJob,
     importing,
     clearBatch,
+    clearLoaded,
     reconnecting,
     uploading,
     uploadFailed: failedIds.size,
