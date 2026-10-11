@@ -189,3 +189,32 @@ describe("link to Open Library and details", () => {
     expect(screen.getByRole("button", { name: "Show details for Dune" })).toBeInTheDocument()
   })
 })
+
+describe("alignment", () => {
+  const names = () => screen.getAllByRole("button").map((b) => b.getAttribute("aria-label") || b.textContent)
+
+  it("keeps the controls in one order: lock, pencil, trash, arrow last", () => {
+    show(row({ olid: 5 }))
+    expect(names().filter((n) => /Encrypt|Change edition|Remove|details/.test(n))).toEqual([
+      "Encrypt Dune", "Change edition for Dune", "Remove Dune from this list", "Show details for Dune",
+    ])
+  })
+
+  it("puts the Open Library id with the controls, not in the author line", () => {
+    show(row({ olid: 5, author: "Frank Herbert" }))
+    const line = screen.getByText("Frank Herbert")
+    expect(line.closest("p")).not.toContainElement(screen.getByRole("link", { name: /OL5M/ }))
+  })
+
+  it("holds the columns of absent controls so the rest do not shift", () => {
+    const { container } = show(row({ state: "duplicate", olid: null }))
+    // no OL id, lock or pencil: three placeholders stand in for them
+    expect(container.querySelectorAll("span[aria-hidden].hidden")).toHaveLength(3)
+  })
+
+  it("keeps the Choose edition button out of the fixed columns for a row that needs review", () => {
+    show(row({ state: "needs_review", olid: null }))
+    expect(screen.getByRole("button", { name: "Choose edition" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Change edition for/ })).not.toBeInTheDocument()
+  })
+})

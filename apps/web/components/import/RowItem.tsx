@@ -44,6 +44,9 @@ export function statusBadge(row: ImportRow): Tone | null {
 
 const ICON_BUTTON = "h-11 w-11 @2xl:h-8 @2xl:w-8" // 44px touch targets on narrow screens
 
+/** Keeps a column when its control is absent, so icons stay lined up from row to row on wide screens. */
+const Gap = ({ className = "@2xl:w-8" }: { className?: string }) => <span aria-hidden className={`hidden shrink-0 @2xl:block ${className}`} />
+
 export const RowItem = memo(function RowItem({
   row,
   onOpen,
@@ -88,21 +91,7 @@ export const RowItem = memo(function RowItem({
       <div className="flex min-w-0 flex-1 flex-col gap-2 @2xl:flex-row @2xl:items-center @2xl:gap-4">
         <div className="min-w-0 flex-1 space-y-0.5">
           <p className="truncate font-semibold">{title}</p>
-          <p className="flex min-w-0 items-center gap-1.5 truncate text-sm text-muted-foreground">
-            <span className="truncate">{[author, row.year].filter(Boolean).join(" · ") || " "}</span>
-            {row.olid && (
-              <a
-                href={`https://openlibrary.org/books/${editionKey(row.olid)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={t("Linked to Open Library")}
-                className="inline-flex shrink-0 items-center gap-1 text-green-700 underline-offset-4 hover:underline"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                {editionKey(row.olid)}
-              </a>
-            )}
-          </p>
+          <p className="truncate text-sm text-muted-foreground">{[author, row.year].filter(Boolean).join(" · ") || " "}</p>
           <p className="truncate text-xs text-muted-foreground/70" title={row.path}>{row.path}</p>
           {row.error && <p className="text-xs text-red-700">{row.error}</p>}
           {needsFile && row.state === "matched" && !row.staged && (
@@ -125,7 +114,23 @@ export const RowItem = memo(function RowItem({
               {t("Not uploaded")}
             </Button>
           )}
-          {!locked && row.state !== "duplicate" && (
+          {canPick && mustChoose && <Button size="sm" onClick={() => onOpen(row)}>{t("Choose edition")}</Button>}
+          {row.olid ? (
+            // A fixed-width column, so the ids line up row to row whatever the author text is.
+            <a
+              href={`https://openlibrary.org/books/${editionKey(row.olid)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t("Linked to Open Library")}
+              className="inline-flex shrink-0 items-center justify-end gap-1 text-sm text-green-700 underline-offset-4 hover:underline @2xl:w-40"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+              {editionKey(row.olid)}
+            </a>
+          ) : (
+            <Gap className="@2xl:w-40" />
+          )}
+          {!locked && row.state !== "duplicate" ? (
             <Button
               size="icon"
               variant="ghost"
@@ -137,33 +142,24 @@ export const RowItem = memo(function RowItem({
             >
               {row.encrypted ? <Lock className="h-4 w-4 fill-current" aria-hidden /> : <LockOpen className="h-4 w-4" aria-hidden />}
             </Button>
+          ) : (
+            <Gap />
           )}
-          {canPick &&
-            (mustChoose ? (
-              <Button size="sm" onClick={() => onOpen(row)}>{t("Choose edition")}</Button>
-            ) : (
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`${ICON_BUTTON} text-muted-foreground`}
-                aria-label={t("Change edition for {{name}}", { name: title })}
-                title={t("Change edition")}
-                onClick={() => onOpen(row)}
-              >
-                <Pencil className="h-4 w-4" aria-hidden />
-              </Button>
-            ))}
-          <Button
-            size="icon"
-            variant="ghost"
-            className={`${ICON_BUTTON} text-muted-foreground`}
-            aria-label={t("Show details for {{name}}", { name: title })}
-            title={t("Details")}
-            onClick={() => onDetails(row)}
-          >
-            <ChevronRight className="h-4 w-4" aria-hidden />
-          </Button>
-          {row.state !== "importing" && (
+          {canPick && !mustChoose ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`${ICON_BUTTON} text-muted-foreground`}
+              aria-label={t("Change edition for {{name}}", { name: title })}
+              title={t("Change edition")}
+              onClick={() => onOpen(row)}
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+            </Button>
+          ) : (
+            <Gap />
+          )}
+          {row.state !== "importing" ? (
             <Button
               size="icon"
               variant="ghost"
@@ -174,7 +170,19 @@ export const RowItem = memo(function RowItem({
             >
               <Trash2 className="h-4 w-4" aria-hidden />
             </Button>
+          ) : (
+            <Gap />
           )}
+          <Button
+            size="icon"
+            variant="ghost"
+            className={`${ICON_BUTTON} text-muted-foreground`}
+            aria-label={t("Show details for {{name}}", { name: title })}
+            title={t("Details")}
+            onClick={() => onDetails(row)}
+          >
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Button>
         </div>
       </div>
     </div>
