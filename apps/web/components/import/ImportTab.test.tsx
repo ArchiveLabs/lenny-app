@@ -237,16 +237,37 @@ describe("no Skip", () => {
     expect(screen.queryByText(/skip/i)).not.toBeInTheDocument()
   })
 
+  it("shows bulk actions above the list with their scope, not in a hidden menu", () => {
+    setup()
+    expect(screen.queryByRole("button", { name: "Actions for these books" })).not.toBeInTheDocument()
+    expect(screen.getByText("Applies to 4 books in this view")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Remove all" })).toBeInTheDocument()
+  })
+
   it("confirms with the count before removing the current filter", async () => {
     const imp = setup()
-    fireEvent.click(screen.getByRole("button", { name: /^No match/ }))
-    // the mocked hook ignores the filter; the count comes from the chip
-    fireEvent.keyDown(screen.getByRole("button", { name: "Actions for these books" }), { key: "Enter" })
-    fireEvent.click(await screen.findByText("Remove these"))
-    expect(await screen.findByText("Remove 1 books from this list?")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Remove all" }))
+    expect(await screen.findByText("Remove 4 books from this list?")).toBeInTheDocument()
     expect(imp.bulk).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole("button", { name: "Remove" }))
     expect(imp.bulk).toHaveBeenCalledWith("remove")
+  })
+
+  it("encrypts everything in view, then turns it off again once all are encrypted", () => {
+    const imp = setup({ rows: [{ id: 1, title: "A", encrypted: false }, { id: 2, title: "B", encrypted: true }] })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Encrypt all" }))
+    expect(imp.bulk).toHaveBeenCalledWith("set_encrypted", true)
+  })
+
+  it("unchecks Encrypt all when every book is already encrypted", () => {
+    const imp = setup({ rows: [{ id: 1, title: "A", encrypted: true }, { id: 2, title: "B", encrypted: true }] })
+    fireEvent.click(screen.getByRole("checkbox", { name: "Encrypt all" }))
+    expect(imp.bulk).toHaveBeenCalledWith("set_encrypted", false)
+  })
+
+  it("hides the bulk strip when there are no books to act on", () => {
+    setup({ rows: [] })
+    expect(screen.queryByRole("button", { name: "Remove all" })).not.toBeInTheDocument()
   })
 
   it("offers a one-time clean-up for books skipped earlier", () => {

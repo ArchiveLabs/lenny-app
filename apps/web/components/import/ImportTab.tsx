@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ExternalLink, Loader2, MoreHorizontal, RefreshCw } from "lucide-react"
+import { ExternalLink, Loader2, RefreshCw, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 import {
@@ -9,7 +9,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@workspace/ui/components/alert-dialog"
 import { Button } from "@workspace/ui/components/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@workspace/ui/components/dropdown-menu"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
 import { useImport, useImportLimits } from "@/hooks/import/use-import"
 import { useWindowDrop } from "@/hooks/import/use-window-drop"
@@ -55,6 +55,8 @@ export function ImportTab() {
 
   const filter: RowFilter = { ...FILTERS.find((f) => f.id === filterId)!.filter, ...(q.trim() ? { q: q.trim() } : {}) }
   const imp = useImport(filter)
+  const allEncrypted = imp.rows.length > 0 && imp.rows.every((r) => r.encrypted)
+  const anyEncrypted = imp.rows.some((r) => r.encrypted)
   const activeCount = imp.summary ? FILTERS.find((f) => f.id === filterId)!.count(imp.summary) : 0
   const { summary, phase } = imp
   const counts = summary?.counts ?? {}
@@ -201,19 +203,27 @@ export function ImportTab() {
               )
             })}
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search title or file")} aria-label={t("Search title or file")} className="ml-auto w-full @md:w-64" />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" aria-label={t("Actions for these books")}>
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => imp.bulk("set_encrypted", true)}>{t("Encrypt these")}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => imp.bulk("set_encrypted", false)}>{t("Don't encrypt these")}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setConfirmRemove(true)} className="text-red-700">{t("Remove these")}</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
+
+          {imp.rows.length > 0 && (
+            // Bulk actions live with the list they act on, and say how many books they touch.
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-muted/40 px-3 py-2 text-sm" role="group" aria-label={t("Actions for the books shown")}>
+              <p className="mr-auto text-muted-foreground">
+                {q.trim() ? t("Applies to the books matching this search") : t("Applies to {{n}} books in this view", { n: activeCount })}
+              </p>
+              <label className="flex items-center gap-1.5">
+                <Checkbox
+                  checked={allEncrypted ? true : anyEncrypted ? "indeterminate" : false}
+                  onCheckedChange={() => imp.bulk("set_encrypted", !allEncrypted)}
+                />
+                {t("Encrypt all")}
+              </label>
+              <Button size="sm" variant="ghost" className="text-red-700 hover:text-red-800" onClick={() => setConfirmRemove(true)}>
+                <Trash2 className="h-4 w-4" aria-hidden />
+                {t("Remove all")}
+              </Button>
+            </div>
+          )}
 
           {imp.rows.length === 0 && !imp.rowsLoading ? (
             <p className="rounded-xl border p-8 text-center text-muted-foreground">{t("Nothing here.")}</p>
