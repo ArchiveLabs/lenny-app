@@ -358,7 +358,7 @@ describe("changing a row's edition or encryption", () => {
     importApi.rows.mockImplementation(() => new Promise(() => {})) // the refetch never answers
     await act(() => result.current.patchRow(result.current.rows[0], { olid: 99 }))
     expect(importApi.patchRow).toHaveBeenCalledWith(7, 5, { olid: 99 })
-    expect(result.current.rows[0]).toMatchObject({ olid: 99, match_title: "The right book", decision: "user" })
+    await waitFor(() => expect(result.current.rows[0]).toMatchObject({ olid: 99, match_title: "The right book", decision: "user" }))
   })
 
   it("throws a failed edition change for the panel to show, without a page banner behind it", async () => {
