@@ -75,3 +75,10 @@ it("searches editions for a row with the text encoded", async () => {
   expect(fetchAdmin).toHaveBeenCalledWith("import/batches/3/rows/9/search?q=dune+%26+co")
   expect(res.candidates[0].in_library).toBe(true)
 })
+
+it("asks for a page by offset and limit", async () => {
+  ;(fetchAdmin as jest.Mock).mockReturnValue(ok({ rows: [], next_cursor: null, total: 120 }))
+  const page = await importApi.rows(3, { state: "matched", offset: 100, limit: 50 })
+  expect(fetchAdmin).toHaveBeenCalledWith("import/batches/3/rows?state=matched&offset=100&limit=50")
+  expect(page.total).toBe(120)
+})

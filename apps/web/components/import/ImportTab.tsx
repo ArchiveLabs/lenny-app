@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ExternalLink, Loader2, RefreshCw, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
@@ -11,13 +11,14 @@ import {
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
-import { useImport, useImportLimits } from "@/hooks/import/use-import"
+import { PAGE_SIZE, useImport, useImportLimits } from "@/hooks/import/use-import"
 import { useWindowDrop } from "@/hooks/import/use-window-drop"
 import type { RowFilter } from "@/lib/import/api"
 import type { PickedFile } from "@/lib/import/walk"
 import type { ImportBatchSummary, ImportRow } from "@/types/import"
 import { DropZone } from "./DropZone"
 import { ADD_ON_OPEN_LIBRARY_URL, EditionSheet } from "./EditionSheet"
+import { Pager } from "./Pager"
 import { RowList } from "./RowList"
 
 const FILTERS = [
@@ -54,10 +55,17 @@ export function ImportTab() {
   const limits = useImportLimits().data
 
   const filter: RowFilter = { ...FILTERS.find((f) => f.id === filterId)!.filter, ...(q.trim() ? { q: q.trim() } : {}) }
-  const imp = useImport(filter)
+  const [page, setPage] = useState(0) // 0-based; back to the first page whenever the filter or search changes
+  const imp = useImport(filter, page)
   const allEncrypted = imp.rows.length > 0 && imp.rows.every((r) => r.encrypted)
   const anyEncrypted = imp.rows.some((r) => r.encrypted)
   const activeCount = imp.summary ? FILTERS.find((f) => f.id === filterId)!.count(imp.summary) : 0
+  // The server's count for this exact filter and search; the chip count is right only without a search.
+  const total = imp.total ?? (q.trim() ? undefined : activeCount)
+  useEffect(() => {
+    // Removing books can leave the current page past the end.
+    if (total !== undefined && page > 0 && page * PAGE_SIZE >= total) setPage(Math.max(0, Math.ceil(total / PAGE_SIZE) - 1))
+  }, [total, page])
   const { summary, phase } = imp
   const counts = summary?.counts ?? {}
   const queued = counts.queued ?? 0
@@ -197,12 +205,12 @@ export function ImportTab() {
               const n = f.count(summary)
               if (f.id === "failed" && !n) return null
               return (
-                <Button key={f.id} size="sm" variant={filterId === f.id ? "default" : "outline"} aria-pressed={filterId === f.id} onClick={() => setFilterId(f.id)}>
+                <Button key={f.id} size="sm" variant={filterId === f.id ? "default" : "outline"} aria-pressed={filterId === f.id} onClick={() => { setFilterId(f.id); setPage(0) }}>
                   {t(f.label)} <span className="ml-1 tabular-nums opacity-80">{n}</span>
                 </Button>
               )
             })}
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search title or file")} aria-label={t("Search title or file")} className="ml-auto w-full @md:w-64" />
+            <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(0) }} placeholder={t("Search title or file")} aria-label={t("Search title or file")} className="ml-auto w-full @md:w-64" />
           </div>
 
           {imp.rows.length > 0 && (
@@ -229,15 +237,16 @@ export function ImportTab() {
             <p className="rounded-xl border p-8 text-center text-muted-foreground">{t("Nothing here.")}</p>
           ) : (
             <RowList
+              key={page}
               rows={imp.rows}
-              hasMore={imp.hasMore}
-              loadMore={imp.loadMore}
               needsFile={(r) => !imp.hasFile(r)}
               onOpen={setEditing}
               onRemove={imp.removeRow}
               onToggleEncrypted={(r) => imp.patchRow(r, { encrypted: !r.encrypted })}
             />
           )}
+
+          {total !== undefined && <Pager page={page} total={total} pageSize={PAGE_SIZE} onPage={setPage} />}
 
           <div className="sticky bottom-0 -mx-2 flex flex-wrap items-center gap-2 border-t bg-background/95 px-2 py-3 backdrop-blur">
             <p className="mr-auto text-sm">

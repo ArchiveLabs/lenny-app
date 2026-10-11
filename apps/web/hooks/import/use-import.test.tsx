@@ -214,3 +214,19 @@ describe("removing a row", () => {
     expect(result.current.error).toBe("Row is importing")
   })
 })
+
+describe("pages", () => {
+  it("asks the server for 50 rows at the page's offset, and exposes the total", async () => {
+    importApi.rows.mockResolvedValue({ rows: [], next_cursor: null, total: 120 })
+    const { result } = renderHook(() => useImport({ state: "matched" }, 2), { wrapper })
+    await waitFor(() => expect(result.current.total).toBe(120))
+    expect(importApi.rows).toHaveBeenCalledWith(7, expect.objectContaining({ state: "matched", offset: 100, limit: 50 }))
+  })
+
+  it("leaves total unknown when the server does not send it", async () => {
+    importApi.rows.mockResolvedValue({ rows: [], next_cursor: null })
+    const { result } = renderHook(() => useImport({}, 0), { wrapper })
+    await waitFor(() => expect(importApi.rows).toHaveBeenCalled())
+    expect(result.current.total).toBeUndefined()
+  })
+})

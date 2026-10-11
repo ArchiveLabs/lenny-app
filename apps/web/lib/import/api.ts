@@ -51,7 +51,7 @@ export const importApi = {
     fetchAdmin(`${base(id)}/rows`, json("PUT", { rows })).then((r) =>
       handleApiResponse(r, z.object({ created: z.number(), existing: z.number() })),
     ),
-  rows: (id: number, f: RowFilter & { cursor?: string; limit?: number }) =>
+  rows: (id: number, f: RowFilter & { cursor?: string; limit?: number; offset?: number }) =>
     fetchAdmin(`${base(id)}/rows${query({ ...f, limit: f.limit ?? 100 })}`).then((r) =>
       handleApiResponse(r, ImportRowPageSchema),
     ),

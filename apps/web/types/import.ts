@@ -80,6 +80,7 @@ export type ImportCandidate = z.infer<typeof ImportCandidateSchema>
 export const ImportRowPageSchema = z.object({
   rows: z.array(ImportRowSchema),
   next_cursor: z.string().nullable(),
+  total: z.number().nullish(), // rows matching the filters, ignoring offset and limit
 })
 export type ImportRowPage = z.infer<typeof ImportRowPageSchema>
 

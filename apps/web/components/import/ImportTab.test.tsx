@@ -27,8 +27,8 @@ const summary = (over = {}) => ({
   counts: { matched: 2, no_match: 1, needs_review: 1 }, ...over,
 })
 const base = (over = {}) => ({
-  batchId: 1, summary: summary(), rows: [{ id: 1, title: "Dune" }], rowsLoading: false, hasMore: false,
-  loadMore: jest.fn(), loading: false, phase: { kind: "idle" }, error: null, attachedCount: 1,
+  batchId: 1, summary: summary(), rows: [{ id: 1, title: "Dune" }], rowsLoading: false,
+  loading: false, phase: { kind: "idle" }, error: null, attachedCount: 1,
   addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), removeRow: jest.fn(), patchRow: jest.fn(), bulk: jest.fn(),
   runImport: jest.fn().mockResolvedValue({ missing: 0, failed: 0 }), cancelImport: jest.fn(),
   clearBatch: jest.fn(), hasFile: () => true, missing: 0, notice: null, folderName: null,
@@ -104,7 +104,7 @@ it("reports how many files were reconnected after a drop", () => {
 it("filter chips carry counts and the chosen filter reaches the hook", () => {
   setup()
   fireEvent.click(screen.getByRole("button", { name: /No match/ }))
-  expect(useImport).toHaveBeenLastCalledWith({ state: "no_match" })
+  expect(useImport).toHaveBeenLastCalledWith({ state: "no_match" }, 0)
 })
 
 it("opens the edition panel from a row", () => {
@@ -275,5 +275,51 @@ describe("no Skip", () => {
     expect(screen.getByText("3 books were skipped earlier")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Remove them" }))
     expect(imp.bulk).toHaveBeenCalledWith("remove", undefined, { skipped: true })
+  })
+})
+
+describe("numbered pages", () => {
+  it("shows the pager with the server's total for this view", () => {
+    setup({ total: 120 })
+    expect(screen.getByText("Showing 1–50 of 120")).toBeInTheDocument()
+  })
+
+  it("falls back to the chip count when the server sends no total and there is no search", () => {
+    setup({ total: undefined, summary: summary({ total: 120, counts: { matched: 120 } }) })
+    expect(screen.getByText("Showing 1–50 of 120")).toBeInTheDocument()
+  })
+
+  it("asks the hook for the page that was clicked", () => {
+    setup({ total: 120 })
+    fireEvent.click(screen.getByRole("button", { name: "Page 3" }))
+    expect(useImport).toHaveBeenLastCalledWith(expect.anything(), 2)
+  })
+
+  it("goes back to page 1 when the filter changes", () => {
+    setup({ total: 120 })
+    fireEvent.click(screen.getByRole("button", { name: "Page 3" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Matched/ }))
+    expect(useImport).toHaveBeenLastCalledWith(expect.objectContaining({ state: "matched" }), 0)
+  })
+
+  it("goes back to page 1 when searching", () => {
+    setup({ total: 120 })
+    fireEvent.click(screen.getByRole("button", { name: "Page 2" }))
+    fireEvent.change(screen.getByLabelText("Search title or file"), { target: { value: "dune" } })
+    expect(useImport).toHaveBeenLastCalledWith(expect.objectContaining({ q: "dune" }), 0)
+  })
+
+  it("steps back when removals leave the page past the end", () => {
+    useImport.mockReturnValue(base({ total: 120 }))
+    useWindowDrop.mockReturnValue(false)
+    useImportLimits.mockReturnValue({ data: { retention_days: 30 } })
+    const client = new QueryClient()
+    const tree = () => <QueryClientProvider client={client}><ImportTab /></QueryClientProvider> // a fresh element, so it re-renders
+    const view = render(tree())
+    fireEvent.click(screen.getByRole("button", { name: "Page 3" }))
+    expect(useImport).toHaveBeenLastCalledWith(expect.anything(), 2)
+    useImport.mockReturnValue(base({ total: 60 })) // removed down to 2 pages
+    view.rerender(tree())
+    expect(useImport).toHaveBeenLastCalledWith(expect.anything(), 1)
   })
 })

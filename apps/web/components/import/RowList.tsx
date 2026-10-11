@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useRef } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import type { ImportRow } from "@/types/import"
 import { RowItem } from "./RowItem"
@@ -12,16 +12,11 @@ type Handlers = {
   needsFile: (r: ImportRow) => boolean
 }
 
-/** Windowed list: 10k rows stay cheap because only the visible ones are in the DOM. */
-export function RowList({ rows, hasMore, loadMore, ...h }: { rows: ImportRow[]; hasMore: boolean; loadMore: () => void } & Handlers) {
+/** One page of rows (50), windowed so only the visible ones are in the DOM. */
+export function RowList({ rows, ...h }: { rows: ImportRow[] } & Handlers) {
   const parent = useRef<HTMLDivElement>(null)
   const v = useVirtualizer({ count: rows.length, getScrollElement: () => parent.current, estimateSize: () => 96, overscan: 8 })
   const items = v.getVirtualItems()
-  const last = items[items.length - 1]?.index ?? 0
-
-  useEffect(() => {
-    if (hasMore && last >= rows.length - 20) loadMore()
-  }, [hasMore, last, rows.length, loadMore])
 
   return (
     <div ref={parent} className="h-[min(60vh,40rem)] min-h-64 overflow-auto rounded-xl border" role="list" aria-label="Books">

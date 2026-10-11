@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query"
 import { forceFreshLibraryOnNextVisit } from "@/lib/query-client"
 import { importApi, type RowFilter } from "@/lib/import/api"
 import { importFiles, splitKnown } from "@/lib/import/files"
@@ -18,6 +18,8 @@ export type Phase =
 
 // Poll fast at first, then back off; react-query pauses polling while the tab is hidden.
 export const pollInterval = (updates: number) => (updates < 30 ? 2000 : updates < 90 ? 5000 : 10000)
+
+export const PAGE_SIZE = 50
 
 const UPLOADS_IN_FLIGHT = 3
 const RETRIES = 2
@@ -49,7 +51,7 @@ export function useImportLimits() {
   return useQuery({ queryKey: ["import-limits"], queryFn: importApi.limits, staleTime: 10 * 60 * 1000 })
 }
 
-export function useImport(filter: RowFilter) {
+export function useImport(filter: RowFilter, page = 0) {
   const qc = useQueryClient()
   const [batchId, setBatchId] = useState<number | null>(null)
   const [phase, setPhase] = useState<Phase>({ kind: "idle" })
@@ -91,13 +93,12 @@ export function useImport(filter: RowFilter) {
     },
   })
 
-  const rows = useInfiniteQuery({
-    queryKey: ["import-rows", batchId, filter],
-    queryFn: ({ pageParam }) => importApi.rows(batchId!, { ...filter, cursor: pageParam }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (p) => p.next_cursor ?? undefined,
+  const rows = useQuery({
+    queryKey: ["import-rows", batchId, filter, page],
+    queryFn: () => importApi.rows(batchId!, { ...filter, offset: page * PAGE_SIZE, limit: PAGE_SIZE }),
     enabled: batchId !== null,
     staleTime: 0,
+    placeholderData: keepPreviousData, // no blank list while the next page loads
   })
 
   // Keep the list in step with the counts while matching runs.
@@ -388,10 +389,9 @@ export function useImport(filter: RowFilter) {
   return {
     batchId,
     summary: summary.data,
-    rows: rows.data?.pages.flatMap((p) => p.rows) ?? [],
+    rows: rows.data?.rows ?? [],
+    total: rows.data?.total ?? undefined,
     rowsLoading: rows.isLoading,
-    hasMore: !!rows.hasNextPage,
-    loadMore: () => rows.fetchNextPage(),
     resumed: batches.isSuccess,
     loading: batches.isLoading || summary.isLoading,
     phase,
