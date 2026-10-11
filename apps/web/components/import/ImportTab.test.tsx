@@ -366,7 +366,7 @@ describe("book details panel", () => {
   it("opens from a row's arrow and follows the row", () => {
     setup({ rows })
     fireEvent.click(screen.getByRole("button", { name: "details Dune" }))
-    expect(screen.getByText("Open Library")).toBeInTheDocument()
+    expect(screen.getByText("Compare")).toBeInTheDocument()
     expect(screen.getByText("L/dune.epub")).toBeInTheDocument()
   })
 

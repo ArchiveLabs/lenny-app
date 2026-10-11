@@ -2,7 +2,9 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { RowDetails, fileSize, openLibraryUrl } from "./RowDetails"
 
-jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s }) }))
+jest.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])) }),
+}))
 
 const row = (over = {}) => ({
   id: 1, path: "ebooks/dune.epub", size: 3 * 1024 * 1024, mtime: 1700000000000, state: "matched", decision: "auto",
@@ -22,12 +24,29 @@ it("renders nothing when no book is chosen", () => {
   expect(screen.queryByText("Open Library")).not.toBeInTheDocument()
 })
 
-it("shows the Open Library match, the file's own metadata and the file", () => {
+it("shows the status, the link and the match in the header", () => {
   show(row())
-  expect(screen.getByRole("link", { name: /OL123M/ })).toHaveAttribute("href", "https://openlibrary.org/books/OL123M")
-  expect(screen.getByText("Dune (Ace)", { selector: "dd" })).toBeInTheDocument()
-  expect(screen.getByText("Picked automatically")).toBeInTheDocument()
-  expect(screen.getByText("92%")).toBeInTheDocument()
+  expect(screen.getByText("Matched")).toBeInTheDocument()
+  const link = screen.getAllByRole("link", { name: /OL123M/ })[0]
+  expect(link).toHaveAttribute("href", "https://openlibrary.org/books/OL123M")
+  expect(screen.getByText("92% match")).toBeInTheDocument()
+})
+
+it("compares the file's title and author with Open Library's in a table", () => {
+  show(row())
+  const table = screen.getByRole("table")
+  expect(table).toHaveTextContent("In the file")
+  expect(table).toHaveTextContent("On Open Library")
+  const rows = screen.getAllByRole("row")
+  expect(rows[1]).toHaveTextContent("Dune")
+  expect(rows[1]).toHaveTextContent("Dune (Ace)")
+  expect(rows[2]).toHaveTextContent("Frank Herbert")
+  expect(rows[2]).toHaveTextContent("F. Herbert")
+  expect(screen.getByText("4 other editions were suggested.")).toBeInTheDocument()
+})
+
+it("shows the file's details and the file itself", () => {
+  show(row())
   expect(screen.getByText("9780441172719")).toBeInTheDocument()
   expect(screen.getByText("Ace")).toBeInTheDocument()
   expect(screen.getByText("ebooks/dune.epub")).toBeInTheDocument()
@@ -35,18 +54,25 @@ it("shows the Open Library match, the file's own metadata and the file", () => {
   expect(screen.getByText("Yes, it is on the server")).toBeInTheDocument()
 })
 
-it("says so when the book is not linked yet, and leaves out empty fields", () => {
+it("offers View on Open Library in the footer", () => {
+  show(row())
+  expect(screen.getByRole("link", { name: /View on Open Library/ })).toHaveAttribute("href", "https://openlibrary.org/books/OL123M")
+})
+
+it("says so when the book is not linked yet, shows dashes for the missing side, and leaves out empty fields", () => {
   show(row({ olid: null, match_title: null, match_author: null, isbn: null, publisher: null, state: "no_match", candidates_count: 0 }))
   expect(screen.getByText("Not linked yet")).toBeInTheDocument()
   expect(screen.queryByText("ISBN")).not.toBeInTheDocument()
-  expect(screen.queryByText("Suggestions")).not.toBeInTheDocument()
-  expect(screen.queryByText("Match")).not.toBeInTheDocument()
+  expect(screen.queryByText(/other editions were suggested/)).not.toBeInTheDocument()
+  expect(screen.queryByText(/% match/)).not.toBeInTheDocument()
+  expect(screen.queryByRole("link", { name: /View on Open Library/ })).not.toBeInTheDocument()
+  expect(screen.getAllByRole("row")[1]).toHaveTextContent("—")
 })
 
 it("says a match was chosen by the admin, with no percentage", () => {
   show(row({ auto_picked: false, decision: "user", confidence: 40 }))
   expect(screen.getByText("Chosen by you")).toBeInTheDocument()
-  expect(screen.queryByText("40%")).not.toBeInTheDocument()
+  expect(screen.queryByText("40% match")).not.toBeInTheDocument()
 })
 
 it("shows a failure's error", () => {
