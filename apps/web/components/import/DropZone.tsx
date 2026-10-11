@@ -55,7 +55,8 @@ export function DropZone({
             {t("Choose a folder")}
           </Button>
         )}
-        <Button type="button" variant={canFolder ? "outline" : "default"} disabled={disabled} onClick={() => many.current?.click()}>
+        {/* key: remount on the variant change, because Button has transition-all and would otherwise animate blue to white in view. */}
+        <Button key={String(canFolder)} type="button" variant={canFolder ? "outline" : "default"} disabled={disabled} onClick={() => many.current?.click()}>
           {t("Choose files")}
         </Button>
       </div>
