@@ -3,8 +3,10 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ImportTab } from "./ImportTab"
 import { useImport, useImportLimits } from "@/hooks/import/use-import"
+import { useWindowDrop } from "@/hooks/import/use-window-drop"
 
 jest.mock("@/hooks/import/use-import")
+jest.mock("@/hooks/import/use-window-drop")
 jest.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])),
@@ -27,13 +29,14 @@ const summary = (over = {}) => ({
 const base = (over = {}) => ({
   batchId: 1, summary: summary(), rows: [{ id: 1, title: "Dune" }], rowsLoading: false, hasMore: false,
   loadMore: jest.fn(), loading: false, phase: { kind: "idle" }, error: null, attachedCount: 1,
-  addFiles: jest.fn(), recheck: jest.fn(), patchRow: jest.fn(), bulk: jest.fn(),
+  addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), patchRow: jest.fn(), bulk: jest.fn(),
   runImport: jest.fn().mockResolvedValue({ missing: 0, failed: 0 }), cancelImport: jest.fn(),
   clearBatch: jest.fn(), hasFile: () => true, ...over,
 })
-const setup = (over) => {
+const setup = (over?) => {
   const imp = base(over)
   useImport.mockReturnValue(imp)
+  useWindowDrop.mockReturnValue(over?.dragging ?? false)
   useImportLimits.mockReturnValue({ data: { retention_days: 30 } })
   render(<QueryClientProvider client={new QueryClient()}><ImportTab /></QueryClientProvider>)
   return imp
@@ -95,4 +98,26 @@ it("opens the edition panel from a row", () => {
 it("shows a progress bar while reading files", () => {
   setup({ phase: { kind: "reading", done: 5, total: 10 } })
   expect(screen.getByRole("progressbar", { name: "Reading books" })).toHaveAttribute("aria-valuenow", "50")
+})
+
+it("shows a full-page overlay while files are dragged over the window", () => {
+  setup({ dragging: true })
+  expect(screen.getByText("Drop to add EPUBs")).toBeInTheDocument()
+})
+
+it("has no overlay when nothing is dragged", () => {
+  setup()
+  expect(screen.queryByText("Drop to add EPUBs")).not.toBeInTheDocument()
+})
+
+it("wires the window drop to addFiles and the error reporter, and pauses it while busy", () => {
+  const imp = setup({ phase: { kind: "reading", done: 0, total: 1 } })
+  expect(useWindowDrop).toHaveBeenLastCalledWith(imp.addFiles, imp.reportError, false)
+})
+
+it("shows a message when the folder picker returns nothing usable", () => {
+  const imp = setup()
+  const input = screen.getByTestId("folder-input")
+  fireEvent.change(input, { target: { files: [] } })
+  expect(imp.reportError).toHaveBeenCalledWith(expect.stringMatching(/No files found/))
 })

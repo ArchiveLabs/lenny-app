@@ -13,7 +13,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from "@workspace/ui/components/input"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { useImport, useImportLimits } from "@/hooks/import/use-import"
+import { useWindowDrop } from "@/hooks/import/use-window-drop"
 import type { RowFilter } from "@/lib/import/api"
+import type { PickedFile } from "@/lib/import/walk"
 import type { ImportBatchSummary, ImportRow } from "@/types/import"
 import { DropZone } from "./DropZone"
 import { ADD_ON_OPEN_LIBRARY_URL, EditionSheet } from "./EditionSheet"
@@ -61,6 +63,10 @@ export function ImportTab() {
   const busy = phase.kind !== "idle"
   const importing = phase.kind === "importing"
   const retention = limits?.retention_days ?? 30
+  const dragging = useWindowDrop(imp.addFiles, imp.reportError, !busy)
+
+  const pick = (f: PickedFile[]) =>
+    f.length ? imp.addFiles(f) : imp.reportError(t("No files found in what you chose. Empty folders and hidden files are skipped."))
 
   const startImport = async () => {
     const res = await imp.runImport()
@@ -73,11 +79,21 @@ export function ImportTab() {
 
   return (
     <div className="space-y-4">
+      {dragging && (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-6 backdrop-blur-sm"
+        >
+          <div className="rounded-2xl border-4 border-dashed border-primary px-12 py-16 text-center text-2xl font-semibold">
+            {t("Drop to add EPUBs")}
+          </div>
+        </div>
+      )}
       {imp.error && (
         <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{imp.error}</p>
       )}
 
-      <DropZone onPick={imp.addFiles} compact={!!summary} disabled={busy} />
+      <DropZone onPick={pick} compact={!!summary} disabled={busy} />
 
       {phase.kind === "reading" && <Progress label={t("Reading books")} done={phase.done} total={phase.total} />}
       {phase.kind === "saving" && <Progress label={t("Saving the list")} done={phase.done} total={phase.total} />}

@@ -37,7 +37,19 @@ async function walk(entry: FileSystemEntry, out: PickedFile[], prefix = ""): Pro
 
 export async function collectDropped(items: DataTransferItemList): Promise<PickedFile[]> {
   // webkitGetAsEntry only works synchronously inside the drop event, so grab all first.
-  const entries = [...items].map((i) => i.webkitGetAsEntry()).filter((e): e is FileSystemEntry => !!e)
+  // Index the list: it is array-like and must be read before the handler returns.
+  const entries: FileSystemEntry[] = []
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!
+    if (item.kind !== "file") continue
+    const entry = item.webkitGetAsEntry()
+    // Some browsers return no entry; fall back to the plain file.
+    if (entry) entries.push(entry)
+    else {
+      const f = item.getAsFile()
+      if (f) entries.push({ name: f.name, isFile: true, isDirectory: false, file: (ok: (f: File) => void) => ok(f) } as unknown as FileSystemEntry)
+    }
+  }
   const out: PickedFile[] = []
   for (const e of entries) await walk(e, out)
   return out

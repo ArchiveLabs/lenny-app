@@ -199,6 +199,7 @@ export function useImport(filter: RowFilter) {
     phase,
     error,
     addFiles,
+    reportError: setError,
     recheck,
     patchRow,
     bulk,

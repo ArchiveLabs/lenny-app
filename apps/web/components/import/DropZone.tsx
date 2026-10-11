@@ -1,14 +1,13 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef } from "react"
 import { FolderOpen, Upload } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@workspace/ui/components/button"
-import { collectDropped, collectInput, type PickedFile } from "@/lib/import/walk"
+import { collectInput, type PickedFile } from "@/lib/import/walk"
 
 export function DropZone({ onPick, compact, disabled }: { onPick: (f: PickedFile[]) => void; compact?: boolean; disabled?: boolean }) {
   const { t } = useTranslation()
-  const [over, setOver] = useState(false)
   const folder = useRef<HTMLInputElement>(null)
   const many = useRef<HTMLInputElement>(null)
 
@@ -20,21 +19,7 @@ export function DropZone({ onPick, compact, disabled }: { onPick: (f: PickedFile
   return (
     <div
       data-testid="dropzone"
-      onDragOver={(e) => {
-        e.preventDefault()
-        setOver(true)
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        e.preventDefault()
-        setOver(false)
-        if (disabled) return
-        // collectDropped reads the entries synchronously; the awaits come after.
-        collectDropped(e.dataTransfer.items).then(onPick)
-      }}
-      className={`rounded-xl border-2 border-dashed text-center transition-colors ${
-        over ? "border-primary bg-primary/5" : "border-border"
-      } ${compact ? "p-4 flex flex-wrap items-center justify-center gap-3" : "p-10 space-y-4"}`}
+      className={`rounded-xl border-2 border-dashed border-border text-center ${compact ? "p-4 flex flex-wrap items-center justify-center gap-3" : "p-10 space-y-4"}`}
     >
       <Upload className={compact ? "h-5 w-5 text-muted-foreground" : "mx-auto h-10 w-10 text-muted-foreground"} aria-hidden />
       <div className={compact ? "text-sm text-muted-foreground" : "space-y-1"}>

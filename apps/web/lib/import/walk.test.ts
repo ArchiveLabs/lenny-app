@@ -19,7 +19,12 @@ const dirEntry = (name: string, kids: any[], pageSize = 2) => ({
     }
   },
 })
-const items = (...entries: any[]) => entries.map((e) => ({ webkitGetAsEntry: () => e }))
+// Array-like list, as in browsers.
+const items = (...entries: any[]) => {
+  const list: any = { length: entries.length }
+  entries.forEach((e, i) => (list[i] = { kind: "file", webkitGetAsEntry: () => e, getAsFile: () => null }))
+  return list
+}
 
 describe("collectDropped", () => {
   it("walks nested folders, paging readEntries until empty", async () => {
@@ -46,6 +51,25 @@ describe("collectDropped", () => {
 
   it("ignores items that are not files or folders", async () => {
     expect(await collectDropped(items(null) as any)).toEqual([])
+  })
+
+  it("reads every entry before the first await (the list is emptied afterwards)", async () => {
+    const list = items(fileEntry("a.epub"), fileEntry("b.epub"))
+    const p = collectDropped(list)
+    for (let i = 0; i < list.length; i++) list[i] = undefined // browser clears the list after the handler returns
+    list.length = 0
+    expect((await p).map((f) => f.path)).toEqual(["a.epub", "b.epub"])
+  })
+
+  it("falls back to getAsFile when webkitGetAsEntry gives nothing", async () => {
+    const f = file("x.epub")
+    const list: any = { length: 1, 0: { kind: "file", webkitGetAsEntry: () => null, getAsFile: () => f } }
+    expect((await collectDropped(list)).map((p) => p.path)).toEqual(["x.epub"])
+  })
+
+  it("skips non-file drag items such as dragged text", async () => {
+    const list: any = { length: 1, 0: { kind: "string", webkitGetAsEntry: () => null, getAsFile: () => null } }
+    expect(await collectDropped(list)).toEqual([])
   })
 })
 
