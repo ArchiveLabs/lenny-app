@@ -300,6 +300,8 @@ export function ImportTab() {
               onToggleEncrypted={(r) => imp.patchRow(r, { encrypted: !r.encrypted })}
               onSelect={select}
               selected={selected}
+              upload={(r) => (r.state !== "matched" || r.staged ? undefined : imp.failedUploads.has(r.id) ? "failed" : imp.uploading && imp.hasFile(r) ? "uploading" : undefined)}
+              onRetryUpload={imp.retryUploads}
             />
           )}
 

@@ -2,47 +2,164 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { RowItem } from "./RowItem"
 
-jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])) }) }))
+jest.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])) }),
+}))
 
 const row = (over = {}) => ({
   id: 1, path: "L/a.epub", size: 1, mtime: 1, state: "matched", decision: "auto", skipped: false, staged: false,
-  encrypted: false, auto_picked: false, candidates_count: 0, title: "Dune", ...over,
+  encrypted: false, auto_picked: true, confidence: 100, candidates_count: 0, title: "Dune", ...over,
 })
-const show = (r, needsFile = false) =>
-  render(<RowItem row={r} needsFile={needsFile} onOpen={jest.fn()} onRemove={jest.fn()} onToggleEncrypted={jest.fn()} onSelect={jest.fn()} selected={false} />)
+const show = (r, props = {}) => {
+  const fns = { onOpen: jest.fn(), onRemove: jest.fn(), onToggleEncrypted: jest.fn(), onSelect: jest.fn(), onRetryUpload: jest.fn() }
+  const ui = (p) => <RowItem row={r} needsFile={false} selected={false} {...fns} {...p} />
+  const view = render(ui(props))
+  return { ...fns, ...view, again: (p) => view.rerender(ui(p)) }
+}
 
-it("shows Uploaded for a matched row whose file is on the server", () => {
-  show(row({ staged: true }))
-  expect(screen.getByText("Uploaded")).toBeInTheDocument()
+describe("status badge shows only what needs attention", () => {
+  it("shows nothing for a good auto-match", () => {
+    show(row({ confidence: 100 }))
+    expect(screen.queryByText(/Matched|Check|%/)).not.toBeInTheDocument()
+  })
+
+  it("shows nothing at 95 and above, even when auto-picked", () => {
+    show(row({ confidence: 95 }))
+    expect(screen.queryByText("Check")).not.toBeInTheDocument()
+  })
+
+  it("shows Check, with the percentage as a tooltip, for an auto-pick under 95", () => {
+    show(row({ confidence: 92 }))
+    expect(screen.getByText("Check").closest("[title]")).toHaveAttribute("title", "92% match")
+  })
+
+  it("shows nothing for a match the admin chose, whatever its score", () => {
+    show(row({ auto_picked: false, decision: "user", confidence: 40 }))
+    expect(screen.queryByText("Check")).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ["needs_review", "Needs review"],
+    ["no_match", "No match"],
+    ["duplicate", "In library"],
+    ["failed", "Failed"],
+    ["importing", "Importing"],
+    ["imported", "Imported"],
+    ["queued", "Matching"],
+  ])("shows %s as %s", (state, label) => {
+    show(row({ state }))
+    expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
+  it("puts a failure's error under the title", () => {
+    show(row({ state: "failed", error: "File is corrupt" }))
+    expect(screen.getByText("File is corrupt")).toBeInTheDocument()
+  })
+
+  it("never says Matched or Uploaded", () => {
+    show(row({ staged: true }))
+    expect(screen.queryByText(/Matched|Uploaded/)).not.toBeInTheDocument()
+  })
 })
 
-it("does not show Uploaded for an unsent or skipped row", () => {
-  show(row())
-  expect(screen.queryByText("Uploaded")).not.toBeInTheDocument()
+describe("upload state", () => {
+  it("shows nothing once uploaded", () => {
+    show(row({ staged: true }))
+    expect(screen.queryByRole("img", { name: "Uploading" })).not.toBeInTheDocument()
+    expect(screen.queryByText("Not uploaded")).not.toBeInTheDocument()
+  })
+
+  it("shows a spinner while uploading", () => {
+    show(row(), { upload: "uploading" })
+    expect(screen.getByRole("img", { name: "Uploading" })).toBeInTheDocument()
+  })
+
+  it("shows Not uploaded with a retry when it gave up", () => {
+    const { onRetryUpload } = show(row(), { upload: "failed" })
+    fireEvent.click(screen.getByRole("button", { name: "Not uploaded" }))
+    expect(onRetryUpload).toHaveBeenCalled()
+  })
+})
+
+describe("controls are icons", () => {
+  it("Remove is a trash icon with a label and a tooltip, no word", () => {
+    const { onRemove } = show(row())
+    const remove = screen.getByRole("button", { name: "Remove Dune from this list" })
+    expect(remove).toHaveAttribute("title", "The book is not imported. Drop the file again to bring it back.")
+    expect(remove).toHaveTextContent("")
+    fireEvent.click(remove)
+    expect(onRemove).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }))
+  })
+
+  it("Change edition is a pencil icon for a matched row", () => {
+    const { onOpen } = show(row())
+    const edit = screen.getByRole("button", { name: "Change edition for Dune" })
+    expect(edit).toHaveTextContent("")
+    expect(screen.queryByText("Choose edition")).not.toBeInTheDocument()
+    fireEvent.click(edit)
+    expect(onOpen).toHaveBeenCalled()
+  })
+
+  it.each(["needs_review", "no_match"])("a %s row gets a text Choose edition button, since that is the main task", (state) => {
+    show(row({ state }))
+    expect(screen.getByRole("button", { name: "Choose edition" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Change edition for/ })).not.toBeInTheDocument()
+  })
+
+  it("Encrypt is a lock toggle with aria-pressed and a tooltip", () => {
+    const { onToggleEncrypted } = show(row())
+    const lock = screen.getByRole("button", { name: "Encrypt Dune" })
+    expect(lock).toHaveAttribute("aria-pressed", "false")
+    expect(lock).toHaveAttribute("title", "Encrypt: readers must log in")
+    fireEvent.click(lock)
+    expect(onToggleEncrypted).toHaveBeenCalled()
+  })
+
+  it("shows the lock as pressed when encrypted", () => {
+    show(row({ encrypted: true }))
+    expect(screen.getByRole("button", { name: "Encrypt Dune" })).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("has no lock or edit for a book already in the library, and no Remove while importing", () => {
+    show(row({ state: "duplicate" }))
+    expect(screen.queryByRole("button", { name: "Encrypt Dune" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Change edition for/ })).not.toBeInTheDocument()
+  })
+
+  it("has no Remove while the book is importing", () => {
+    show(row({ state: "importing" }))
+    expect(screen.queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument()
+  })
+
+  it("gives every icon button a 44px target on narrow screens", () => {
+    show(row())
+    for (const name of ["Encrypt Dune", "Change edition for Dune", "Remove Dune from this list"]) {
+      expect(screen.getByRole("button", { name }).className).toContain("h-11 w-11")
+    }
+  })
+})
+
+describe("selection", () => {
+  it("reports the choice", () => {
+    const { onSelect } = show(row())
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Dune" }))
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), true)
+  })
+
+  it("is disabled while importing", () => {
+    show(row({ state: "importing" }))
+    expect(screen.getByRole("checkbox", { name: "Select Dune" })).toBeDisabled()
+  })
+
+  it("keeps a light highlight when selected", () => {
+    const { container } = show(row(), { selected: true })
+    expect(container.firstChild.className).toContain("bg-muted/40")
+  })
 })
 
 it("asks for the file again only when it is neither staged nor in memory", () => {
-  const { rerender } = show(row(), true)
+  const { again } = show(row(), { needsFile: true })
   expect(screen.getByText("Drop this file again to import it")).toBeInTheDocument()
-  rerender(<RowItem row={row({ staged: true })} needsFile onOpen={jest.fn()} onRemove={jest.fn()} onToggleEncrypted={jest.fn()} onSelect={jest.fn()} selected={false} />)
+  again({ row: row({ staged: true }), needsFile: true })
   expect(screen.queryByText("Drop this file again to import it")).not.toBeInTheDocument()
-})
-
-it("has Remove as the only way to leave a book out: no Skip, a clear label and a tooltip", () => {
-  const onRemove = jest.fn()
-  render(<RowItem row={row()} needsFile={false} onOpen={jest.fn()} onRemove={onRemove} onToggleEncrypted={jest.fn()} onSelect={jest.fn()} selected={false} />)
-  expect(screen.queryByRole("button", { name: /skip/i })).not.toBeInTheDocument()
-  const remove = screen.getByRole("button", { name: "Remove Dune from this list" })
-  expect(remove).toHaveAttribute("title", "The book is not imported. Drop the file again to bring it back.")
-  fireEvent.click(remove)
-  expect(onRemove).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }))
-})
-
-it("has a checkbox that reports selection, and none to tick while importing", () => {
-  const onSelect = jest.fn()
-  const { rerender } = render(<RowItem row={row()} needsFile={false} onOpen={jest.fn()} onRemove={jest.fn()} onToggleEncrypted={jest.fn()} onSelect={onSelect} selected={false} />)
-  fireEvent.click(screen.getByRole("checkbox", { name: "Select Dune" }))
-  expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), true)
-  rerender(<RowItem row={row({ state: "importing" })} needsFile={false} onOpen={jest.fn()} onRemove={jest.fn()} onToggleEncrypted={jest.fn()} onSelect={onSelect} selected={false} />)
-  expect(screen.getByRole("checkbox", { name: "Select Dune" })).toBeDisabled()
 })

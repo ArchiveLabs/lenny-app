@@ -73,6 +73,7 @@ it("retries a failing upload, then stops and reports it until the admin tries ag
   const { result } = mount()
   await waitFor(() => expect(result.current.uploadFailed).toBe(1), { timeout: 4000 })
   expect(importApi.stageFile).toHaveBeenCalledTimes(3) // first try plus two retries
+  expect(result.current.failedUploads.has(1)).toBe(true) // so that row can show Not uploaded
   await new Promise((ok) => setTimeout(ok, 300))
   expect(importApi.stageFile).toHaveBeenCalledTimes(3) // no loop
 

@@ -29,7 +29,7 @@ const summary = (over = {}) => ({
 const base = (over = {}) => ({
   batchId: 1, summary: summary(), rows: [{ id: 1, title: "Dune" }], rowsLoading: false,
   loading: false, phase: { kind: "idle" }, error: null, attachedCount: 1,
-  addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), removeRow: jest.fn(), removeRows: jest.fn(), patchRow: jest.fn(), bulk: jest.fn(),
+  addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), removeRow: jest.fn(), removeRows: jest.fn(), failedUploads: new Set(), patchRow: jest.fn(), bulk: jest.fn(),
   runImport: jest.fn().mockResolvedValue({ missing: 0, failed: 0 }), cancelImport: jest.fn(),
   clearBatch: jest.fn(), hasFile: () => true, missing: 0, notice: null, folderName: null,
   folderSupported: false, chooseFolder: jest.fn(), reconnectFolder: jest.fn(), ...over,

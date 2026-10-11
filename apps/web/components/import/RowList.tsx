@@ -12,6 +12,8 @@ type Handlers = {
   onSelect: (r: ImportRow, selected: boolean) => void
   selected: ReadonlyMap<number, ImportRow>
   needsFile: (r: ImportRow) => boolean
+  upload: (r: ImportRow) => "uploading" | "failed" | undefined
+  onRetryUpload: () => void
 }
 
 /** One page of rows (50), windowed so only the visible ones are in the DOM. */
@@ -33,7 +35,7 @@ export function RowList({ rows, ...h }: { rows: ImportRow[] } & Handlers) {
               ref={v.measureElement}
               style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${it.start}px)` }}
             >
-              <RowItem row={row} needsFile={h.needsFile(row)} onOpen={h.onOpen} onRemove={h.onRemove} onSelect={h.onSelect} selected={h.selected.has(row.id)} onToggleEncrypted={h.onToggleEncrypted} />
+              <RowItem row={row} needsFile={h.needsFile(row)} onOpen={h.onOpen} onRemove={h.onRemove} onSelect={h.onSelect} selected={h.selected.has(row.id)} upload={h.upload(row)} onRetryUpload={h.onRetryUpload} onToggleEncrypted={h.onToggleEncrypted} />
             </div>
           )
         })}

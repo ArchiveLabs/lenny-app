@@ -65,7 +65,7 @@ export function useImport(filter: RowFilter, page = 0) {
   const [notice, setNotice] = useState<string | null>(null)
   const [version, setVersion] = useState(0) // bumps when files are attached, to recount
   const [uploading, setUploading] = useState(false) // staging files in the background
-  const [uploadFailed, setUploadFailed] = useState(0)
+  const [failedIds, setFailedIds] = useState<ReadonlySet<number>>(new Set()) // rows whose upload gave up
   const [reconnecting, setReconnecting] = useState(false) // silent reconnect in progress
   const [folderName, setFolderName] = useState<string | null>(null) // remembered folder (Chromium)
 
@@ -176,7 +176,7 @@ export function useImport(filter: RowFilter, page = 0) {
       setError(errMsg(e))
     } finally {
       staging.current = false
-      setUploadFailed(gaveUp.current.size)
+      setFailedIds(new Set(gaveUp.current))
       setUploading(false)
       refresh()
     }
@@ -184,7 +184,7 @@ export function useImport(filter: RowFilter, page = 0) {
 
   const retryUploads = useCallback(() => {
     gaveUp.current.clear()
-    setUploadFailed(0)
+    setFailedIds(new Set())
     stage()
   }, [stage])
 
@@ -431,7 +431,8 @@ export function useImport(filter: RowFilter, page = 0) {
     clearBatch,
     reconnecting,
     uploading,
-    uploadFailed,
+    uploadFailed: failedIds.size,
+    failedUploads: failedIds,
     retryUploads,
     attachedCount: importFiles.size,
     missing,
