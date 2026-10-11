@@ -5,7 +5,7 @@ import { COVER_GRID, CoverCardSkeleton } from "./CoverCard"
 
 jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s }) }))
 jest.mock("@/components/BookEditSheet", () => ({ BookEditSheet: ({ children }) => <div data-testid="sheet-trigger">{children}</div> }))
-jest.mock("@/components/library/ShareButton", () => ({ ShareButton: ({ title }) => <button>share {title}</button> }))
+jest.mock("@/components/library/ShareButton", () => ({ ShareButton: ({ title, compact }) => <button data-compact={String(!!compact)}>share {title}</button> }))
 
 const book = (over = {}, lenny = {}) => ({
   olid: "OL28933309M", title: "Database Internals", author_name: ["Alex Petrov"], cover_i: 123,
@@ -78,6 +78,11 @@ describe("Share", () => {
     expect(bar.className).toContain("group-hover:opacity-100")
     expect(bar.className).toContain("focus-within:opacity-100")
     expect(bar.className).toContain("[@media(hover:none)]:opacity-100")
+  })
+
+  it("is the small version, so it does not cover the book", () => {
+    render(<BookCard book={book()} />)
+    expect(screen.getByText("share Database Internals")).toHaveAttribute("data-compact", "true")
   })
 
   it("is not shown while selecting", () => {

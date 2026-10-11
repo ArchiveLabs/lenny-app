@@ -14,7 +14,7 @@ import { shareLink } from "@/lib/library/share"
 export const COPIED_TOAST_MS = 2000
 
 /** Share one book's OPDS link: copy it, or the system share sheet on phones. Hidden when the links are not available. */
-export function ShareButton({ olid, title }: { olid: string | number; title: string }) {
+export function ShareButton({ olid, title, compact }: { olid: string | number; title: string; compact?: boolean }) {
   const { t } = useTranslation()
   const { data: links } = useLibraryLinks()
   const [manual, setManual] = useState(false) // clipboard blocked: show the link to copy by hand
@@ -28,7 +28,7 @@ export function ShareButton({ olid, title }: { olid: string | number; title: str
           type="button"
           size="icon"
           variant="ghost"
-          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+          className={`${compact ? "h-6 w-6" : "h-7 w-7"} text-muted-foreground hover:text-foreground`}
           aria-label={t("Share {{title}}", { title })}
           title={t("Share this book's OPDS link")}
           onClick={async (e) => {
@@ -38,7 +38,7 @@ export function ShareButton({ olid, title }: { olid: string | number; title: str
             else if (result === "blocked") setManual(true)
           }}
         >
-          <Share2 className="h-4 w-4" aria-hidden />
+          <Share2 className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} aria-hidden />
         </Button>
       </PopoverAnchor>
       <PopoverContent align="end" className="w-80 space-y-2" onClick={(e) => e.stopPropagation()}>

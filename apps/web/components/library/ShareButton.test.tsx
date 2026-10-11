@@ -101,3 +101,15 @@ it("has a label that names the book and a short hover text", () => {
   render(<ShareButton olid="OL1M" title="Dune" />)
   expect(screen.getByRole("button", { name: "Share Dune" })).toHaveAttribute("title", "Share this book's OPDS link")
 })
+
+describe("size", () => {
+  it("is 28px by default and a smaller 24px with a smaller icon when compact", () => {
+    const { unmount } = render(<ShareButton olid="OL1M" title="Dune" />)
+    expect(screen.getByRole("button", { name: "Share Dune" }).className).toContain("h-7 w-7")
+    unmount()
+    render(<ShareButton olid="OL1M" title="Dune" compact />)
+    const button = screen.getByRole("button", { name: "Share Dune" })
+    expect(button.className).toContain("h-6 w-6")
+    expect(button.querySelector("svg").getAttribute("class")).toContain("h-3.5 w-3.5")
+  })
+})

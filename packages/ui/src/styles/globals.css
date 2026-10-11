@@ -135,11 +135,16 @@
    * full size on a desktop. The media queries use the browser's own size, so they do not move with this.
    */
   html {
-    font-size: 14px;
+    font-size: 13px;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
   @media (min-width: 640px) {
+    html {
+      font-size: 14px;
+    }
+  }
+  @media (min-width: 768px) {
     html {
       font-size: 15px;
     }

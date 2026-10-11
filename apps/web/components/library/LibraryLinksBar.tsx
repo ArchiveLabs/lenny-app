@@ -33,7 +33,7 @@ export function LibraryLinksBar() {
           type="button"
           variant="outline"
           size="icon"
-          className="size-8 rounded-l-none border-l-0 shadow-sm sm:size-9"
+          className="h-8 w-8 rounded-l-none border-l-0 shadow-sm sm:h-9 sm:w-9"
           aria-label={t("Copy the OPDS feed link")}
           title={t("Copy the OPDS feed link")}
           onClick={async () => {

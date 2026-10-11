@@ -13,13 +13,15 @@ const sizeAt = (query: string | null) => {
 }
 
 describe("the root font size", () => {
-  it("is smallest on phones", () => expect(sizeAt(null)).toBe(14))
-  it("steps up on tablets", () => expect(sizeAt("min-width: 640px")).toBe(15))
+  it("is smallest on phones", () => expect(sizeAt(null)).toBe(13))
+  it("steps up on large phones and small tablets", () => expect(sizeAt("min-width: 640px")).toBe(14))
+  it("steps up again on tablets", () => expect(sizeAt("min-width: 768px")).toBe(15))
   it("is the full 16px on a desktop", () => expect(sizeAt("min-width: 1024px")).toBe(16))
 
   it("only ever grows with the screen", () => {
     expect(sizeAt(null)).toBeLessThan(sizeAt("min-width: 640px"))
-    expect(sizeAt("min-width: 640px")).toBeLessThan(sizeAt("min-width: 1024px"))
+    expect(sizeAt("min-width: 640px")).toBeLessThan(sizeAt("min-width: 768px"))
+    expect(sizeAt("min-width: 768px")).toBeLessThan(sizeAt("min-width: 1024px"))
   })
 
   it("is not scaled by the browser's text size adjustment", () => {
@@ -37,4 +39,24 @@ describe("form fields on small screens", () => {
 it("is set on html, so every rem-based size scales with it", () => {
   expect(base).toMatch(/\n  html \{/)
   expect(base).not.toMatch(/\n  body \{[^}]*font-size/)
+})
+
+describe("the Library toolbar on a phone", () => {
+  const src = readFileSync(join(__dirname, "(dashboard)/library/page.tsx"), "utf8")
+
+  it("gives the search its own full-width row, so its text is not cut off", () => {
+    expect(src).toContain("basis-full sm:min-w-[200px] sm:flex-1 sm:basis-auto sm:max-w-sm")
+  })
+
+  it("keeps the filter's value readable: it fills the row beside the icon buttons instead of shrinking to a chevron", () => {
+    expect(src).toContain("min-w-0 flex-1 rounded-lg font-semibold sm:w-[150px] sm:flex-none")
+  })
+
+  it("keeps the icon buttons on one line", () => {
+    expect(src).toContain('<div className="ml-auto flex items-center gap-2">')
+  })
+
+  it("hides the long description on a phone", () => {
+    expect(src).toContain("hidden max-w-2xl text-sm text-muted-foreground sm:block")
+  })
 })

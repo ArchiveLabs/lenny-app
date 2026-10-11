@@ -216,7 +216,7 @@ export default function LibraryPage() {
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-1">
             <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("Lenny Library")}</h2>
-            <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
+            <p className="hidden max-w-2xl text-sm text-muted-foreground sm:block sm:text-base">
               {t("All books currently available in this Lenny instance, enriched with OpenLibrary metadata.")}
             </p>
           </div>
@@ -224,7 +224,7 @@ export default function LibraryPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1 sm:max-w-sm">
+          <div className="relative basis-full sm:min-w-[200px] sm:flex-1 sm:basis-auto sm:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="w-full rounded-lg pl-9"
@@ -243,7 +243,7 @@ export default function LibraryPage() {
               <SelectItem value="encrypted">{t("Encrypted")}</SelectItem>
             </SelectContent>
           </Select>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
             {selectMode ? (
               <>
                 <label className="mr-1 flex cursor-pointer select-none items-center gap-2 text-sm font-medium">

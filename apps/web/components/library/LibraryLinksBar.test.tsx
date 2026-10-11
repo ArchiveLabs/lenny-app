@@ -93,6 +93,8 @@ describe("on a phone", () => {
       expect(el.className).toContain("h-8")
       expect(el.className).toContain("sm:h-9")
     }
-    expect(screen.getByRole("button", { name: "Copy the OPDS feed link" }).className).toContain("size-8")
+    const copy = screen.getByRole("button", { name: "Copy the OPDS feed link" })
+    expect(copy.className).toContain("h-8 w-8")
+    expect(copy.className).toContain("sm:h-9 sm:w-9") // the same height as the feed button beside it, at every size
   })
 })
