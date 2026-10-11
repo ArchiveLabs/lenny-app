@@ -22,7 +22,7 @@ export const pollInterval = (updates: number) => (updates < 30 ? 2000 : updates 
 export const PAGE_SIZE = 50
 
 const UPLOADS_IN_FLIGHT = 3
-const REMOVALS_IN_FLIGHT = 4
+const MAX_ROW_IDS = 500 // the server takes 1-500 ids per remove
 const RETRIES = 2
 
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
@@ -324,20 +324,22 @@ export function useImport(filter: RowFilter, page = 0) {
     [batchId, refresh],
   )
 
-  /** Remove several rows. The server has no remove-by-ids, so this is one DELETE per row, a few at a time. */
+  /** Remove the picked rows in one call per 500. The server skips rows that are importing and says how many it removed. */
   const removeRows = useCallback(
     async (picked: ImportRow[]) => {
       if (batchId === null || !picked.length) return
-      let failed = 0
-      await pool(picked, REMOVALS_IN_FLIGHT, async (row) => {
-        try {
-          await importApi.removeRow(batchId, row.id)
-          importFiles.remove(row)
-        } catch {
-          failed++ // e.g. a row that is importing right now
+      let removed = 0
+      try {
+        for (const g of chunk(picked, MAX_ROW_IDS)) {
+          removed += (await importApi.action(batchId, { action: "remove", row_ids: g.map((r) => r.id) })).updated
         }
-      })
-      if (failed) setError(failed === 1 ? "1 book could not be removed." : `${failed} books could not be removed.`)
+        const failed = picked.length - removed
+        if (failed > 0) setError(failed === 1 ? "1 book could not be removed." : `${failed} books could not be removed.`)
+      } catch (e) {
+        setError(errMsg(e))
+      }
+      // Which rows survived a partial removal is unknown; a file nobody references is harmless, so drop them all.
+      if (removed > 0) picked.forEach((r) => importFiles.remove(r))
       setVersion((v) => v + 1)
       refresh()
     },

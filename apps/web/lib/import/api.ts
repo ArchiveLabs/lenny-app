@@ -58,7 +58,7 @@ export const importApi = {
   patchRow: (id: number, rowId: number, body: { olid?: number; encrypted?: boolean }) =>
     fetchAdmin(`${base(id)}/rows/${rowId}`, json("PATCH", body)).then((r) => handleApiResponse(r, ImportRowSchema)),
   removeRow: (id: number, rowId: number) => fetchAdmin(`${base(id)}/rows/${rowId}`, { method: "DELETE" }).then((r) => handleApiResponse(r, ImportBatchSummarySchema)),
-  action: (id: number, body: { action: "set_encrypted" | "remove"; value?: boolean } & RowFilter) =>
+  action: (id: number, body: { action: "set_encrypted" | "remove"; value?: boolean; row_ids?: number[] } & RowFilter) =>
     fetchAdmin(`${base(id)}/actions`, json("POST", body)).then((r) =>
       handleApiResponse(r, z.object({ updated: z.number() })),
     ),

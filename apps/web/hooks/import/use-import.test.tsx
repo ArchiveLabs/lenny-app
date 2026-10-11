@@ -232,29 +232,47 @@ describe("pages", () => {
 })
 
 describe("removing several rows", () => {
-  it("deletes each one, drops their files, and refetches once at the end", async () => {
-    importApi.removeRow = jest.fn().mockResolvedValue(summary(7))
+  const rowsOf = (n) => Array.from({ length: n }, (_, i) => ({ id: i + 1, path: `L/b${i + 1}.epub`, size: 1, mtime: 1000 }))
+  const attach = (rows) => rows.forEach((r) => importFiles.add(new File(["x"], `b${r.id}.epub`, { lastModified: 1000 }), r.path))
+
+  it("removes the picked rows in one call, drops their files, and refetches", async () => {
+    importApi.action = jest.fn().mockResolvedValue({ updated: 3 })
     const { result } = renderHook(() => useImport({}), { wrapper })
     await waitFor(() => expect(result.current.summary?.id).toBe(7))
-    const rows = [1, 2, 3].map((id) => ({ id, path: `L/b${id}.epub`, size: 1, mtime: 1000 }))
-    rows.forEach((r) => importFiles.add(new File(["x"], `b${r.id}.epub`, { lastModified: 1000 }), r.path))
+    const rows = rowsOf(3)
+    attach(rows)
     await act(() => result.current.removeRows(rows))
-    expect(importApi.removeRow.mock.calls.map((c) => c[1]).sort()).toEqual([1, 2, 3])
+    expect(importApi.action).toHaveBeenCalledTimes(1)
+    expect(importApi.action).toHaveBeenCalledWith(7, { action: "remove", row_ids: [1, 2, 3] })
     expect(rows.some((r) => importFiles.has(r))).toBe(false)
+    expect(result.current.error).toBeNull()
   })
 
-  it("reports how many could not be removed and keeps those files", async () => {
-    importApi.removeRow = jest.fn().mockImplementation(async (_b, id) => {
-      if (id === 2) throw new Error("409")
-      return summary(7)
-    })
+  it("sends at most 500 ids per call and adds up what was removed", async () => {
+    importApi.action = jest.fn().mockImplementation(async (_b, body) => ({ updated: body.row_ids.length }))
     const { result } = renderHook(() => useImport({}), { wrapper })
     await waitFor(() => expect(result.current.summary?.id).toBe(7))
-    const rows = [1, 2].map((id) => ({ id, path: `L/b${id}.epub`, size: 1, mtime: 1000 }))
-    rows.forEach((r) => importFiles.add(new File(["x"], `b${r.id}.epub`, { lastModified: 1000 }), r.path))
+    await act(() => result.current.removeRows(rowsOf(1200)))
+    expect(importApi.action.mock.calls.map((c) => c[1].row_ids.length)).toEqual([500, 500, 200])
+    expect(result.current.error).toBeNull()
+  })
+
+  it("reports the difference when the server removed fewer than were sent", async () => {
+    importApi.action = jest.fn().mockResolvedValue({ updated: 1 })
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.removeRows(rowsOf(3)))
+    expect(result.current.error).toBe("2 books could not be removed.")
+  })
+
+  it("keeps the files and shows the error when the call fails", async () => {
+    importApi.action = jest.fn().mockRejectedValue(new Error("down"))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    const rows = rowsOf(2)
+    attach(rows)
     await act(() => result.current.removeRows(rows))
-    expect(result.current.error).toBe("1 book could not be removed.")
-    expect(importFiles.has(rows[1])).toBe(true)
-    expect(importFiles.has(rows[0])).toBe(false)
+    expect(result.current.error).toBe("down")
+    expect(importFiles.has(rows[0])).toBe(true)
   })
 })
