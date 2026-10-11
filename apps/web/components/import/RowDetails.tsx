@@ -55,6 +55,10 @@ export function RowDetails({ row, onClose, onChangeEdition }: { row: ImportRow |
   const canChange = !!row && !["imported", "not_epub", "importing", "duplicate"].includes(row.state)
   const status = row && STATUS[row.state]
   const dash = <span className="text-muted-foreground">—</span>
+  // The file's own metadata is read in the browser and not stored after the import, so it may be gone.
+  const hasFileMeta = !!row && !!(row.title || row.author || row.publisher || row.year || row.isbn || row.isbn_alt || row.language)
+  const hasFileDetails = !!row && !!(row.isbn || row.isbn_alt || row.language)
+  const showSuggested = !!row && row.candidates_count > 0 && row.state !== "imported"
 
   return (
     <Sheet open={!!row} onOpenChange={(o) => !o && onClose()}>
@@ -88,50 +92,65 @@ export function RowDetails({ row, onClose, onChangeEdition }: { row: ImportRow |
                 </Alert>
               )}
 
-              <section className="space-y-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Compare")}</h3>
-                <div className="rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-20" />
-                        <TableHead>{t("In the file")}</TableHead>
-                        <TableHead>{t("On Open Library")}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell className="text-muted-foreground">{t("Title")}</TableCell>
-                        <TableCell className="whitespace-normal break-words">{row.title || dash}</TableCell>
-                        <TableCell className="whitespace-normal break-words">{row.match_title || dash}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="text-muted-foreground">{t("Author")}</TableCell>
-                        <TableCell className="whitespace-normal break-words">{row.author || dash}</TableCell>
-                        <TableCell className="whitespace-normal break-words">{row.match_author || dash}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="text-muted-foreground">{t("Publisher")}</TableCell>
-                        <TableCell className="whitespace-normal break-words">{row.publisher || dash}</TableCell>
-                        <TableCell>{dash}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="text-muted-foreground">{t("Year")}</TableCell>
-                        <TableCell>{row.year || dash}</TableCell>
-                        <TableCell>{row.match_year || dash}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-                {row.candidates_count > 0 && (
-                  <p className="text-xs text-muted-foreground">{t("{{n}} other editions were suggested.", { n: row.candidates_count })}</p>
-                )}
-              </section>
+              {hasFileMeta ? (
+                <>
+                  <section className="space-y-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Compare")}</h3>
+                    <div className="rounded-lg border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-20" />
+                            <TableHead>{t("In the file")}</TableHead>
+                            <TableHead>{t("On Open Library")}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="text-muted-foreground">{t("Title")}</TableCell>
+                            <TableCell className="whitespace-normal break-words">{row.title || dash}</TableCell>
+                            <TableCell className="whitespace-normal break-words">{row.match_title || dash}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="text-muted-foreground">{t("Author")}</TableCell>
+                            <TableCell className="whitespace-normal break-words">{row.author || dash}</TableCell>
+                            <TableCell className="whitespace-normal break-words">{row.match_author || dash}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="text-muted-foreground">{t("Publisher")}</TableCell>
+                            <TableCell className="whitespace-normal break-words">{row.publisher || dash}</TableCell>
+                            <TableCell>{dash}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="text-muted-foreground">{t("Year")}</TableCell>
+                            <TableCell>{row.year || dash}</TableCell>
+                            <TableCell>{row.match_year || dash}</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+                    {showSuggested && (
+                      <p className="text-xs text-muted-foreground">
+                        {row.candidates_count === 1 ? t("1 other edition was suggested.") : t("{{n}} other editions were suggested.", { n: row.candidates_count })}
+                      </p>
+                    )}
+                  </section>
 
-              <Group title={t("Details from the file")}>
-                <Field label={t("ISBN")}>{[row.isbn, ...(row.isbn_alt ? row.isbn_alt.split(" ") : [])].filter(Boolean).join(", ")}</Field>
-                <Field label={t("Language")}>{row.language}</Field>
-              </Group>
+                  {hasFileDetails && (
+                    <Group title={t("Details from the file")}>
+                      <Field label={t("ISBN")}>{[row.isbn, ...(row.isbn_alt ? row.isbn_alt.split(" ") : [])].filter(Boolean).join(", ")}</Field>
+                      <Field label={t("Language")}>{row.language}</Field>
+                    </Group>
+                  )}
+                </>
+              ) : (
+                // After an import the file's own metadata is not kept, so only what Open Library says is shown.
+                <Group title={t("Open Library")}>
+                  <Field label={t("Title")}>{displayTitle(row)}</Field>
+                  <Field label={t("Author")}>{row.match_author}</Field>
+                  <Field label={t("Year")}>{row.match_year}</Field>
+                </Group>
+              )}
 
               <Separator />
 

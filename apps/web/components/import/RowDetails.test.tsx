@@ -112,3 +112,59 @@ it("lists the file's other ISBNs next to the first", () => {
   show(row({ isbn: "9780441172719", isbn_alt: "9780441013593 9780451524935" }))
   expect(screen.getByText("9780441172719, 9780441013593, 9780451524935")).toBeInTheDocument()
 })
+
+describe("when the file's own details were not kept (after an import)", () => {
+  const kept = { title: null, author: null, publisher: null, year: null, isbn: null, isbn_alt: null, language: null, state: "imported" }
+
+  it("shows Open Library's details alone, with no In the file column or dashes", () => {
+    show(row(kept))
+    expect(screen.queryByText("In the file")).not.toBeInTheDocument()
+    expect(screen.queryByText("Compare")).not.toBeInTheDocument()
+    expect(screen.queryByText("—")).not.toBeInTheDocument()
+    expect(screen.getByText("Open Library", { selector: "h3" })).toBeInTheDocument()
+    expect(screen.getByText("Title").nextElementSibling).toHaveTextContent("Dune (Ace)")
+    expect(screen.getByText("Author").nextElementSibling).toHaveTextContent("F. Herbert")
+    expect(screen.getByText("Year").nextElementSibling).toHaveTextContent("1966")
+  })
+
+  it("leaves out the Details from the file heading when it would be empty", () => {
+    show(row(kept))
+    expect(screen.queryByText("Details from the file")).not.toBeInTheDocument()
+  })
+
+  it("leaves out an Open Library year that is not known", () => {
+    show(row({ ...kept, match_year: null }))
+    expect(screen.queryByText("Year")).not.toBeInTheDocument()
+  })
+
+  it("still shows the file itself: path, size, modified, encrypted", () => {
+    show(row(kept))
+    expect(screen.getByText("ebooks/dune.epub")).toBeInTheDocument()
+    expect(screen.getByText("3.0 MB")).toBeInTheDocument()
+  })
+
+  it("does not mention suggested editions for an imported book", () => {
+    show(row({ ...kept, candidates_count: 4 }))
+    expect(screen.queryByText(/other editions? w/)).not.toBeInTheDocument()
+  })
+
+  it("keeps the comparison while the file's details are still there", () => {
+    show(row({ state: "matched" }))
+    expect(screen.getByText("In the file")).toBeInTheDocument()
+  })
+
+  it("uses the singular for one suggested edition", () => {
+    show(row({ state: "matched", candidates_count: 1 }))
+    expect(screen.getByText("1 other edition was suggested.")).toBeInTheDocument()
+  })
+
+  it("shows the comparison when even one file detail is there", () => {
+    show(row({ ...kept, state: "matched", year: 1999 }))
+    expect(screen.getByText("In the file")).toBeInTheDocument()
+  })
+
+  it("shows Details from the file only when there is something in it", () => {
+    show(row({ state: "matched", isbn: null, isbn_alt: null, language: null }))
+    expect(screen.queryByText("Details from the file")).not.toBeInTheDocument()
+  })
+})
