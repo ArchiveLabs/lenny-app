@@ -67,7 +67,8 @@ export function FreeBooks() {
   const catalog = useCatalog({ q, collection, hideOwned })
   const collections = useCollections().data?.collections ?? []
   const load = useLoadBooks()
-  const progress = useLoadProgress()
+  const [since, setSince] = useState<number | null>(null)
+  const progress = useLoadProgress(since)
 
   const books = useMemo(() => catalog.data?.pages.flatMap((p) => p.books) ?? [], [catalog.data])
   const head = catalog.data?.pages[0]
@@ -85,8 +86,12 @@ export function FreeBooks() {
 
   const run = async (body: Parameters<typeof load.mutateAsync>[0]) => {
     setMessage(null)
+    const startedAt = Date.now()
     try {
-      return await load.mutateAsync(body)
+      const res = await load.mutateAsync(body)
+      // Count from when the server accepted a load; keep the first start across chunked requests.
+      setSince((s) => s ?? startedAt)
+      return res
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t("Something went wrong."))
     }

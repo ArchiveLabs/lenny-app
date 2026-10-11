@@ -129,3 +129,13 @@ it("retries failed books once nothing is running", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Retry failed" }))
   await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ olids: [9] }))
 })
+
+it("only counts this page's load: no start time until a load is accepted, then the time it began", async () => {
+  setup()
+  expect(useLoadProgress).toHaveBeenLastCalledWith(null)
+  const before = Date.now()
+  fireEvent.click(screen.getByRole("button", { name: /Book 1/ }))
+  fireEvent.click(screen.getByRole("button", { name: /Add 1 books/ }))
+  await waitFor(() => expect(typeof useLoadProgress.mock.calls.at(-1)[0]).toBe("number"))
+  expect(useLoadProgress.mock.calls.at(-1)[0]).toBeGreaterThanOrEqual(before)
+})

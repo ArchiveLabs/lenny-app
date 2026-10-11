@@ -26,14 +26,31 @@ export function useCollections() {
   return useQuery({ queryKey: ["preload-collections"], queryFn: preloadApi.collections, staleTime: 5 * 60_000 })
 }
 
-/** Standard Ebooks loads, polled while any are still running. Shares the cache key with the Redeem page. */
-export function useLoadProgress() {
+// updated_at has no timezone marker from the API; it is UTC.
+const toMs = (iso: string) => Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(iso) ? iso : `${iso}Z`)
+// Allow for a little clock difference between this browser and the server.
+const SKEW_MS = 5000
+
+/** Is this job part of the current load? Running jobs always are (covers a reload mid-load); finished ones only if updated since `since`. */
+export function inCurrentLoad(j: ImportJob, since: number | null) {
+  if (inFlight(j)) return true
+  if (since === null || !j.updated_at) return false
+  const t = toMs(j.updated_at)
+  return Number.isFinite(t) && t >= since - SKEW_MS
+}
+
+/**
+ * Standard Ebooks loads, polled while any are still running. `since` is when this page started
+ * its load (ms); /admin/imports keeps 7 days of rows, so older finished ones are left out.
+ * Shares the cache key with the Redeem page.
+ */
+export function useLoadProgress(since: number | null) {
   const q = useQuery({
     queryKey: ["imports"],
     queryFn: () => fetchAdmin("imports").then((r) => handleApiResponse(r, ImportsResponseSchema)),
     refetchInterval: (query) => (query.state.data?.imports.some((j) => j.source === SOURCE && inFlight(j)) ? 3000 : false),
   })
-  const jobs = (q.data?.imports ?? []).filter((j) => j.source === SOURCE)
+  const jobs = (q.data?.imports ?? []).filter((j) => j.source === SOURCE && inCurrentLoad(j, since))
   return {
     jobs,
     active: jobs.filter(inFlight).length,
