@@ -28,6 +28,7 @@ import {
   AlertDialogTrigger,
 } from "@workspace/ui/components/alert-dialog"
 import { EncryptionToggle } from "@/components/UploadComponents"
+import { BookInfoLoader } from "@/components/preload/BookInfo"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { ApiError, LennyBook, LoanLimitsConfig, LoanLimitsConfigSchema } from "@/types/api"
 import { LIBRARY_QUERY_KEY, removeBooksFromLibraryCache } from "@/lib/query-client"
@@ -37,6 +38,8 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [detailsOpened, setDetailsOpened] = useState(false)
+  const editionNumber = Number(book.olid.replace(/\D/g, "")) || null
   const [encrypted, setEncrypted] = useState(book.lenny.encrypted)
   const [loanDuration, setLoanDuration] = useState(
     book.lenny.loan_duration_days != null ? String(book.lenny.loan_duration_days) : ""
@@ -220,6 +223,20 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
               )}
             </div>
           </div>
+
+          <details
+            className="group rounded-lg border border-border/60"
+            onToggle={(e) => e.currentTarget.open && setDetailsOpened(true)}
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-semibold marker:content-none [&::-webkit-details-marker]:hidden">
+              {t("Book details")}
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+            </summary>
+            <div className="px-4 pb-4">
+              {/* Asked for only when opened: Open Library is queried on the first look. */}
+              <BookInfoLoader olid={detailsOpened ? editionNumber : null} />
+            </div>
+          </details>
 
           <details className="group rounded-lg border border-border/60">
             <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-semibold marker:content-none [&::-webkit-details-marker]:hidden">
