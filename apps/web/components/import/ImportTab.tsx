@@ -22,6 +22,7 @@ import type { ImportBatchSummary, ImportRow } from "@/types/import"
 import { DropZone } from "./DropZone"
 import { ADD_ON_OPEN_LIBRARY_URL, EditionSheet } from "./EditionSheet"
 import { Pager } from "./Pager"
+import { RowDetails } from "./RowDetails"
 import { RowList } from "./RowList"
 
 const FILTERS = [
@@ -69,6 +70,7 @@ export function ImportTab() {
   const [filterId, setFilterId] = useState<(typeof FILTERS)[number]["id"]>("all")
   const [q, setQ] = useState("")
   const [editing, setEditing] = useState<ImportRow | null>(null)
+  const [viewingId, setViewingId] = useState<number | null>(null) // by id, so the panel follows the row as it updates
   const [addedOnOL, setAddedOnOL] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [selected, setSelected] = useState<ReadonlyMap<number, ImportRow>>(new Map())
@@ -304,6 +306,7 @@ export function ImportTab() {
               rows={imp.rows}
               needsFile={(r) => !imp.hasFile(r)}
               onOpen={setEditing}
+              onDetails={(r) => setViewingId(r.id)}
               onRemove={imp.removeRow}
               onToggleEncrypted={(r) => imp.patchRow(r, { encrypted: !r.encrypted })}
               onSelect={select}
@@ -346,6 +349,14 @@ export function ImportTab() {
             )}
           </div>
 
+          <RowDetails
+            row={imp.rows.find((r) => r.id === viewingId) ?? null}
+            onClose={() => setViewingId(null)}
+            onChangeEdition={(r) => {
+              setViewingId(null)
+              setEditing(r)
+            }}
+          />
           <EditionSheet batchId={imp.batchId!} row={editing} onClose={() => setEditing(null)} onPick={(r, olid) => imp.patchRow(r, { olid })}
             onStartOver={() => {
               setEditing(null)

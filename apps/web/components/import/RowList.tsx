@@ -7,6 +7,7 @@ import { RowItem } from "./RowItem"
 
 type Handlers = {
   onOpen: (r: ImportRow) => void
+  onDetails: (r: ImportRow) => void
   onRemove: (r: ImportRow) => void
   onToggleEncrypted: (r: ImportRow) => void
   onSelect: (r: ImportRow, selected: boolean) => void
@@ -35,7 +36,7 @@ export function RowList({ rows, ...h }: { rows: ImportRow[] } & Handlers) {
               ref={v.measureElement}
               style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${it.start}px)` }}
             >
-              <RowItem row={row} needsFile={h.needsFile(row)} onOpen={h.onOpen} onRemove={h.onRemove} onSelect={h.onSelect} selected={h.selected.has(row.id)} upload={h.upload(row)} onRetryUpload={h.onRetryUpload} onToggleEncrypted={h.onToggleEncrypted} />
+              <RowItem row={row} needsFile={h.needsFile(row)} onOpen={h.onOpen} onDetails={h.onDetails} onRemove={h.onRemove} onSelect={h.onSelect} selected={h.selected.has(row.id)} upload={h.upload(row)} onRetryUpload={h.onRetryUpload} onToggleEncrypted={h.onToggleEncrypted} />
             </div>
           )
         })}

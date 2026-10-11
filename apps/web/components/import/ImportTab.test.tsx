@@ -13,8 +13,8 @@ jest.mock("react-i18next", () => ({
   }),
 }))
 jest.mock("./RowList", () => ({
-  RowList: ({ rows, onOpen, onRemove, onSelect, selected }) => (
-    <ul>{rows.map((r) => <li key={r.id}><button onClick={() => onOpen(r)}>{r.title}</button><button onClick={() => onRemove(r)}>remove {r.title}</button><input type="checkbox" aria-label={`pick ${r.title}`} checked={selected.has(r.id)} onChange={(e) => onSelect(r, e.target.checked)} /></li>)}</ul>
+  RowList: ({ rows, onOpen, onDetails, onRemove, onSelect, selected }) => (
+    <ul>{rows.map((r) => <li key={r.id}><button onClick={() => onOpen(r)}>{r.title}</button><button onClick={() => onRemove(r)}>remove {r.title}</button><button onClick={() => onDetails(r)}>details {r.title}</button><input type="checkbox" aria-label={`pick ${r.title}`} checked={selected.has(r.id)} onChange={(e) => onSelect(r, e.target.checked)} /></li>)}</ul>
   ),
 }))
 jest.mock("./EditionSheet", () => ({
@@ -357,5 +357,24 @@ describe("selecting books", () => {
     fireEvent.click(screen.getByLabelText("pick Dune"))
     fireEvent.click(screen.getByRole("button", { name: /^Matched/ }))
     expect(screen.queryByText("1 selected")).not.toBeInTheDocument()
+  })
+})
+
+describe("book details panel", () => {
+  const rows = [{ id: 1, title: "Dune", path: "L/dune.epub", size: 2048, mtime: 1, state: "matched", olid: 5, auto_picked: true, confidence: 90, candidates_count: 0, encrypted: false, staged: true }]
+
+  it("opens from a row's arrow and follows the row", () => {
+    setup({ rows })
+    fireEvent.click(screen.getByRole("button", { name: "details Dune" }))
+    expect(screen.getByText("Open Library")).toBeInTheDocument()
+    expect(screen.getByText("L/dune.epub")).toBeInTheDocument()
+  })
+
+  it("hands over to the edition panel from Change edition", () => {
+    setup({ rows })
+    fireEvent.click(screen.getByRole("button", { name: "details Dune" }))
+    fireEvent.click(screen.getByRole("button", { name: "Change edition" }))
+    expect(screen.getByText("editing Dune")).toBeInTheDocument()
+    expect(screen.queryByText("L/dune.epub")).not.toBeInTheDocument()
   })
 })

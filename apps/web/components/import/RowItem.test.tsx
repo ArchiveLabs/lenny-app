@@ -11,7 +11,7 @@ const row = (over = {}) => ({
   encrypted: false, auto_picked: true, confidence: 100, candidates_count: 0, title: "Dune", ...over,
 })
 const show = (r, props = {}) => {
-  const fns = { onOpen: jest.fn(), onRemove: jest.fn(), onToggleEncrypted: jest.fn(), onSelect: jest.fn(), onRetryUpload: jest.fn() }
+  const fns = { onOpen: jest.fn(), onDetails: jest.fn(), onRemove: jest.fn(), onToggleEncrypted: jest.fn(), onSelect: jest.fn(), onRetryUpload: jest.fn() }
   const ui = (p) => <RowItem row={r} needsFile={false} selected={false} {...fns} {...p} />
   const view = render(ui(props))
   return { ...fns, ...view, again: (p) => view.rerender(ui(p)) }
@@ -162,4 +162,30 @@ it("asks for the file again only when it is neither staged nor in memory", () =>
   expect(screen.getByText("Drop this file again to import it")).toBeInTheDocument()
   again({ row: row({ staged: true }), needsFile: true })
   expect(screen.queryByText("Drop this file again to import it")).not.toBeInTheDocument()
+})
+
+describe("link to Open Library and details", () => {
+  it("shows a linked check with the OL id that opens the edition", () => {
+    show(row({ olid: 3413631, author: "Ben Ehrenreich", year: 1900 }))
+    const link = screen.getByRole("link", { name: /OL3413631M/ })
+    expect(link).toHaveAttribute("href", "https://openlibrary.org/books/OL3413631M")
+    expect(link).toHaveAttribute("title", "Linked to Open Library")
+    expect(screen.getByText("Ben Ehrenreich · 1900")).toBeInTheDocument()
+  })
+
+  it("shows no link for a book with no Open Library match", () => {
+    show(row({ olid: null, state: "no_match" }))
+    expect(screen.queryByRole("link")).not.toBeInTheDocument()
+  })
+
+  it("has an arrow button that opens the details", () => {
+    const { onDetails } = show(row())
+    fireEvent.click(screen.getByRole("button", { name: "Show details for Dune" }))
+    expect(onDetails).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }))
+  })
+
+  it("keeps the arrow even while importing", () => {
+    show(row({ state: "importing" }))
+    expect(screen.getByRole("button", { name: "Show details for Dune" })).toBeInTheDocument()
+  })
 })

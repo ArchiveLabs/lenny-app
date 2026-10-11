@@ -1,7 +1,7 @@
 "use client"
 
 import { memo } from "react"
-import { AlertTriangle, CheckCircle2, CircleSlash, Copy, Loader2, Lock, LockOpen, Pencil, RotateCw, SearchX, Trash2, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, ChevronRight, CircleSlash, Copy, Loader2, Lock, LockOpen, Pencil, RotateCw, SearchX, Trash2, XCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { Badge } from "@workspace/ui/components/badge"
@@ -47,6 +47,7 @@ const ICON_BUTTON = "h-11 w-11 @2xl:h-8 @2xl:w-8" // 44px touch targets on narro
 export const RowItem = memo(function RowItem({
   row,
   onOpen,
+  onDetails,
   onRemove,
   onToggleEncrypted,
   onSelect,
@@ -57,6 +58,7 @@ export const RowItem = memo(function RowItem({
 }: {
   row: ImportRow
   onOpen: (r: ImportRow) => void
+  onDetails: (r: ImportRow) => void
   onRemove: (r: ImportRow) => void
   onToggleEncrypted: (r: ImportRow) => void
   onSelect: (r: ImportRow, selected: boolean) => void
@@ -86,8 +88,20 @@ export const RowItem = memo(function RowItem({
       <div className="flex min-w-0 flex-1 flex-col gap-2 @2xl:flex-row @2xl:items-center @2xl:gap-4">
         <div className="min-w-0 flex-1 space-y-0.5">
           <p className="truncate font-semibold">{title}</p>
-          <p className="truncate text-sm text-muted-foreground">
-            {[author, row.olid ? editionKey(row.olid) : null, row.year].filter(Boolean).join(" · ") || " "}
+          <p className="flex min-w-0 items-center gap-1.5 truncate text-sm text-muted-foreground">
+            <span className="truncate">{[author, row.year].filter(Boolean).join(" · ") || " "}</span>
+            {row.olid && (
+              <a
+                href={`https://openlibrary.org/books/${editionKey(row.olid)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("Linked to Open Library")}
+                className="inline-flex shrink-0 items-center gap-1 text-green-700 underline-offset-4 hover:underline"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                {editionKey(row.olid)}
+              </a>
+            )}
           </p>
           <p className="truncate text-xs text-muted-foreground/70" title={row.path}>{row.path}</p>
           {row.error && <p className="text-xs text-red-700">{row.error}</p>}
@@ -139,6 +153,16 @@ export const RowItem = memo(function RowItem({
                 <Pencil className="h-4 w-4" aria-hidden />
               </Button>
             ))}
+          <Button
+            size="icon"
+            variant="ghost"
+            className={`${ICON_BUTTON} text-muted-foreground`}
+            aria-label={t("Show details for {{name}}", { name: title })}
+            title={t("Details")}
+            onClick={() => onDetails(row)}
+          >
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </Button>
           {row.state !== "importing" && (
             <Button
               size="icon"
