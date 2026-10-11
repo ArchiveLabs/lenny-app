@@ -11,6 +11,7 @@ import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { ErrorNotice, errorKind } from "@/components/ErrorNotice"
 import { Notice } from "@/components/import/Notice"
+import { COVER_GRID, CoverCard } from "@/components/CoverCard"
 import { BookDetails } from "./BookDetails"
 import { EmptyPreload } from "./EmptyPreload"
 import { ProgressPanel } from "@/components/import/ProgressPanel"
@@ -51,33 +52,27 @@ const writeSort = (v: CatalogSort) => {
 function BookTile({ book, selected, selecting, onToggle, onOpen }: { book: PreloadBook; selected: boolean; selecting: boolean; onToggle: () => void; onOpen: () => void }) {
   const { t } = useTranslation()
   const owned = book.in_library
+  const pick = selecting && !owned
   return (
-    <li className={`relative rounded-xl border transition-colors hover:bg-muted/50 ${selected ? "border-primary ring-2 ring-primary" : ""}`}>
+    <li onClick={pick ? onToggle : onOpen}>
       {/* A card opens the details. While selecting, it picks the book instead, and the checkbox shows what is picked. */}
-      <button type="button" onClick={selecting && !owned ? onToggle : onOpen} className="flex h-full w-full flex-col gap-2 rounded-xl p-2 text-left">
-        <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted">
-          {book.cover_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={book.cover_url} alt="" loading="lazy" className="h-full w-full object-cover" />
-          )}
-          {owned && <Badge className="absolute left-2 top-2">{t("In library")}</Badge>}
-          {book.is_new && (
-            <Badge variant="secondary" className="absolute bottom-2 left-2 bg-green-100 text-green-800">{t("New")}</Badge>
-          )}
-        </div>
-        <span className="line-clamp-2 min-h-10 text-sm font-semibold leading-tight">{book.title}</span>
-        <span className="line-clamp-1 text-xs text-muted-foreground">
-          {[book.authors.join(", "), book.year].filter(Boolean).join(" · ")}
-        </span>
-      </button>
-      {selecting && !owned && (
-        <Checkbox
-          checked={selected}
-          onCheckedChange={onToggle}
-          aria-label={t("Select {{name}}", { name: book.title })}
-          className="absolute right-3 top-3 h-5 w-5 bg-background shadow-sm"
-        />
-      )}
+      <CoverCard
+        coverUrl={book.cover_url}
+        title={book.title}
+        author={[book.authors.join(", "), book.year].filter(Boolean).join(" · ")}
+        picked={selected}
+        topLeft={
+          <>
+            {pick && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={t("Select {{name}}", { name: book.title })} className="h-5 w-5 bg-background shadow-sm" />
+              </div>
+            )}
+            {owned && <Badge>{t("In library")}</Badge>}
+            {book.is_new && <Badge variant="secondary" className="bg-green-100 text-green-800">{t("New")}</Badge>}
+          </>
+        }
+      />
     </li>
   )
 }
@@ -347,7 +342,7 @@ export function FreeBooks() {
 
       {books.length > 0 && (
         <ul
-          className={`grid grid-cols-2 gap-3 transition-opacity sm:grid-cols-4 lg:grid-cols-6 ${catalog.isPlaceholderData ? "opacity-60" : ""}`}
+          className={`${COVER_GRID} transition-opacity ${catalog.isPlaceholderData ? "opacity-60" : ""}`}
           aria-busy={catalog.isPlaceholderData}
         >
           {books.map((b) => <BookTile key={b.olid} book={b} selected={picked.has(b.olid)} selecting={selecting} onToggle={() => toggle(b)} onOpen={() => setViewing(b.olid)} />)}

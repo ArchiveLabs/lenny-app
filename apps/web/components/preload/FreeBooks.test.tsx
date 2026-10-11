@@ -550,3 +550,28 @@ describe("select mode", () => {
     expect(screen.queryByRole("button", { name: "Select books" })).not.toBeInTheDocument()
   })
 })
+
+describe("the free books cards use the shared cover card, without Share", () => {
+  it("sits in the shared compact grid", () => {
+    setup({ select: false })
+    expect(screen.getByRole("list").className).toContain("minmax(132px,1fr)")
+  })
+
+  it("has no Share button anywhere", () => {
+    setup({ select: false })
+    expect(screen.queryByRole("button", { name: /share/i })).not.toBeInTheDocument()
+  })
+
+  it("keeps the In library and New badges on the cover while selecting, next to the checkbox", () => {
+    setup({ cat: catalog([book(1, { is_new: true }), book(3, { in_library: true })]) })
+    expect(screen.getByRole("checkbox", { name: "Select Book 1" })).toBeInTheDocument()
+    expect(screen.getAllByText("New")).toHaveLength(1)
+    expect(screen.getAllByText("In library")).toHaveLength(1)
+  })
+
+  it("shows the author and year under the title, clamped to one line", () => {
+    setup({ cat: catalog([book(1, { authors: ["Jane Austen", "Someone Else"], year: 1813 })]), select: false })
+    const line = screen.getByText("Jane Austen, Someone Else · 1813")
+    expect(line.className).toContain("line-clamp-1")
+  })
+})

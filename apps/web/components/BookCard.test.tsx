@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { fireEvent, render, screen } from "@testing-library/react"
 import { BOOK_GRID, BookCard, BookCardSkeleton } from "./BookCard"
+import { COVER_GRID, CoverCardSkeleton } from "./CoverCard"
 
 jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s }) }))
 jest.mock("@/components/BookEditSheet", () => ({ BookEditSheet: ({ children }) => <div data-testid="sheet-trigger">{children}</div> }))
@@ -58,28 +59,12 @@ describe("the lock", () => {
 })
 
 describe("availability", () => {
-  it("says Available when a copy is free", () => {
-    render(<BookCard book={book({}, { available_copies: 2 })} />)
-    expect(screen.getByText("Available")).toBeInTheDocument()
-    expect(screen.queryByText("On loan")).not.toBeInTheDocument()
-  })
-
-  it("says On loan when no copy is free (a count of zero is a count)", () => {
-    render(<BookCard book={book({}, { available_copies: 0 })} />)
-    expect(screen.getByText("On loan")).toBeInTheDocument()
-  })
-
-  it("says nothing when the record has no count, rather than guessing", () => {
-    render(<BookCard book={book({}, { available_copies: undefined })} />)
+  it("shows no Available or On loan line, whatever the copy count", () => {
+    const { rerender } = render(<BookCard book={book({}, { available_copies: 2 })} />)
     expect(screen.queryByText("Available")).not.toBeInTheDocument()
-    expect(screen.queryByText("On loan")).not.toBeInTheDocument()
-  })
-
-  it("colours the dot green or amber", () => {
-    const { container, rerender } = render(<BookCard book={book({}, { available_copies: 1 })} />)
-    expect(container.querySelector(".bg-green-500")).toBeInTheDocument()
     rerender(<BookCard book={book({}, { available_copies: 0 })} />)
-    expect(container.querySelector(".bg-amber-500")).toBeInTheDocument()
+    expect(screen.queryByText("On loan")).not.toBeInTheDocument()
+    expect(screen.queryByText(/cop(y|ies)/)).not.toBeInTheDocument()
   })
 })
 
@@ -203,31 +188,9 @@ describe("the text under the cover", () => {
   })
 })
 
-describe("spacing", () => {
-  it("leaves a wider gap between tiles across than the old 12px, and more between rows", () => {
-    expect(BOOK_GRID).toContain("gap-x-5")
-    expect(BOOK_GRID).toContain("gap-y-8")
-    expect(BOOK_GRID).not.toMatch(/(^|\s)gap-3(\s|$)/)
-  })
-
-  it("keeps tiles at least 170px wide so covers stay readable", () => {
-    expect(BOOK_GRID).toContain("minmax(170px,1fr)")
-  })
-
-  it("puts more room between the cover and the text, and between the title, author and status", () => {
-    const { container } = render(<BookCard book={book()} />)
-    expect(container.querySelector('[role="button"]').className).toContain("gap-3")
-    expect(screen.getByText("Database Internals").parentElement.className).toContain("space-y-1")
-    expect(screen.getByText("Available").className).toContain("pt-1")
-  })
-
-  it("uses a relaxed line height for the title", () => {
-    render(<BookCard book={book()} />)
-    expect(screen.getByText("Database Internals").className).toContain("leading-snug")
-  })
-
-  it("has a skeleton with the same spacing", () => {
-    const { container } = render(<BookCardSkeleton />)
-    expect(container.firstElementChild.className).toContain("space-y-3")
+describe("size", () => {
+  it("is built on the shared compact cover card", () => {
+    expect(BOOK_GRID).toBe(COVER_GRID)
+    expect(BookCardSkeleton).toBe(CoverCardSkeleton)
   })
 })
