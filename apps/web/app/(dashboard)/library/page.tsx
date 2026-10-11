@@ -27,6 +27,7 @@ import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { fetchAllLibraryItems, parseItems, sameEdition } from "@/lib/library-utils"
 import { BookCard, BookCardSkeleton } from "@/components/BookCard"
 import { ErrorState } from "@/components/ErrorState"
+import { LibraryLinksBar } from "@/components/library/LibraryLinksBar"
 import { useTranslation } from "react-i18next"
 
 const DELETE_BATCH_SIZE = 200
@@ -217,6 +218,7 @@ export default function LibraryPage() {
           <p className="text-muted-foreground text-base max-w-2xl">
             {t("All books currently available in this Lenny instance, enriched with OpenLibrary metadata.")}
           </p>
+          <LibraryLinksBar />
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto sm:min-w-0 sm:flex-1">
           {selectMode ? (

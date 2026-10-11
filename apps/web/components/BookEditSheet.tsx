@@ -29,6 +29,7 @@ import {
 } from "@workspace/ui/components/alert-dialog"
 import { EncryptionToggle } from "@/components/UploadComponents"
 import { BookInfoLoader } from "@/components/preload/BookInfo"
+import { LinkField } from "@/components/library/LinkField"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { ApiError, LennyBook, LoanLimitsConfig, LoanLimitsConfigSchema } from "@/types/api"
 import { LIBRARY_QUERY_KEY, removeBooksFromLibraryCache } from "@/lib/query-client"
@@ -225,6 +226,8 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
               )}
             </div>
           </div>
+
+          <LinkField olid={book.olid} encrypted={encrypted} />
 
           <details
             className="group rounded-lg border border-border/60"

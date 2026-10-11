@@ -10,6 +10,8 @@ jest.mock("@/lib/api-client", () => ({
   fetchAdmin: jest.fn(() => new Promise(() => {})), // the loan limits are not what this tests
 }))
 jest.mock("@/components/UploadComponents", () => ({ EncryptionToggle: () => <div /> }))
+const linkField = jest.fn()
+jest.mock("@/components/library/LinkField", () => ({ LinkField: (p) => (linkField(p), <div>share link for {p.olid}</div>) }))
 const loader = jest.fn()
 jest.mock("@/components/preload/BookInfo", () => ({ BookInfoLoader: (p) => (loader(p), <div>info for {String(p.olid)}</div>) }))
 
@@ -59,4 +61,10 @@ it("brings the Library list up to date when the book turns out to be gone", () =
   open()
   const props = loader.mock.calls.at(-1)[0]
   expect(typeof props.onGone).toBe("function")
+})
+
+it("shows the share link, and tells it whether the book is encrypted", () => {
+  open()
+  expect(screen.getByText("share link for OL28933309M")).toBeInTheDocument()
+  expect(linkField).toHaveBeenLastCalledWith(expect.objectContaining({ olid: "OL28933309M", encrypted: false }))
 })

@@ -7,6 +7,7 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { LennyBook } from "@/types/api"
 import { BookEditSheet } from "@/components/BookEditSheet"
+import { ShareButton } from "@/components/library/ShareButton"
 import { useTranslation } from "react-i18next"
 
 export function FormatBadge({ formats }: { formats: string }) {
@@ -167,6 +168,7 @@ export function BookCard({
             <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60">{t("Copies")}</span>
             <span className="text-xs font-bold text-foreground/80">{book.lenny.available_copies}</span>
           </div>
+          {!selectMode && <ShareButton olid={book.olid} title={book.title} />}
         </>
       }
     />
