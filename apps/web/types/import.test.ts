@@ -1,5 +1,8 @@
 // @ts-nocheck
-import { ImportBatchSummarySchema, ImportCandidateSchema, ImportRowPageSchema, isReady, needsAction } from "./import"
+import {
+  EditionLookupSchema, ImportBatchSummarySchema, ImportCandidateSchema, ImportLimitsSchema, ImportRowPageSchema,
+  MatchJobSchema, isJobActive, isReady, needsAction,
+} from "./import"
 
 const row = { id: 1, path: "books/x.epub", size: 10, mtime: 1, state: "matched", decision: "auto" }
 
@@ -29,5 +32,30 @@ describe("import contract schemas", () => {
   it("rejects the old skip decision value and parses a candidate", () => {
     expect(() => ImportRowPageSchema.parse({ rows: [{ ...row, decision: "skip" }], next_cursor: null })).toThrow()
     expect(ImportCandidateSchema.parse({ olid: 5 }).authors).toEqual([])
+  })
+})
+
+describe("#246 schemas", () => {
+  it("parses a match job and detects active status", () => {
+    const j = MatchJobSchema.parse({ id: 1, batch_id: 2, status: "running", total: 10, done: 3, error: null })
+    expect(isJobActive(j)).toBe(true)
+    expect(isJobActive({ status: "done" })).toBe(false)
+  })
+
+  it("rejects an unknown job status", () => {
+    expect(() => MatchJobSchema.parse({ id: 1, batch_id: 2, status: "weird", total: 1, done: 0 })).toThrow()
+  })
+
+  it("parses limits and defaults the flags", () => {
+    const l = ImportLimitsSchema.parse({
+      max_rows_per_call: 500, isbn_batch: 50, max_file_mb: 100, upload_concurrency: 2,
+      retention_days: 30, formats: ["epub"],
+    })
+    expect(l.ol_identified).toBe(false)
+    expect(l.retention_days).toBe(30)
+  })
+
+  it("parses edition lookup with in_library default", () => {
+    expect(EditionLookupSchema.parse({ olid: "OL1M" }).in_library).toBe(false)
   })
 })

@@ -75,3 +75,43 @@ export const isReady = (r: Pick<ImportRow, "state" | "skipped">) =>
 /** Blocking row states: the admin has to act before these can be imported. */
 export const needsAction = (r: Pick<ImportRow, "state">) =>
   r.state === "needs_review" || r.state === "no_match"
+
+// #246: matching job, candidates, edition lookup, limits.
+export const MatchJobSchema = z.object({
+  id: z.number(),
+  batch_id: z.number(),
+  status: z.enum(["queued", "running", "done", "failed"]),
+  total: z.number(),
+  done: z.number(),
+  error: z.string().nullish(),
+})
+export type MatchJob = z.infer<typeof MatchJobSchema>
+
+export const ImportCandidatesSchema = z.object({ candidates: z.array(ImportCandidateSchema) })
+
+export const EditionLookupSchema = z.object({
+  olid: z.string(),
+  title: z.string().nullish(),
+  publisher: z.string().nullish(),
+  year: z.number().nullish(),
+  isbn: z.string().nullish(),
+  in_library: z.boolean().default(false),
+})
+export type EditionLookup = z.infer<typeof EditionLookupSchema>
+
+export const DuplicateCheckSchema = z.object({ existing: z.array(z.string()) })
+
+export const ImportLimitsSchema = z.object({
+  max_rows_per_call: z.number(),
+  isbn_batch: z.number(),
+  ol_requests_per_second: z.number().nullish(),
+  ol_identified: z.boolean().default(false),
+  ol_logged_in: z.boolean().default(false),
+  max_file_mb: z.number(),
+  upload_concurrency: z.number(),
+  retention_days: z.number(),
+  formats: z.array(z.string()),
+})
+export type ImportLimits = z.infer<typeof ImportLimitsSchema>
+
+export const isJobActive = (j: Pick<MatchJob, "status">) => j.status === "queued" || j.status === "running"
