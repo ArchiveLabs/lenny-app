@@ -226,6 +226,20 @@ export function useImport(filter: RowFilter) {
     [batchId, refresh],
   )
 
+  const removeRow = useCallback(
+    async (row: ImportRow) => {
+      if (batchId === null) return
+      try {
+        await importApi.removeRow(batchId, row.id)
+      } catch (e) {
+        setError(errMsg(e))
+      } finally {
+        refresh()
+      }
+    },
+    [batchId, refresh],
+  )
+
   const bulk = useCallback(
     async (action: "skip" | "unskip" | "set_encrypted", value?: boolean, scope: RowFilter = filter) => {
       if (batchId === null) return
@@ -303,6 +317,7 @@ export function useImport(filter: RowFilter) {
     recheck,
     patchRow,
     bulk,
+    removeRow,
     runImport,
     cancelImport,
     clearBatch,

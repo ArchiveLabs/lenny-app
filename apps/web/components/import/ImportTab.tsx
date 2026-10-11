@@ -191,6 +191,7 @@ export function ImportTab() {
               needsFile={(r) => !imp.hasFile(r)}
               onOpen={setEditing}
               onToggleSkip={(r) => imp.patchRow(r, { skipped: !r.skipped })}
+              onRemove={imp.removeRow}
               onToggleEncrypted={(r) => imp.patchRow(r, { encrypted: !r.encrypted })}
             />
           )}

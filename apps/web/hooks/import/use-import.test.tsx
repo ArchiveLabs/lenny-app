@@ -172,3 +172,23 @@ describe("match job status", () => {
     expect(importApi.startMatch).not.toHaveBeenCalled()
   })
 })
+
+describe("removing a row", () => {
+  it("deletes it on the server and refetches the batch", async () => {
+    importApi.removeRow = jest.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    const before = importApi.batch.mock.calls.length
+    await act(() => result.current.removeRow({ id: 42 }))
+    expect(importApi.removeRow).toHaveBeenCalledWith(7, 42)
+    await waitFor(() => expect(importApi.batch.mock.calls.length).toBeGreaterThan(before))
+  })
+
+  it("shows the error and still refetches when the server refuses", async () => {
+    importApi.removeRow = jest.fn().mockRejectedValue(new Error("Row is importing"))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.removeRow({ id: 42 }))
+    expect(result.current.error).toBe("Row is importing")
+  })
+})

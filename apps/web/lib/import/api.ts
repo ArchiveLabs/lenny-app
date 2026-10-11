@@ -56,6 +56,7 @@ export const importApi = {
     ),
   patchRow: (id: number, rowId: number, body: { skipped?: boolean; olid?: number; encrypted?: boolean }) =>
     fetchAdmin(`${base(id)}/rows/${rowId}`, json("PATCH", body)).then((r) => handleApiResponse(r, ImportRowSchema)),
+  removeRow: (id: number, rowId: number) => fetchAdmin(`${base(id)}/rows/${rowId}`, { method: "DELETE" }).then((r) => handleApiResponse(r)),
   action: (id: number, body: { action: "skip" | "unskip" | "set_encrypted"; value?: boolean } & RowFilter) =>
     fetchAdmin(`${base(id)}/actions`, json("POST", body)).then((r) =>
       handleApiResponse(r, z.object({ updated: z.number() })),

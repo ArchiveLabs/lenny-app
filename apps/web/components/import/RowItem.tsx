@@ -1,7 +1,7 @@
 "use client"
 
 import { memo } from "react"
-import { AlertTriangle, CheckCircle2, CircleSlash, Copy, Loader2, SearchX, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, CircleSlash, Copy, Loader2, SearchX, Trash2, XCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -26,12 +26,14 @@ export const RowItem = memo(function RowItem({
   row,
   onOpen,
   onToggleSkip,
+  onRemove,
   onToggleEncrypted,
   needsFile,
 }: {
   row: ImportRow
   onOpen: (r: ImportRow) => void
   onToggleSkip: (r: ImportRow) => void
+  onRemove: (r: ImportRow) => void
   onToggleEncrypted: (r: ImportRow) => void
   needsFile: boolean
 }) {
@@ -77,6 +79,11 @@ export const RowItem = memo(function RowItem({
         {!locked && (
           <Button size="sm" variant="ghost" onClick={() => onToggleSkip(row)}>
             {row.skipped ? t("Unskip") : t("Skip")}
+          </Button>
+        )}
+        {row.state !== "importing" && (
+          <Button size="icon" variant="ghost" aria-label={t("Remove {{name}}", { name: title })} title={t("Remove from list")} onClick={() => onRemove(row)}>
+            <Trash2 className="h-4 w-4" aria-hidden />
           </Button>
         )}
       </div>

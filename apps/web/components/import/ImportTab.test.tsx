@@ -13,8 +13,8 @@ jest.mock("react-i18next", () => ({
   }),
 }))
 jest.mock("./RowList", () => ({
-  RowList: ({ rows, onOpen }) => (
-    <ul>{rows.map((r) => <li key={r.id}><button onClick={() => onOpen(r)}>{r.title}</button></li>)}</ul>
+  RowList: ({ rows, onOpen, onRemove }) => (
+    <ul>{rows.map((r) => <li key={r.id}><button onClick={() => onOpen(r)}>{r.title}</button><button onClick={() => onRemove(r)}>remove {r.title}</button></li>)}</ul>
   ),
 }))
 jest.mock("./EditionSheet", () => ({
@@ -29,7 +29,7 @@ const summary = (over = {}) => ({
 const base = (over = {}) => ({
   batchId: 1, summary: summary(), rows: [{ id: 1, title: "Dune" }], rowsLoading: false, hasMore: false,
   loadMore: jest.fn(), loading: false, phase: { kind: "idle" }, error: null, attachedCount: 1,
-  addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), patchRow: jest.fn(), bulk: jest.fn(),
+  addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), removeRow: jest.fn(), patchRow: jest.fn(), bulk: jest.fn(),
   runImport: jest.fn().mockResolvedValue({ missing: 0, failed: 0 }), cancelImport: jest.fn(),
   clearBatch: jest.fn(), hasFile: () => true, missing: 0, notice: null, folderName: null,
   folderSupported: false, chooseFolder: jest.fn(), reconnectFolder: jest.fn(), ...over,
@@ -162,4 +162,10 @@ describe("match status", () => {
     setup({ summary: queued(match({ status: "failed", error: "boom" })) })
     expect(screen.getByRole("alert")).not.toHaveTextContent("Try again")
   })
+})
+
+it("passes a row's Remove to the hook", () => {
+  const imp = setup()
+  fireEvent.click(screen.getByRole("button", { name: "remove Dune" }))
+  expect(imp.removeRow).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }))
 })
