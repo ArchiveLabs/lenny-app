@@ -52,3 +52,12 @@ it("passes picked files with their relative paths and drops hidden ones", () => 
   fireEvent.change(screen.getByTestId("files-input"), { target: { files: [f, hidden] } })
   expect(onPick).toHaveBeenCalledWith([{ file: f, path: "L/a.epub" }])
 })
+
+it("never shows Choose files as the blue primary button before it knows folders are offered", () => {
+  const { container } = render(<DropZone onPick={jest.fn()} onChooseFolder={jest.fn()} />)
+  // After mount the folder button exists and Choose files is the outline one.
+  expect(screen.getByRole("button", { name: "Choose a folder" })).toBeInTheDocument()
+  const files = screen.getByRole("button", { name: "Choose files" })
+  expect(files.className).not.toMatch(/bg-primary(?!\/)/)
+  expect(container.querySelector(".invisible")).toBeNull()
+})

@@ -23,9 +23,11 @@ export function DropZone({
   const many = useRef<HTMLInputElement>(null)
   // Decided after mount so server and client render the same markup.
   const [canFolder, setCanFolder] = useState(false)
+  const [decided, setDecided] = useState(false)
   useEffect(() => {
     const touch = window.matchMedia?.("(pointer: coarse)").matches ?? false
     setCanFolder(!touch && (!!onChooseFolder || "webkitdirectory" in HTMLInputElement.prototype))
+    setDecided(true)
   }, [onChooseFolder])
 
   const fromInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,7 +47,8 @@ export function DropZone({
         </p>
         {!compact && <p className="text-sm text-muted-foreground">{t("EPUB only. Thousands at a time is fine.")}</p>}
       </div>
-      <div className="flex flex-wrap justify-center gap-2">
+      {/* Hidden (not absent) until we know which buttons apply, so "Choose files" never flashes blue and then turns white. */}
+      <div className={`flex flex-wrap justify-center gap-2 ${decided ? "" : "invisible"}`} aria-hidden={!decided}>
         {canFolder && (
           <Button type="button" disabled={disabled} onClick={() => (onChooseFolder ? onChooseFolder() : folder.current?.click())}>
             <FolderOpen className="mr-2 h-4 w-4" />
