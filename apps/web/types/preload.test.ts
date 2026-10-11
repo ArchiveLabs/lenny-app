@@ -33,3 +33,17 @@ it("fills defaults on a catalog page", () => {
   expect(c.books[0]).toMatchObject({ authors: [], in_library: false, source: "standardebooks" })
   expect(c.in_library).toBe(0)
 })
+
+describe("the catalog's next_cursor", () => {
+  const page = (next_cursor?: unknown) => PreloadCatalogSchema.parse({ books: [], total: 0, available: 0, in_library: 0, ...(next_cursor === undefined ? {} : { next_cursor }) })
+
+  it("accepts the number the server sends (an offset) and keeps it as a string for the next request", () => {
+    expect(page(48).next_cursor).toBe("48")
+    expect(page(0).next_cursor).toBe("0") // the first offset is still a cursor, not "no more pages"
+  })
+  it("accepts a string", () => expect(page("abc").next_cursor).toBe("abc"))
+  it("treats null and missing as the last page", () => {
+    expect(page(null).next_cursor).toBeNull()
+    expect(page().next_cursor).toBeUndefined()
+  })
+})

@@ -21,7 +21,8 @@ export const PreloadCatalogSchema = z.object({
   available: z.number(),
   known: z.number().default(0),
   in_library: z.number().default(0),
-  next_cursor: z.string().nullable().optional(),
+  // The server pages by offset, so this arrives as a number; kept as a string because it only travels back as ?cursor=.
+  next_cursor: z.union([z.string(), z.number()]).nullable().optional().transform((v) => (v == null ? v : String(v))),
 })
 export type PreloadCatalog = z.infer<typeof PreloadCatalogSchema>
 
