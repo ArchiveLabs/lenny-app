@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -31,6 +31,8 @@ export function EditionSheet({
 }) {
   const { t } = useTranslation()
   const searchBox = useRef<HTMLInputElement>(null)
+  const rowId = row?.id
+  useEffect(() => setPickError(null), [rowId])
   const candidates = useQuery({
     queryKey: ["import-candidates", batchId, row?.id],
     queryFn: () => importApi.candidates(batchId, row!.id),
@@ -39,10 +41,21 @@ export function EditionSheet({
     retry: false,
   })
 
+  // A failed pick stays in the panel: the page behind it is dimmed, so an error there would never be seen.
+  const [pickError, setPickError] = useState<{ error: unknown; olid: number } | null>(null)
+  const [picking, setPicking] = useState(false)
   const pick = async (olid: number) => {
-    if (!row) return
-    await onPick(row, olid)
-    onClose()
+    if (!row || picking) return
+    setPickError(null)
+    setPicking(true)
+    try {
+      await onPick(row, olid)
+      onClose()
+    } catch (error) {
+      setPickError({ error, olid })
+    } finally {
+      setPicking(false)
+    }
   }
 
   return (
@@ -61,6 +74,12 @@ export function EditionSheet({
         </SheetHeader>
 
         <div className="space-y-6 px-4 pb-6">
+          {pickError && (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">{t("The edition was not changed.")}</p>
+              <EditionError error={pickError.error} onRetry={() => pick(pickError.olid)} onStartOver={onStartOver} />
+            </div>
+          )}
           <section className="space-y-2" aria-live="polite">
             <h3 className="text-sm font-semibold">{t("Suggestions from Open Library")}</h3>
             {candidates.isLoading && <Spinner aria-label={t("Loading")} />}

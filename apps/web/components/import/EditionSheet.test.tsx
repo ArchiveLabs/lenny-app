@@ -35,3 +35,53 @@ it("shows the honest reason when the suggestions fail", async () => {
   expect(await screen.findByText("This book is no longer in the list.")).toBeInTheDocument()
   expect(screen.queryByText(/Open Library did not answer/)).not.toBeInTheDocument()
 })
+
+describe("choosing an edition", () => {
+  const cand = { olid: 9, title: "Dune (1965)", authors: [], score: 88, in_library: false }
+  const open = (onPick) => {
+    importApi.candidates.mockResolvedValue({ candidates: [cand] })
+    const onClose = jest.fn()
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <EditionSheet batchId={7} row={row} onClose={onClose} onPick={onPick} onStartOver={jest.fn()} />
+      </QueryClientProvider>,
+    )
+    return onClose
+  }
+
+  it("closes after the edition was changed", async () => {
+    const onClose = open(jest.fn().mockResolvedValue(undefined))
+    fireEvent.click(await screen.findByText("Dune (1965)"))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it("stays open and says so inside the panel when the change fails", async () => {
+    const onClose = open(jest.fn().mockRejectedValue(new ApiError("Database is locked", 500)))
+    fireEvent.click(await screen.findByText("Dune (1965)"))
+    expect(await screen.findByText("The edition was not changed.")).toBeInTheDocument()
+    expect(screen.getByText("Something went wrong. Try again.")).toBeInTheDocument()
+    expect(screen.getByText("Database is locked")).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("retries the same edition from the error", async () => {
+    const onPick = jest.fn().mockRejectedValueOnce(new ApiError("boom", 500)).mockResolvedValue(undefined)
+    const onClose = open(onPick)
+    fireEvent.click(await screen.findByText("Dune (1965)"))
+    fireEvent.click(await screen.findByRole("button", { name: "Try again" }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(onPick).toHaveBeenCalledTimes(2)
+    expect(onPick).toHaveBeenLastCalledWith(row, 9)
+  })
+
+  it("does not send a second change while one is in flight", async () => {
+    let finish
+    const onPick = jest.fn().mockImplementation(() => new Promise((ok) => (finish = ok)))
+    open(onPick)
+    const card = await screen.findByText("Dune (1965)")
+    fireEvent.click(card)
+    fireEvent.click(card)
+    expect(onPick).toHaveBeenCalledTimes(1)
+    finish()
+  })
+})

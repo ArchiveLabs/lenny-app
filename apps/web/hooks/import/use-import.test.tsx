@@ -345,3 +345,45 @@ describe("import state from the server alone", () => {
     add.mockRestore()
   })
 })
+
+describe("changing a row's edition or encryption", () => {
+  const updated = { id: 5, path: "L/a.epub", size: 1, mtime: 1, state: "matched", decision: "user", olid: 99, match_title: "The right book", match_author: "Right Author", staged: true }
+
+  it("puts the server's row into the list at once, before the refetch", async () => {
+    importApi.rows.mockResolvedValue({ rows: [{ ...updated, olid: 1, match_title: "The wrong book", decision: "auto" }], next_cursor: null, total: 1 })
+    importApi.patchRow = jest.fn().mockResolvedValue(updated)
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } }) // one client, so the cache survives re-renders
+    const { result } = renderHook(() => useImport({}), { wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider> })
+    await waitFor(() => expect(result.current.rows[0]?.match_title).toBe("The wrong book"))
+    importApi.rows.mockImplementation(() => new Promise(() => {})) // the refetch never answers
+    await act(() => result.current.patchRow(result.current.rows[0], { olid: 99 }))
+    expect(importApi.patchRow).toHaveBeenCalledWith(7, 5, { olid: 99 })
+    expect(result.current.rows[0]).toMatchObject({ olid: 99, match_title: "The right book", decision: "user" })
+  })
+
+  it("throws a failed edition change for the panel to show, without a page banner behind it", async () => {
+    importApi.patchRow = jest.fn().mockRejectedValue(new Error("Open Library is down"))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await expect(act(() => result.current.patchRow({ id: 5 }, { olid: 99 }))).rejects.toThrow("Open Library is down")
+    expect(result.current.error).toBeNull()
+  })
+
+  it("shows a failed encryption change on the page, and does not throw", async () => {
+    importApi.patchRow = jest.fn().mockRejectedValue(new Error("nope"))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.patchRow({ id: 5 }, { encrypted: true }))
+    expect(result.current.error).toBe("nope")
+  })
+
+  it("forgets the old suggestions for the row once its edition changed", async () => {
+    importApi.patchRow = jest.fn().mockResolvedValue(updated)
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const spy = jest.spyOn(qc, "invalidateQueries")
+    const { result } = renderHook(() => useImport({}), { wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider> })
+    await waitFor(() => expect(result.current.summary?.id).toBe(7))
+    await act(() => result.current.patchRow({ id: 5 }, { olid: 99 }))
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["import-candidates", 7, 5] })
+  })
+})

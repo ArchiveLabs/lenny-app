@@ -323,15 +323,21 @@ export function useImport(filter: RowFilter, page = 0) {
     async (row: ImportRow, body: { olid?: number; encrypted?: boolean }) => {
       if (batchId === null) return
       try {
-        await importApi.patchRow(batchId, row.id, body)
+        const updated = await importApi.patchRow(batchId, row.id, body)
+        // Show the server's answer at once, in every cached page of the list and in History, before the refetch lands.
+        qc.setQueriesData<{ rows: ImportRow[] }>({ queryKey: ["import-rows", batchId] }, (old) =>
+          old?.rows ? { ...old, rows: old.rows.map((r) => (r.id === updated.id ? updated : r)) } : old,
+        )
+        if (body.olid !== undefined) qc.invalidateQueries({ queryKey: ["import-candidates", batchId, row.id] })
       } catch (e) {
+        // Choosing an edition is done inside its panel, which shows the failure there; a page banner would sit behind it.
+        if (body.olid !== undefined) throw e
         setError(errMsg(e))
-        throw e
       } finally {
         refresh()
       }
     },
-    [batchId, refresh],
+    [batchId, qc, refresh],
   )
 
   const removeRow = useCallback(
