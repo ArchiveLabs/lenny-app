@@ -1,6 +1,6 @@
 "use client"
 
-import { ReactNode, useRef, useState } from "react"
+import { ReactNode, useCallback, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { BookOpen, Loader2, Trash2, ChevronDown } from "lucide-react"
@@ -28,6 +28,8 @@ import {
   AlertDialogTrigger,
 } from "@workspace/ui/components/alert-dialog"
 import { EncryptionToggle } from "@/components/UploadComponents"
+import { BookInfoLoader } from "@/components/preload/BookInfo"
+import { LinkField } from "@/components/library/LinkField"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { ApiError, LennyBook, LoanLimitsConfig, LoanLimitsConfigSchema } from "@/types/api"
 import { LIBRARY_QUERY_KEY, removeBooksFromLibraryCache } from "@/lib/query-client"
@@ -37,6 +39,10 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
+  const [detailsOpened, setDetailsOpened] = useState(false)
+  // The book left the library behind our back (a 404): bring the list in step.
+  const refetchLibrary = useCallback(() => queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY }), [queryClient])
+  const editionNumber = Number(book.olid.replace(/\D/g, "")) || null
   const [encrypted, setEncrypted] = useState(book.lenny.encrypted)
   const [loanDuration, setLoanDuration] = useState(
     book.lenny.loan_duration_days != null ? String(book.lenny.loan_duration_days) : ""
@@ -174,9 +180,14 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
                 <span className="rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   {book.olid}
                 </span>
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  {t("{{count}} copies", { count: book.lenny.available_copies })}
-                </span>
+                {/* Some records come without the count: show it only when it is a number. */}
+                {typeof book.lenny.available_copies === "number" && (
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    {book.lenny.available_copies === 1
+                      ? t("1 copy available")
+                      : t("{{count}} copies available", { count: book.lenny.available_copies })}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -220,6 +231,22 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
               )}
             </div>
           </div>
+
+          <LinkField olid={book.olid} encrypted={encrypted} />
+
+          <details
+            className="group rounded-lg border border-border/60"
+            onToggle={(e) => e.currentTarget.open && setDetailsOpened(true)}
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-semibold marker:content-none [&::-webkit-details-marker]:hidden">
+              {t("Book details")}
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+            </summary>
+            <div className="px-4 pb-4">
+              {/* Asked for only when opened: Open Library is queried on the first look. */}
+              <BookInfoLoader olid={detailsOpened ? editionNumber : null} onGone={refetchLibrary} />
+            </div>
+          </details>
 
           <details className="group rounded-lg border border-border/60">
             <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-semibold marker:content-none [&::-webkit-details-marker]:hidden">

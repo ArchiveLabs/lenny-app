@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { type Icon } from "@tabler/icons-react"
 
 import {
@@ -11,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
+import { NAV_ITEM, isCurrent } from "@/components/nav-main"
 
 export function NavSecondary({
   items,
@@ -22,14 +24,15 @@ export function NavSecondary({
     icon: Icon
   }[]
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
+  const pathname = usePathname()
   return (
-    <SidebarGroup {...props}>
+    <SidebarGroup {...props} className={`px-3 py-2 ${props.className ?? ""}`}>
       <SidebarGroupContent>
-        <SidebarMenu>
+        <SidebarMenu className="gap-1">
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild>
-                <Link href={item.url}>
+              <SidebarMenuButton asChild isActive={isCurrent(pathname, item.url)} className={NAV_ITEM}>
+                <Link href={item.url} aria-current={isCurrent(pathname, item.url) ? "page" : undefined}>
                   <item.icon />
                   <span>{item.title}</span>
                 </Link>

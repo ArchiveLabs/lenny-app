@@ -4,7 +4,7 @@
  * components) follows --root-size, so tune the numbers below and nothing else.
  *
  * Rule:
- *  - touch devices (pointer: coarse): 15px on phones, 14px from 768px up (tablets);
+ *  - touch devices (pointer: coarse): 14px on phones and tablets;
  *  - mouse devices (pointer: fine): 16px below 768px, then 15px, then 14px from
  *    1024px (~ a laptop with the browser zoomed to 85-90%), back up to 15px at
  *    1920px and 16px at 2560px so very wide screens do not look tiny.
@@ -13,10 +13,10 @@
  *
  * Safety rails that must NOT follow the root size (set in px on purpose):
  *  - touch inputs stay 16px so iOS Safari does not zoom on focus;
- *  - touch tap targets are >= --tap-target (44px) whatever the root is.
+ *  - touch tap targets are >= --tap-target (36px) whatever the root is.
  */
 :root {
-  --root-size-touch-phone: 15px;
+  --root-size-touch-phone: 14px;
   --root-size-touch-tablet: 14px; /* touch, >= 768px */
   --root-size-mouse-small: 16px;  /* mouse, < 768px */
   --root-size-mouse-medium: 15px; /* mouse, 768-1023px */
@@ -24,8 +24,8 @@
   --root-size-mouse-xlarge: 15px; /* mouse, 1920-2559px */
   --root-size-mouse-xxlarge: 16px; /* mouse, >= 2560px */
 
-  /* Minimum size of an interactive control, in px. Touch: 44. Mouse: 36 (>= 32). */
-  --tap-target: 44px;
+  /* Minimum size of an interactive control, in px. Touch: 36 (above the 24px WCAG minimum). Mouse: 36 (>= 32). */
+  --tap-target: 36px;
   --tap-target-mouse-min: 32px;
 
   /* Main column cap (rem, so it scales with the root): keeps line length readable. */

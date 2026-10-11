@@ -15,10 +15,11 @@ export default async function DashboardLayout({
   }
   return (
     <SidebarProvider
+      // A slimmer top bar on phones; the full one from sm up.
+      className="[--header-height:calc(var(--spacing)*10)] sm:[--header-height:calc(var(--spacing)*12)]"
       style={
         {
           "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
         } as React.CSSProperties
       }
     >
@@ -26,7 +27,7 @@ export default async function DashboardLayout({
       <SidebarInset className="min-w-0">
         <SiteHeader />
         <div className="flex flex-1 flex-col">
-          <div className="mx-auto flex w-full max-w-(--content-max) min-w-0 flex-1 flex-col gap-4 p-4 md:gap-6 md:p-6 lg:p-12">
+          <div className="mx-auto flex w-full max-w-(--content-max) min-w-0 flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-4 md:gap-6 md:p-6 lg:p-12">
             {children}
           </div>
         </div>

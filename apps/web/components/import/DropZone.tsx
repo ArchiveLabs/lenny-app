@@ -1,0 +1,75 @@
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import { FolderOpen, Upload } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { Button } from "@workspace/ui/components/button"
+import { collectInput, type PickedFile } from "@/lib/import/walk"
+
+/** Folder picking: the directory picker where offered, else <input webkitdirectory>; never on touch phones/tablets, where it is unsupported. */
+export function DropZone({
+  onPick,
+  onChooseFolder,
+  compact,
+  disabled,
+}: {
+  onPick: (f: PickedFile[]) => void
+  onChooseFolder?: () => void
+  compact?: boolean
+  disabled?: boolean
+}) {
+  const { t } = useTranslation()
+  const folder = useRef<HTMLInputElement>(null)
+  const many = useRef<HTMLInputElement>(null)
+  // Decided after mount so server and client render the same markup.
+  const [canFolder, setCanFolder] = useState(false)
+  const [decided, setDecided] = useState(false)
+  useEffect(() => {
+    const touch = window.matchMedia?.("(pointer: coarse)").matches ?? false
+    setCanFolder(!touch && (!!onChooseFolder || "webkitdirectory" in HTMLInputElement.prototype))
+    setDecided(true)
+  }, [onChooseFolder])
+
+  const fromInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) onPick(collectInput(e.target.files))
+    e.target.value = "" // allow picking the same folder again
+  }
+
+  return (
+    <div
+      data-testid="dropzone"
+      className={`rounded-xl border-2 border-dashed border-border text-center ${compact ? "p-4 flex flex-wrap items-center justify-center gap-3" : "p-10 space-y-4"}`}
+    >
+      <Upload className={compact ? "h-5 w-5 text-muted-foreground" : "mx-auto h-10 w-10 text-muted-foreground"} aria-hidden />
+      <div className={compact ? "text-sm text-muted-foreground" : "space-y-1"}>
+        <p className={compact ? "" : "text-lg font-semibold"}>
+          {compact ? t("Drop more EPUBs or a folder") : t("Drop a folder or EPUB files here")}
+        </p>
+        {!compact && <p className="text-sm text-muted-foreground">{t("EPUB only. Thousands at a time is fine.")}</p>}
+      </div>
+      {/* Hidden (not absent) until we know which buttons apply, so "Choose files" never flashes blue and then turns white. */}
+      <div className={`flex flex-wrap justify-center gap-2 ${decided ? "" : "invisible"}`} aria-hidden={!decided}>
+        {canFolder && (
+          <Button type="button" disabled={disabled} onClick={() => (onChooseFolder ? onChooseFolder() : folder.current?.click())}>
+            <FolderOpen className="mr-2 h-4 w-4" />
+            {t("Choose a folder")}
+          </Button>
+        )}
+        {/* key: remount on the variant change, because Button has transition-all and would otherwise animate blue to white in view. */}
+        <Button key={String(canFolder)} type="button" variant={canFolder ? "outline" : "default"} disabled={disabled} onClick={() => many.current?.click()}>
+          {t("Choose files")}
+        </Button>
+      </div>
+      <input
+        ref={folder}
+        type="file"
+        hidden
+        data-testid="folder-input"
+        onChange={fromInput}
+        // @ts-expect-error non-standard but supported by every current browser
+        webkitdirectory=""
+      />
+      <input ref={many} type="file" hidden multiple accept=".epub,application/epub+zip" data-testid="files-input" onChange={fromInput} />
+    </div>
+  )
+}

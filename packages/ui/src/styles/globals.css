@@ -129,4 +129,32 @@
   body {
     @apply bg-background text-foreground;
   }
+
+}
+
+/*
+ * The root font size is not set here: app/density.css is the one place for the UI scale.
+ *
+ * Smaller icons in buttons and menus on phones. Outside any layer on purpose: an unlayered rule beats the
+ * utility classes (h-4 w-4 and size-4) that individual icons carry, which a rule inside @layer base would not.
+ */
+@media (max-width: 639px) {
+  [data-slot="button"] svg,
+  [data-slot="select-trigger"] svg {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+}
+
+/* Respect the OS "reduce motion" setting: spinners, slide-ins and fades
+   settle instantly. Near-zero (not 0) so animationend/transitionend still fire. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

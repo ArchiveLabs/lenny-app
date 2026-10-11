@@ -1,0 +1,84 @@
+// @ts-nocheck
+import {
+  ImportBatchSummarySchema, ImportCandidateSchema, ImportRowSchema, ImportLimitsSchema, ImportRowPageSchema,
+  MatchJobSchema,
+} from "./import"
+
+const row = { id: 1, path: "books/x.epub", size: 10, mtime: 1, state: "matched", decision: "auto" }
+
+describe("import contract schemas", () => {
+  it("parses a row page and fills defaults", () => {
+    const page = ImportRowPageSchema.parse({ rows: [row], next_cursor: null })
+    expect(page.rows[0]).toMatchObject({ auto_picked: false, candidates_count: 0, encrypted: false, skipped: false })
+  })
+
+  it("rejects an unknown state", () => {
+    expect(() => ImportRowPageSchema.parse({ rows: [{ ...row, state: "weird" }], next_cursor: null })).toThrow()
+  })
+
+  it("parses a batch summary", () => {
+    const s = ImportBatchSummarySchema.parse({ id: 7, created_at: "t", expires_at: "t", total: 2, counts: { matched: 2 } })
+    expect(s).toMatchObject({ skipped: 0, ready: 0, auto_picked: 0 })
+  })
+
+  it("rejects the old skip decision value and parses a candidate", () => {
+    expect(() => ImportRowPageSchema.parse({ rows: [{ ...row, decision: "skip" }], next_cursor: null })).toThrow()
+    expect(ImportCandidateSchema.parse({ olid: 5 }).authors).toEqual([])
+  })
+})
+
+describe("#246 schemas", () => {
+  it("parses a match job", () => {
+    const j = MatchJobSchema.parse({ id: "ab12", batch_id: 2, status: "running", total: 10, done: 3, error: null })
+    expect(j).toMatchObject({ status: "running", done: 3 })
+  })
+
+  it("rejects an unknown job status", () => {
+    expect(() => MatchJobSchema.parse({ id: 1, batch_id: 2, status: "weird", total: 1, done: 0 })).toThrow()
+  })
+
+  it("parses limits and defaults the flags", () => {
+    const l = ImportLimitsSchema.parse({
+      max_rows_per_call: 500, isbn_batch: 50, max_file_mb: 100, upload_concurrency: 2,
+      retention_days: 30, formats: ["epub"],
+    })
+    expect(l.ol_identified).toBe(false)
+    expect(l.retention_days).toBe(30)
+  })
+})
+
+it("parses the batch match job, which may be null or missing", () => {
+  const b = { id: 7, created_at: "t", expires_at: "t", total: 2, counts: {} }
+  const job = { id: "j", status: "failed", total: 2, done: 0, error: "rate limited", retry_after: 30 }
+  expect(ImportBatchSummarySchema.parse({ ...b, match: job }).match?.retry_after).toBe(30)
+  expect(ImportBatchSummarySchema.parse({ ...b, match: null }).match).toBeNull()
+  expect(ImportBatchSummarySchema.parse(b).match).toBeUndefined()
+})
+
+it("reads staged on rows and the staged/unstaged counts on the batch, defaulting to none", () => {
+  const b = { id: 1, created_at: "t", expires_at: "t", total: 1, counts: {} }
+  expect(ImportBatchSummarySchema.parse(b)).toMatchObject({ staged: 0, unstaged: 0 })
+  expect(ImportBatchSummarySchema.parse({ ...b, staged: 3, unstaged: 2 })).toMatchObject({ staged: 3, unstaged: 2 })
+  expect(ImportRowSchema.parse({ id: 1, path: "a", size: 1, mtime: 1, state: "matched", decision: "auto" }).staged).toBe(false)
+})
+
+it("reads the import job on a batch, which may be missing or null", () => {
+  const b = { id: 1, created_at: "t", expires_at: "t", total: 1, counts: {} }
+  const job = { id: "j", status: "running", total: 5, done: 2 }
+  expect(ImportBatchSummarySchema.parse({ ...b, import: job }).import).toMatchObject({ status: "running", imported: 0, waiting: 0 })
+  expect(ImportBatchSummarySchema.parse({ ...b, import: null }).import).toBeNull()
+  expect(ImportBatchSummarySchema.parse(b).import).toBeUndefined()
+})
+
+it("reads when a row was imported, which is null or missing before that", () => {
+  const r = { id: 1, path: "a", size: 1, mtime: 1, state: "imported", decision: "auto" }
+  expect(ImportRowSchema.parse({ ...r, imported_at: "2026-10-11T13:06:00Z" }).imported_at).toBe("2026-10-11T13:06:00Z")
+  expect(ImportRowSchema.parse({ ...r, imported_at: null }).imported_at).toBeNull()
+  expect(ImportRowSchema.parse(r).imported_at).toBeUndefined()
+})
+
+it("reads in_library on a row, assuming yes when the server does not say", () => {
+  const r = { id: 1, path: "a", size: 1, mtime: 1, state: "imported", decision: "auto" }
+  expect(ImportRowSchema.parse(r).in_library).toBe(true)
+  expect(ImportRowSchema.parse({ ...r, in_library: false }).in_library).toBe(false)
+})

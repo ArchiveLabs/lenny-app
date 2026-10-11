@@ -34,7 +34,9 @@ export const AdminItemSearchResultSchema = z.object({
   author: z.string().nullable().optional(),
   encrypted: z.boolean(),
   formats: z.string(),
-  created_at: z.string()
+  created_at: z.string(),
+  available_copies: z.number().optional(),
+  num_lendable_total: z.number().optional()
 })
 export type AdminItemSearchResult = z.infer<typeof AdminItemSearchResultSchema>
 
@@ -177,7 +179,7 @@ export type BrietRedeemResult = z.infer<typeof BrietRedeemResultSchema>
 // Server-side ingestion progress, written by whichever importer produced the
 // book. Distinct from the browser-side upload queue in use-upload-jobs.
 export const ImportJobSchema = z.object({
-  source: z.string(),
+  source: z.string().nullable().optional(), // null for books that came in through the batch import
   olid: z.number(),
   title: z.string().nullable().optional(),
   status: z.enum(["pending", "downloading", "done", "failed"]),
