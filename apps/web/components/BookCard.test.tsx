@@ -11,7 +11,7 @@ const book = (over = {}, lenny = {}) => ({
   lenny: { id: 1, openlibrary_edition: 28933309, encrypted: false, formats: "EPUB", available_copies: 1, ...lenny }, ...over,
 })
 
-describe("a cover tile", () => {
+describe("what the card shows", () => {
   it("shows the cover, title and author", () => {
     render(<BookCard book={book()} />)
     expect(screen.getByRole("img", { name: "Database Internals cover" })).toHaveAttribute("src", "https://covers.openlibrary.org/b/id/123-M.jpg")
@@ -19,7 +19,7 @@ describe("a cover tile", () => {
     expect(screen.getByText("Alex Petrov")).toBeInTheDocument()
   })
 
-  it("puts the cover in a 2:3 frame, the same shape as the free books cards", () => {
+  it("keeps the cover in a 2:3 frame, the same shape as the free books cards", () => {
     const { container } = render(<BookCard book={book()} />)
     expect(container.querySelector(".aspect-\\[2\\/3\\]")).toBeInTheDocument()
   })
@@ -34,49 +34,81 @@ describe("a cover tile", () => {
     expect(screen.getByText("Unknown Author")).toBeInTheDocument()
   })
 
-  it("does not show the Open Library id, which is in the details", () => {
-    render(<BookCard book={book()} />)
-    expect(screen.queryByText(/OL\d+M/)).not.toBeInTheDocument()
-  })
-})
-
-describe("access and copies", () => {
-  it("says Open on the cover, or DRM for an encrypted book", () => {
-    const { rerender } = render(<BookCard book={book()} />)
-    expect(screen.getByText("Open")).toBeInTheDocument()
-    rerender(<BookCard book={book({}, { encrypted: true })} />)
-    expect(screen.getByText("DRM")).toBeInTheDocument()
+  it("leaves out what repeats on every card: the Open badge, the format, the copy count and the OL id", () => {
+    const { container } = render(<BookCard book={book()} />)
     expect(screen.queryByText("Open")).not.toBeInTheDocument()
-  })
-
-  it("says the format, and not how many copies: that is in the book sheet", () => {
-    const { rerender } = render(<BookCard book={book()} />)
-    expect(screen.getByText("EPUB")).toBeInTheDocument()
+    expect(screen.queryByText("EPUB")).not.toBeInTheDocument()
     expect(screen.queryByText(/cop(y|ies)/)).not.toBeInTheDocument()
-    rerender(<BookCard book={book({}, { formats: "EPUB_PDF", available_copies: 3 })} />)
-    expect(screen.getByText("EPUB + PDF")).toBeInTheDocument()
-    expect(screen.queryByText(/cop(y|ies)/)).not.toBeInTheDocument()
+    expect(container.textContent).not.toMatch(/OL\d+M/)
   })
 
   it("never shows undefined, whatever the record is missing", () => {
     const { container } = render(<BookCard book={book({}, { available_copies: undefined, formats: undefined })} />)
     expect(container.textContent).not.toMatch(/undefined|NaN|null/)
   })
+})
 
-  it("shows no format line for a format it does not know", () => {
-    render(<BookCard book={book({}, { formats: "1" })} />)
-    expect(screen.queryByText("1")).not.toBeInTheDocument()
+describe("the lock", () => {
+  it("flags only an encrypted book, as DRM", () => {
+    const { rerender } = render(<BookCard book={book()} />)
+    expect(screen.queryByText("DRM")).not.toBeInTheDocument()
+    rerender(<BookCard book={book({}, { encrypted: true })} />)
+    expect(screen.getByText("DRM")).toBeInTheDocument()
   })
 })
 
-describe("share and selecting", () => {
-  it("has Share on the cover, but not while selecting", () => {
-    const { rerender } = render(<BookCard book={book()} />)
-    expect(screen.getByText("share Database Internals")).toBeInTheDocument()
-    rerender(<BookCard book={book()} selectMode selected={false} onSelectChange={jest.fn()} />)
+describe("availability", () => {
+  it("says Available when a copy is free", () => {
+    render(<BookCard book={book({}, { available_copies: 2 })} />)
+    expect(screen.getByText("Available")).toBeInTheDocument()
+    expect(screen.queryByText("On loan")).not.toBeInTheDocument()
+  })
+
+  it("says On loan when no copy is free (a count of zero is a count)", () => {
+    render(<BookCard book={book({}, { available_copies: 0 })} />)
+    expect(screen.getByText("On loan")).toBeInTheDocument()
+  })
+
+  it("says nothing when the record has no count, rather than guessing", () => {
+    render(<BookCard book={book({}, { available_copies: undefined })} />)
+    expect(screen.queryByText("Available")).not.toBeInTheDocument()
+    expect(screen.queryByText("On loan")).not.toBeInTheDocument()
+  })
+
+  it("colours the dot green or amber", () => {
+    const { container, rerender } = render(<BookCard book={book({}, { available_copies: 1 })} />)
+    expect(container.querySelector(".bg-green-500")).toBeInTheDocument()
+    rerender(<BookCard book={book({}, { available_copies: 0 })} />)
+    expect(container.querySelector(".bg-amber-500")).toBeInTheDocument()
+  })
+})
+
+describe("Share", () => {
+  it("sits over the cover, hidden until hover or focus, and always shown on touch screens", () => {
+    const { container } = render(<BookCard book={book()} />)
+    const cover = container.querySelector(".aspect-\\[2\\/3\\]")
+    const share = screen.getByText("share Database Internals")
+    expect(cover).toContainElement(share)
+    const bar = share.closest(".opacity-0")
+    expect(bar.className).toContain("group-hover:opacity-100")
+    expect(bar.className).toContain("focus-within:opacity-100")
+    expect(bar.className).toContain("[@media(hover:none)]:opacity-100")
+  })
+
+  it("is not shown while selecting", () => {
+    render(<BookCard book={book()} selectMode selected={false} onSelectChange={jest.fn()} />)
     expect(screen.queryByText(/^share /)).not.toBeInTheDocument()
   })
 
+  it("does not open the book when pressed", () => {
+    const onTile = jest.fn()
+    render(<div onClick={onTile}><BookCard book={book()} /></div>)
+    fireEvent.click(screen.getByText("share Database Internals"))
+    expect(onTile).not.toHaveBeenCalled()
+  })
+})
+
+describe("selecting", () => {
   it("has a checkbox on the cover only while selecting", () => {
     const { rerender } = render(<BookCard book={book()} />)
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
@@ -84,7 +116,7 @@ describe("share and selecting", () => {
     expect(screen.getByRole("checkbox", { name: "Select Database Internals" })).toBeChecked()
   })
 
-  it("picks the book from a click anywhere on the tile while selecting", () => {
+  it("picks the book from a click anywhere on the tile", () => {
     const onSelectChange = jest.fn()
     render(<BookCard book={book()} selectMode selected={false} onSelectChange={onSelectChange} />)
     fireEvent.click(screen.getByText("Database Internals"))
@@ -98,9 +130,14 @@ describe("share and selecting", () => {
     expect(onSelectChange).toHaveBeenCalledTimes(1)
   })
 
-  it("rings the tile when it is picked", () => {
+  it("rings the cover when picked", () => {
     const { container } = render(<BookCard book={book()} selectMode selected onSelectChange={jest.fn()} />)
-    expect(container.querySelector('[role="button"]')!.className).toContain("ring-primary")
+    expect(container.querySelector(".aspect-\\[2\\/3\\]").className).toContain("ring-primary")
+  })
+
+  it("does not ring the cover when not picked", () => {
+    const { container } = render(<BookCard book={book()} selectMode selected={false} onSelectChange={jest.fn()} />)
+    expect(container.querySelector(".aspect-\\[2\\/3\\]").className).not.toContain("ring-primary")
   })
 })
 
@@ -136,37 +173,4 @@ describe("opening the book", () => {
 it("has a skeleton in the same shape", () => {
   const { container } = render(<BookCardSkeleton />)
   expect(container.querySelector(".aspect-\\[2\\/3\\]")).toBeInTheDocument()
-})
-
-describe("where Share sits", () => {
-  it("is in a quiet bottom row of the card, not on the cover", () => {
-    const { container } = render(<BookCard book={book()} />)
-    const cover = container.querySelector(".aspect-\\[2\\/3\\]")
-    expect(cover).not.toContainElement(screen.getByText("share Database Internals"))
-    const row = screen.getByText("share Database Internals").closest(".justify-between")
-    expect(row).toHaveTextContent("EPUB")
-  })
-
-  it("is still there, on the right, when the format is not known", () => {
-    render(<BookCard book={book({}, { formats: "1" })} />)
-    expect(screen.getByText("share Database Internals")).toBeInTheDocument()
-  })
-
-  it("leaves the bottom row out while selecting a book with no known format", () => {
-    const { container } = render(<BookCard book={book({}, { formats: "1" })} selectMode selected={false} onSelectChange={jest.fn()} />)
-    expect(container.querySelector(".justify-between")).not.toBeInTheDocument()
-  })
-
-  it("keeps the format in the bottom row while selecting, with no Share", () => {
-    render(<BookCard book={book()} selectMode selected={false} onSelectChange={jest.fn()} />)
-    expect(screen.getByText("EPUB")).toBeInTheDocument()
-    expect(screen.queryByText(/^share /)).not.toBeInTheDocument()
-  })
-
-  it("has no bubble around Share", () => {
-    render(<BookCard book={book()} />)
-    const share = screen.getByText("share Database Internals")
-    expect(share.parentElement!.className).not.toContain("rounded-full")
-    expect(share.parentElement!.className).not.toContain("bg-background")
-  })
 })

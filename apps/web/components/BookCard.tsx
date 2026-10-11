@@ -1,6 +1,6 @@
 "use client"
 
-import { BookOpen, Lock, Unlock } from "lucide-react"
+import { BookOpen, Lock } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Skeleton } from "@workspace/ui/components/skeleton"
@@ -9,11 +9,9 @@ import { BookEditSheet } from "@/components/BookEditSheet"
 import { ShareButton } from "@/components/library/ShareButton"
 import { useTranslation } from "react-i18next"
 
-const FORMAT_LABELS: Record<string, string> = { EPUB: "EPUB", PDF: "PDF", EPUB_PDF: "EPUB + PDF" }
-
 export function BookCardSkeleton() {
   return (
-    <div className="space-y-2 rounded-xl border p-2">
+    <div className="space-y-2">
       <Skeleton className="aspect-[2/3] w-full rounded-lg" />
       <Skeleton className="h-4 w-4/5" />
       <Skeleton className="h-3 w-1/2" />
@@ -21,7 +19,11 @@ export function BookCardSkeleton() {
   )
 }
 
-/** A book as a cover tile, the same shape as the free books cards: cover, title, author, access and copies. */
+/**
+ * A book as a cover. What an admin needs at a glance: the cover, title and author, whether it is locked (login
+ * required), and whether a copy is free right now. Everything else is in the book sheet. Share appears over the
+ * cover on hover or focus (always on touch screens), and a checkbox replaces it while selecting.
+ */
 export function BookCard({
   book,
   selectMode,
@@ -36,7 +38,9 @@ export function BookCard({
   const { t } = useTranslation()
   const coverUrl = book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null
   const author = book.author_name && book.author_name.length > 0 ? book.author_name.join(", ") : t("Unknown Author")
-  const format = FORMAT_LABELS[book.lenny.formats] // an unknown value is not worth showing
+  const copies = book.lenny.available_copies
+  // Known only when the record carries a count: say nothing rather than guess.
+  const availability = typeof copies === "number" ? (copies > 0 ? "available" : "on_loan") : null
   const picked = !!selectMode && !!selected
 
   const card = (
@@ -50,11 +54,13 @@ export function BookCard({
           e.currentTarget.click()
         }
       }}
-      className={`group relative flex h-full cursor-pointer flex-col gap-2 rounded-xl border bg-card p-2 text-left shadow-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 ${
-        picked ? "border-primary ring-2 ring-primary" : ""
-      }`}
+      className="group flex h-full cursor-pointer flex-col gap-2 rounded-xl outline-none"
     >
-      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted">
+      <div
+        className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-sm ring-offset-2 transition group-hover:shadow-md group-focus-visible:ring-[3px] group-focus-visible:ring-ring/50 ${
+          picked ? "ring-2 ring-primary" : ""
+        }`}
+      >
         {coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={coverUrl} alt={`${book.title} cover`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
@@ -63,19 +69,9 @@ export function BookCard({
             <BookOpen className="h-8 w-8 text-muted-foreground/30" aria-hidden />
           </div>
         )}
-        {book.lenny.encrypted ? (
-          <Badge variant="secondary" className="absolute left-2 top-2 gap-1 bg-amber-100 text-amber-800">
-            <Lock className="h-3 w-3" aria-hidden />
-            DRM
-          </Badge>
-        ) : (
-          <Badge variant="secondary" className="absolute left-2 top-2 gap-1 bg-green-100 text-green-800">
-            <Unlock className="h-3 w-3" aria-hidden />
-            Open
-          </Badge>
-        )}
-        {selectMode && (
-          <div className="absolute right-2 top-2" onClick={(e) => e.stopPropagation()}>
+
+        {selectMode ? (
+          <div className="absolute left-2 top-2" onClick={(e) => e.stopPropagation()}>
             <Checkbox
               checked={!!selected}
               onCheckedChange={(c) => onSelectChange?.(!!c)}
@@ -83,21 +79,41 @@ export function BookCard({
               className="h-5 w-5 bg-background shadow-sm"
             />
           </div>
+        ) : (
+          <>
+            {/* Only the exception is flagged: a book that needs a login to read. Open books are the norm. */}
+            {book.lenny.encrypted && (
+              <Badge variant="secondary" className="absolute left-2 top-2 gap-1 bg-amber-100 text-amber-800">
+                <Lock className="h-3 w-3" aria-hidden />
+                DRM
+              </Badge>
+            )}
+            {/* Quiet until wanted: hover, keyboard focus, or always on a touch screen */}
+            <div
+              className="absolute inset-x-0 bottom-0 flex justify-end bg-gradient-to-t from-black/50 to-transparent p-1.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="rounded-md bg-background/90 shadow-sm">
+                <ShareButton olid={book.olid} title={book.title} />
+              </span>
+            </div>
+          </>
         )}
       </div>
-      <span className="line-clamp-2 min-h-10 text-sm font-semibold leading-tight" title={book.title}>{book.title}</span>
-      <span className="line-clamp-1 text-xs text-muted-foreground">{author}</span>
-      {/* The copy count lives in the book sheet: some records come without it. Share is quiet, bottom right. */}
-      {(format || !selectMode) && (
-        <div className="-mb-1 flex min-h-7 items-center justify-between gap-2">
-          <span className="text-xs text-muted-foreground">{format}</span>
-          {!selectMode && (
-            <span className="-mr-1">
-              <ShareButton olid={book.olid} title={book.title} />
-            </span>
-          )}
-        </div>
-      )}
+
+      <div className="space-y-0.5">
+        <span className="line-clamp-2 block min-h-10 text-sm font-semibold leading-tight" title={book.title}>{book.title}</span>
+        <span className="line-clamp-1 block text-xs text-muted-foreground">{author}</span>
+        {availability && (
+          <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span
+              aria-hidden
+              className={`h-1.5 w-1.5 rounded-full ${availability === "available" ? "bg-green-500" : "bg-amber-500"}`}
+            />
+            {availability === "available" ? t("Available") : t("On loan")}
+          </span>
+        )}
+      </div>
     </div>
   )
 
