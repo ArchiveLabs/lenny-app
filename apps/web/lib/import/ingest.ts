@@ -1,8 +1,7 @@
 import type { NewRow } from "./api"
 import { readEpubMetadata } from "./epub"
+import { normPath } from "./files"
 import { isEpubName, type PickedFile } from "./walk"
-
-export const rowKey = (r: { path: string; size: number; mtime: number }) => `${r.path}|${r.size}|${r.mtime}`
 
 export const chunk = <T>(items: T[], size: number): T[][] => {
   const out: T[][] = []
@@ -24,22 +23,14 @@ export async function pool<T, R>(items: T[], n: number, fn: (item: T, i: number)
   return out
 }
 
-export interface Ingested {
-  rows: NewRow[]
-  /** Files by rowKey, kept in memory so the import step can upload them. */
-  files: Map<string, File>
-}
-
 /**
  * Turn picked files into batch rows: read EPUB metadata in the browser, mark
  * everything that is not a readable EPUB as `not_epub`. `onProgress` fires per file.
  */
-export async function ingest(picked: PickedFile[], onProgress?: (done: number, total: number) => void): Promise<Ingested> {
-  const files = new Map<string, File>()
+export async function ingest(picked: PickedFile[], onProgress?: (done: number, total: number) => void): Promise<NewRow[]> {
   let done = 0
-  const rows = await pool(picked, 4, async ({ file, path }): Promise<NewRow> => {
-    const base: NewRow = { path, size: file.size, mtime: file.lastModified }
-    files.set(rowKey(base), file)
+  return pool(picked, 4, async ({ file, path }): Promise<NewRow> => {
+    const base: NewRow = { path: normPath(path), size: file.size, mtime: file.lastModified }
     let row: NewRow = base
     if (!isEpubName(file.name)) row = { ...base, state: "not_epub" }
     else {
@@ -50,5 +41,4 @@ export async function ingest(picked: PickedFile[], onProgress?: (done: number, t
     onProgress?.(++done, picked.length)
     return row
   })
-  return { rows, files }
 }

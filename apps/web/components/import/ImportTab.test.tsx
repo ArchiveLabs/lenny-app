@@ -31,7 +31,8 @@ const base = (over = {}) => ({
   loadMore: jest.fn(), loading: false, phase: { kind: "idle" }, error: null, attachedCount: 1,
   addFiles: jest.fn(), reportError: jest.fn(), recheck: jest.fn(), patchRow: jest.fn(), bulk: jest.fn(),
   runImport: jest.fn().mockResolvedValue({ missing: 0, failed: 0 }), cancelImport: jest.fn(),
-  clearBatch: jest.fn(), hasFile: () => true, ...over,
+  clearBatch: jest.fn(), hasFile: () => true, missing: 0, notice: null, folderName: null,
+  folderSupported: false, chooseFolder: jest.fn(), reconnectFolder: jest.fn(), ...over,
 })
 const setup = (over?) => {
   const imp = base(over)
@@ -78,9 +79,26 @@ it("hides re-check when nothing is unmatched", () => {
   expect(screen.queryByRole("button", { name: /Re-check/ })).not.toBeInTheDocument()
 })
 
-it("asks to re-drop the folder when no files are loaded after a reload", () => {
-  setup({ attachedCount: 0 })
-  expect(screen.getByText(/Drop the folder again/)).toBeInTheDocument()
+it("shows a banner while matched books have no file, and nothing when all are attached", () => {
+  setup({ missing: 3 })
+  expect(screen.getByText(/Drop the same folder again to reconnect 3 files/)).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Reconnect folder" })).not.toBeInTheDocument()
+})
+
+it("hides the banner when every matched book has its file", () => {
+  setup({ missing: 0 })
+  expect(screen.queryByText(/Drop the same folder again/)).not.toBeInTheDocument()
+})
+
+it("offers one-click Reconnect folder when a folder was remembered", () => {
+  const imp = setup({ missing: 2, folderName: "Library" })
+  fireEvent.click(screen.getByRole("button", { name: "Reconnect folder" }))
+  expect(imp.reconnectFolder).toHaveBeenCalled()
+})
+
+it("reports how many files were reconnected after a drop", () => {
+  setup({ notice: "Reconnected 8 of 10 files" })
+  expect(screen.getByText("Reconnected 8 of 10 files")).toBeInTheDocument()
 })
 
 it("filter chips carry counts and the chosen filter reaches the hook", () => {

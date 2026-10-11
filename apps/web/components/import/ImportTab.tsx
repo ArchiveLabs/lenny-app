@@ -93,7 +93,7 @@ export function ImportTab() {
         <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{imp.error}</p>
       )}
 
-      <DropZone onPick={pick} compact={!!summary} disabled={busy} />
+      <DropZone onPick={pick} onChooseFolder={imp.folderSupported ? imp.chooseFolder : undefined} compact={!!summary} disabled={busy} />
 
       {phase.kind === "reading" && <Progress label={t("Reading books")} done={phase.done} total={phase.total} />}
       {phase.kind === "saving" && <Progress label={t("Saving the list")} done={phase.done} total={phase.total} />}
@@ -124,10 +124,18 @@ export function ImportTab() {
 
           {queued > 0 && <Progress label={t("Matching with Open Library")} done={summary.total - queued - (counts.not_epub ?? 0)} total={summary.total - (counts.not_epub ?? 0)} />}
 
-          {summary.ready > 0 && imp.attachedCount === 0 && (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              {t("Your files are not loaded in this browser tab. Drop the folder again to send them. Your choices are kept.")}
-            </p>
+          {imp.notice && <p role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">{t(imp.notice)}</p>}
+          {imp.missing > 0 && (
+            <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <p className="mr-auto">
+                {t("Drop the same folder again to reconnect {{n}} files. Your choices are kept.", { n: imp.missing })}
+              </p>
+              {imp.folderName && (
+                <Button size="sm" onClick={imp.reconnectFolder} disabled={busy}>
+                  {t("Reconnect folder")}
+                </Button>
+              )}
+            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Filter books")}>

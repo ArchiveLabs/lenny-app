@@ -66,3 +66,75 @@ it("imports only rows whose file is in memory and reports the rest as missing", 
   expect(importApi.uploadFile.mock.calls[0][1]).toBe(1)
   expect(res.missing).toBe(1)
 })
+
+describe("reconnecting files after a reload", () => {
+  const mk = (id, path, over = {}) => ({ id, path, size: 1, mtime: 1000, state: "matched", decision: "auto", ...over })
+  const fileAt = (name, path) => ({ file: new File(["x"], name, { lastModified: 1000 }), path })
+
+  it("attaches by name when a subfolder is dropped, skips new rows for them, and reports the count", async () => {
+    // reload: batch 7 exists with two matched rows but no files in memory
+    importApi.rows.mockResolvedValue({ rows: [mk(1, "Library/sub/a.epub"), mk(2, "Library/b.epub")], next_cursor: null })
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.batchId).toBe(7))
+    await waitFor(() => expect(result.current.missing).toBe(2))
+
+    await act(() => result.current.addFiles([fileAt("a.epub", "sub/a.epub")])) // dropped one level down
+    expect(importApi.putRows).not.toHaveBeenCalled() // already has a row: no duplicate
+    await waitFor(() => expect(result.current.notice).toBe("Reconnected 1 of 2 files"))
+    expect(result.current.missing).toBe(1)
+    expect(result.current.hasFile(mk(1, "Library/sub/a.epub"))).toBe(true)
+  })
+
+  it("sends new files as rows and re-attaches the known ones in the same drop", async () => {
+    importApi.rows.mockResolvedValue({ rows: [mk(1, "Library/a.epub")], next_cursor: null })
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.batchId).toBe(7))
+    await act(() => result.current.addFiles([fileAt("a.epub", "a.epub"), fileAt("new.epub", "new.epub")]))
+    expect(importApi.putRows).toHaveBeenCalledTimes(1)
+    expect(importApi.putRows.mock.calls[0][1].map((r) => r.path)).toEqual(["new.epub"])
+  })
+
+  it("keeps the files when saving or matching fails, so the admin can retry", async () => {
+    importApi.listBatches.mockResolvedValue({ batches: [] })
+    importApi.putRows.mockRejectedValue(new Error("network down"))
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.resumed).toBe(true))
+    const picked = fileAt("a.epub", "a.epub")
+    await act(() => result.current.addFiles([picked]))
+    expect(result.current.error).toBe("network down")
+    expect(result.current.attachedCount).toBe(1)
+    expect(result.current.hasFile({ path: "a.epub", size: 1, mtime: 1000 })).toBe(true)
+  })
+
+  it("keeps the files when an upload fails, and only Start over clears them", async () => {
+    importApi.listBatches.mockResolvedValue({ batches: [] })
+    importApi.deleteBatch = jest.fn().mockResolvedValue({})
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.resumed).toBe(true))
+    await act(() => result.current.addFiles([fileAt("a.epub", "a.epub")]))
+    importApi.rows.mockResolvedValue({ rows: [mk(1, "a.epub")], next_cursor: null })
+    importApi.uploadFile.mockRejectedValue(new Error("boom"))
+    let res
+    await act(async () => (res = await result.current.runImport()))
+    expect(res.failed).toBe(1)
+    expect(result.current.attachedCount).toBe(1)
+    await act(() => result.current.clearBatch())
+    expect(result.current.attachedCount).toBe(0)
+  })
+
+  it("warns before leaving while matched books are still waiting to be imported", async () => {
+    const add = jest.spyOn(window, "addEventListener")
+    importApi.listBatches.mockResolvedValue({ batches: [] })
+    importApi.createBatch.mockResolvedValue(summary(9, { matched: 1 }))
+    importApi.batch.mockResolvedValue({ ...summary(9, { matched: 1 }), ready: 1 })
+    const { result } = renderHook(() => useImport({}), { wrapper })
+    await waitFor(() => expect(result.current.resumed).toBe(true))
+    await act(() => result.current.addFiles([fileAt("a.epub", "a.epub")]))
+    await waitFor(() => expect(add.mock.calls.some(([t]) => t === "beforeunload")).toBe(true))
+    const warn = add.mock.calls.find(([t]) => t === "beforeunload")[1]
+    const e = new Event("beforeunload", { cancelable: true })
+    warn(e)
+    expect(e.defaultPrevented).toBe(true)
+    add.mockRestore()
+  })
+})

@@ -1,15 +1,32 @@
 "use client"
 
-import { useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { FolderOpen, Upload } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@workspace/ui/components/button"
 import { collectInput, type PickedFile } from "@/lib/import/walk"
 
-export function DropZone({ onPick, compact, disabled }: { onPick: (f: PickedFile[]) => void; compact?: boolean; disabled?: boolean }) {
+/** Folder picking: the directory picker where offered, else <input webkitdirectory>; never on touch phones/tablets, where it is unsupported. */
+export function DropZone({
+  onPick,
+  onChooseFolder,
+  compact,
+  disabled,
+}: {
+  onPick: (f: PickedFile[]) => void
+  onChooseFolder?: () => void
+  compact?: boolean
+  disabled?: boolean
+}) {
   const { t } = useTranslation()
   const folder = useRef<HTMLInputElement>(null)
   const many = useRef<HTMLInputElement>(null)
+  // Decided after mount so server and client render the same markup.
+  const [canFolder, setCanFolder] = useState(false)
+  useEffect(() => {
+    const touch = window.matchMedia?.("(pointer: coarse)").matches ?? false
+    setCanFolder(!touch && (!!onChooseFolder || "webkitdirectory" in HTMLInputElement.prototype))
+  }, [onChooseFolder])
 
   const fromInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) onPick(collectInput(e.target.files))
@@ -29,11 +46,13 @@ export function DropZone({ onPick, compact, disabled }: { onPick: (f: PickedFile
         {!compact && <p className="text-sm text-muted-foreground">{t("EPUB only. Thousands at a time is fine.")}</p>}
       </div>
       <div className="flex flex-wrap justify-center gap-2">
-        <Button type="button" disabled={disabled} onClick={() => folder.current?.click()}>
-          <FolderOpen className="mr-2 h-4 w-4" />
-          {t("Choose a folder")}
-        </Button>
-        <Button type="button" variant="outline" disabled={disabled} onClick={() => many.current?.click()}>
+        {canFolder && (
+          <Button type="button" disabled={disabled} onClick={() => (onChooseFolder ? onChooseFolder() : folder.current?.click())}>
+            <FolderOpen className="mr-2 h-4 w-4" />
+            {t("Choose a folder")}
+          </Button>
+        )}
+        <Button type="button" variant={canFolder ? "outline" : "default"} disabled={disabled} onClick={() => many.current?.click()}>
           {t("Choose files")}
         </Button>
       </div>
