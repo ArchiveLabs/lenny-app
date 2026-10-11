@@ -7,7 +7,6 @@ import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
-import { ToggleGroup, ToggleGroupItem } from "@workspace/ui/components/toggle-group"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { ErrorNotice, errorKind } from "@/components/ErrorNotice"
@@ -29,6 +28,8 @@ function useDebounced<T>(value: T, ms = 300) {
   return v
 }
 
+const NEW_VIEW = "__new"
+const SELECT = "h-9 rounded-md border border-input bg-background px-2.5 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 const SORT_KEY = "lenny-free-books-sort"
 // Kept for the session only, and never required: a blocked store just means the default.
 const readSort = (): CatalogSort => {
@@ -90,6 +91,12 @@ export function FreeBooks() {
   const [hideOwned, setHideOwned] = useState(false)
   const [newOnly, setNewOnly] = useState(false)
   const [sort, setSort] = useState<CatalogSort>(readSort)
+  // One "Show" menu replaces the rows of chips: all books, the new ones, or a collection.
+  const view = newOnly ? NEW_VIEW : collection
+  const changeView = (v: string) => {
+    setNewOnly(v === NEW_VIEW)
+    setCollection(v === NEW_VIEW ? "" : v)
+  }
   const changeSort = (v: CatalogSort) => {
     setSort(v)
     writeSort(v)
@@ -170,7 +177,7 @@ export function FreeBooks() {
   const retryFailed = () => run({ olids: progress.failed.map((j) => j.olid) })
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {head && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <p>{t("{{n}} free books available · {{lib}} in your library", { n: head.available, lib: head.in_library })}</p>
@@ -245,46 +252,33 @@ export function FreeBooks() {
         </Notice>
       )}
 
-      {!catalog.isError && (collections.length > 0 || (head?.new ?? 0) > 0) && (
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Collections")}>
-        <Button size="sm" variant={collection === "" && !newOnly ? "default" : "outline"} aria-pressed={collection === "" && !newOnly} onClick={() => { setCollection(""); setNewOnly(false) }}>
-          {t("All")}
-        </Button>
-        {(head?.new ?? 0) > 0 && (
-          <Button size="sm" variant={newOnly ? "default" : "outline"} aria-pressed={newOnly} onClick={() => { setNewOnly(true); setCollection("") }}>
-            {t("New ({{n}})", { n: head!.new })}
-          </Button>
-        )}
-        {collections.map((c) => (
-          <Button key={c.id} size="sm" variant={collection === c.id ? "default" : "outline"} aria-pressed={collection === c.id} onClick={() => { setCollection(c.id); setNewOnly(false) }}>
-            {c.name} <span className="ml-1 tabular-nums opacity-80">{c.count}</span>
-          </Button>
-        ))}
-      </div>
-      )}
-
       {!catalog.isError && (
-      <div className="flex flex-wrap items-center gap-4">
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("Search title, author or subject")} aria-label={t("Search title, author or subject")} className="max-w-sm" />
-        <label className="flex min-h-11 items-center gap-2 text-sm">
-          <Checkbox checked={hideOwned} onCheckedChange={(c) => setHideOwned(c === true)} />
-          {t("Not in my library")}
-        </label>
-        <ToggleGroup type="single" variant="outline" size="sm" value={sort} onValueChange={(v) => v && changeSort(v as CatalogSort)} aria-label={t("Sort")}>
-          <ToggleGroupItem value="title">{t("A-Z")}</ToggleGroupItem>
-          <ToggleGroupItem value="added_desc">{t("Newest first")}</ToggleGroupItem>
-        </ToggleGroup>
-        {selectable.length > 0 && (
-          <Button size="sm" variant="ghost" onClick={() => setPicked(new Map([...picked, ...selectable.map((b) => [b.olid, b] as const)]))}>
-            {t("Select all shown")}
-          </Button>
-        )}
-        {current && (
-          <Button size="sm" variant="outline" disabled={running || load.isPending} onClick={() => run({ collection })}>
-            {t("Add all of {{name}}", { name: current.name })}
-          </Button>
-        )}
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("Search title, author or subject")}
+            aria-label={t("Search title, author or subject")}
+            className="h-9 w-full sm:w-64"
+          />
+          {(collections.length > 0 || (head?.new ?? 0) > 0) && (
+            <select aria-label={t("Show")} value={view} onChange={(e) => changeView(e.target.value)} className={SELECT}>
+              <option value="">{t("All books")}</option>
+              {(head?.new ?? 0) > 0 && <option value={NEW_VIEW}>{t("New ({{n}})", { n: head!.new })}</option>}
+              {collections.map((c) => (
+                <option key={c.id} value={c.id}>{`${c.name} (${c.count})`}</option>
+              ))}
+            </select>
+          )}
+          <select aria-label={t("Sort")} value={sort} onChange={(e) => changeSort(e.target.value as CatalogSort)} className={SELECT}>
+            <option value="title">{t("A-Z")}</option>
+            <option value="added_desc">{t("Newest first")}</option>
+          </select>
+          <label className="flex h-9 items-center gap-2 text-sm">
+            <Checkbox checked={hideOwned} onCheckedChange={(c) => setHideOwned(c === true)} />
+            {t("Not in my library")}
+          </label>
+        </div>
       )}
 
       {catalog.isLoading && (
@@ -319,6 +313,24 @@ export function FreeBooks() {
         <p className="rounded-xl border p-8 text-center text-muted-foreground">
           {newOnly ? t("Nothing new in the last 14 days") : t("No books match.")}
         </p>
+      )}
+
+      {!catalog.isError && (books.length > 0 || current) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <p className="text-muted-foreground">{t("{{n}} books shown", { n: books.length })}</p>
+          <div className="flex items-center gap-1">
+            {selectable.length > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => setPicked(new Map([...picked, ...selectable.map((b) => [b.olid, b] as const)]))}>
+                {t("Select all shown")}
+              </Button>
+            )}
+            {current && (
+              <Button size="sm" variant="outline" disabled={running || load.isPending} onClick={() => run({ collection })}>
+                {t("Add all of {{name}}", { name: current.name })}
+              </Button>
+            )}
+          </div>
+        </div>
       )}
 
       {books.length > 0 && (

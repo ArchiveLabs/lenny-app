@@ -7,11 +7,11 @@ import { FreeBooks } from "@/components/preload/FreeBooks"
 export default function FreeBooksPage() {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-6 p-2 md:p-6 lg:p-8 animate-in fade-in duration-500">
+    <div className="flex flex-col gap-4 p-2 md:p-6 lg:p-8 animate-in fade-in duration-500">
       <BackLink label={t("Import & Redeem")} />
       <div className="space-y-1">
         <h1 className="text-3xl font-bold tracking-tight">{t("Free books")}</h1>
-        <p className="max-w-2xl text-muted-foreground">{t("Public-domain EPUBs from Standard Ebooks. Pick some and Lenny downloads them for you.")}</p>
+        <p className="text-muted-foreground">{t("Public-domain EPUBs from Standard Ebooks.")}</p>
       </div>
       <FreeBooks />
     </div>

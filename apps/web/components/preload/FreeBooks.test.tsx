@@ -98,7 +98,7 @@ it("parses a pasted list and reports queued, owned and unknown counts", async ()
 
 it("adds a whole collection", async () => {
   setup()
-  fireEvent.click(screen.getByRole("button", { name: /Poetry/ }))
+  fireEvent.change(screen.getByLabelText("Show"), { target: { value: "poetry" } })
   expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ collection: "poetry" }))
   fireEvent.click(screen.getByRole("button", { name: "Add all of Poetry" }))
   await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ collection: "poetry" }))
@@ -253,31 +253,32 @@ describe("what is new", () => {
     expect(screen.getByRole("button", { name: /Book 2/ })).not.toHaveTextContent("New")
   })
 
-  it("shows a New (N) chip only when something is new", () => {
+  it("offers a New (N) choice in the Show menu only when something is new", () => {
     setup({ cat: withMeta([book(1)], { new: 0 }) })
-    expect(screen.queryByRole("button", { name: /^New \(/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: /^New \(/ })).not.toBeInTheDocument()
   })
 
-  it("filters to new books with the chip, and asks the catalog for new_only", () => {
+  it("filters to new books and asks the catalog for new_only", () => {
     setup({ cat: withMeta([book(1, { is_new: true })], { new: 3 }) })
-    fireEvent.click(screen.getByRole("button", { name: "New (3)" }))
+    expect(screen.getByRole("option", { name: "New (3)" })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "__new" } })
     expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ newOnly: true, collection: "" }))
-    expect(screen.getByRole("button", { name: "New (3)" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByLabelText("Show")).toHaveValue("__new")
   })
 
-  it("lets a collection or All replace the New filter", () => {
+  it("lets a collection or All books replace the New filter", () => {
     setup({ cat: withMeta([book(1)], { new: 3 }) })
-    fireEvent.click(screen.getByRole("button", { name: "New (3)" }))
-    fireEvent.click(screen.getByRole("button", { name: /Poetry/ }))
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "__new" } })
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "poetry" } })
     expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ newOnly: false, collection: "poetry" }))
-    fireEvent.click(screen.getByRole("button", { name: "New (3)" }))
-    fireEvent.click(screen.getByRole("button", { name: "All" }))
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "__new" } })
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "" } })
     expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ newOnly: false, collection: "" }))
   })
 
   it("says nothing is new when the new filter has no books", () => {
     setup({ cat: withMeta([], { new: 2 }) })
-    fireEvent.click(screen.getByRole("button", { name: "New (2)" }))
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "__new" } })
     expect(screen.getByText("Nothing new in the last 14 days")).toBeInTheDocument()
     expect(screen.queryByText("No books match.")).not.toBeInTheDocument()
   })
@@ -287,13 +288,13 @@ describe("sorting", () => {
   it("is A-Z by default, and asks for newest first when chosen", () => {
     setup()
     expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "title" }))
-    fireEvent.click(screen.getByRole("radio", { name: "Newest first" }))
+    fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "added_desc" } })
     expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "added_desc" }))
   })
 
   it("remembers the choice for the session", () => {
     setup()
-    fireEvent.click(screen.getByRole("radio", { name: "Newest first" }))
+    fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "added_desc" } })
     expect(sessionStorage.getItem("lenny-free-books-sort")).toBe("added_desc")
   })
 
@@ -301,14 +302,14 @@ describe("sorting", () => {
     sessionStorage.setItem("lenny-free-books-sort", "added_desc")
     setup()
     expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "added_desc" }))
-    expect(screen.getByRole("radio", { name: "Newest first" })).toBeChecked()
+    expect(screen.getByLabelText("Sort")).toHaveValue("added_desc")
   })
 
   it("still works when the browser blocks storage", () => {
     const get = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked") })
     const set = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked") })
     setup()
-    fireEvent.click(screen.getByRole("radio", { name: "Newest first" }))
+    fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "added_desc" } })
     expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "added_desc" }))
     get.mockRestore()
     set.mockRestore()
@@ -390,5 +391,44 @@ describe("telling the admin the list grew", () => {
     const view = mount(190)
     reload(view, 180)
     expect(toast.info).not.toHaveBeenCalled()
+  })
+})
+
+describe("the toolbar", () => {
+  it("is one row: search, Show, Sort and Not in my library", () => {
+    setup()
+    for (const name of ["Search title, author or subject", "Show", "Sort", "Not in my library"]) {
+      expect(screen.getByLabelText(name)).toBeInTheDocument()
+    }
+  })
+
+  it("shows the collections with their counts in the Show menu, not as rows of chips", () => {
+    setup()
+    expect(screen.getByRole("option", { name: "Poetry (12)" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "All books" })).toBeInTheDocument()
+    expect(screen.queryByRole("group", { name: "Collections" })).not.toBeInTheDocument()
+  })
+
+  it("has no Show menu when there is nothing to choose between", () => {
+    useCatalog.mockReturnValue(catalog([book(1)]))
+    useCollections.mockReturnValue({ data: { collections: [] } })
+    useLoadBooks.mockReturnValue({ mutateAsync, isPending: false })
+    useLoadProgress.mockReturnValue(progress())
+    useCatalogRefresh.mockReturnValue({ checking: false, error: null, refresh })
+    render(<FreeBooks />)
+    expect(screen.queryByLabelText("Show")).not.toBeInTheDocument()
+  })
+
+  it("puts the list's actions in a slim header above the books", () => {
+    setup()
+    expect(screen.getByText("3 books shown")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Select all shown" })).toBeInTheDocument()
+  })
+
+  it("adds Add all of the collection to that header once one is chosen", () => {
+    setup()
+    expect(screen.queryByRole("button", { name: /Add all of/ })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "poetry" } })
+    expect(screen.getByRole("button", { name: "Add all of Poetry" })).toBeInTheDocument()
   })
 })
