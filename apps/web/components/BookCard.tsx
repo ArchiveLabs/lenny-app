@@ -9,12 +9,17 @@ import { BookEditSheet } from "@/components/BookEditSheet"
 import { ShareButton } from "@/components/library/ShareButton"
 import { useTranslation } from "react-i18next"
 
+/** The grid the cards sit in: room to breathe, side to side and row to row. */
+export const BOOK_GRID = "grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-x-5 gap-y-8"
+
 export function BookCardSkeleton() {
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <Skeleton className="aspect-[2/3] w-full rounded-lg" />
-      <Skeleton className="h-4 w-4/5" />
-      <Skeleton className="h-3 w-1/2" />
+      <div className="space-y-1.5 px-0.5">
+        <Skeleton className="h-4 w-4/5" />
+        <Skeleton className="h-3 w-1/2" />
+      </div>
     </div>
   )
 }
@@ -54,7 +59,7 @@ export function BookCard({
           e.currentTarget.click()
         }
       }}
-      className="group flex h-full cursor-pointer flex-col gap-2 rounded-xl outline-none"
+      className="group flex h-full cursor-pointer flex-col gap-3 rounded-xl outline-none"
     >
       <div
         className={`relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted shadow-sm ring-offset-2 transition group-hover:shadow-md group-focus-visible:ring-[3px] group-focus-visible:ring-ring/50 ${
@@ -101,12 +106,12 @@ export function BookCard({
         )}
       </div>
 
-      <div className="space-y-0.5">
+      <div className="space-y-1 px-0.5">
         {/* Paragraphs, not spans: line-clamp needs its own display, which "block" on a span would override. */}
-        <p className="line-clamp-2 text-sm font-semibold leading-tight" title={book.title}>{book.title}</p>
+        <p className="line-clamp-2 text-sm font-semibold leading-snug" title={book.title}>{book.title}</p>
         <p className="line-clamp-1 text-xs text-muted-foreground" title={author}>{author}</p>
         {availability && (
-          <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5 pt-1 text-xs text-muted-foreground">
             <span
               aria-hidden
               className={`h-1.5 w-1.5 rounded-full ${availability === "available" ? "bg-green-500" : "bg-amber-500"}`}

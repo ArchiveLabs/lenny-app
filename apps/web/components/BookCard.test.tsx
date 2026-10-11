@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { fireEvent, render, screen } from "@testing-library/react"
-import { BookCard, BookCardSkeleton } from "./BookCard"
+import { BOOK_GRID, BookCard, BookCardSkeleton } from "./BookCard"
 
 jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s }) }))
 jest.mock("@/components/BookEditSheet", () => ({ BookEditSheet: ({ children }) => <div data-testid="sheet-trigger">{children}</div> }))
@@ -200,5 +200,34 @@ describe("the text under the cover", () => {
   it("shows the full author list on hover", () => {
     render(<BookCard book={book({ author_name: ["A", "B", "C"] })} />)
     expect(screen.getByText("A, B, C")).toHaveAttribute("title", "A, B, C")
+  })
+})
+
+describe("spacing", () => {
+  it("leaves a wider gap between tiles across than the old 12px, and more between rows", () => {
+    expect(BOOK_GRID).toContain("gap-x-5")
+    expect(BOOK_GRID).toContain("gap-y-8")
+    expect(BOOK_GRID).not.toMatch(/(^|\s)gap-3(\s|$)/)
+  })
+
+  it("keeps tiles at least 170px wide so covers stay readable", () => {
+    expect(BOOK_GRID).toContain("minmax(170px,1fr)")
+  })
+
+  it("puts more room between the cover and the text, and between the title, author and status", () => {
+    const { container } = render(<BookCard book={book()} />)
+    expect(container.querySelector('[role="button"]').className).toContain("gap-3")
+    expect(screen.getByText("Database Internals").parentElement.className).toContain("space-y-1")
+    expect(screen.getByText("Available").className).toContain("pt-1")
+  })
+
+  it("uses a relaxed line height for the title", () => {
+    render(<BookCard book={book()} />)
+    expect(screen.getByText("Database Internals").className).toContain("leading-snug")
+  })
+
+  it("has a skeleton with the same spacing", () => {
+    const { container } = render(<BookCardSkeleton />)
+    expect(container.firstElementChild.className).toContain("space-y-3")
   })
 })

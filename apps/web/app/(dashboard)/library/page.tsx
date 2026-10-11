@@ -25,7 +25,7 @@ import { queryClient, LIBRARY_QUERY_KEY, removeBooksFromLibraryCache } from "@/l
 import { AdminItemSearchResponse, AdminItemSearchResponseSchema, ApiError, BulkDeleteResponse, BulkDeleteResponseSchema, LennyBook } from "@/types/api"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { fetchAllLibraryItems, parseItems, sameEdition } from "@/lib/library-utils"
-import { BookCard, BookCardSkeleton } from "@/components/BookCard"
+import { BOOK_GRID, BookCard, BookCardSkeleton } from "@/components/BookCard"
 import { ErrorState } from "@/components/ErrorState"
 import { LibraryLinksBar } from "@/components/library/LibraryLinksBar"
 import { useTranslation } from "react-i18next"
@@ -273,7 +273,7 @@ export default function LibraryPage() {
 
       {/* Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+        <div className={BOOK_GRID}>
           {Array.from({ length: PAGE_SIZE }).map((_, i) => <BookCardSkeleton key={i} />)}
         </div>
       ) : activeError ? (
@@ -322,7 +322,7 @@ export default function LibraryPage() {
             </div>
           )}
           <div className={`transition-opacity duration-300 ${isFetching ? "opacity-40 pointer-events-none" : "opacity-100"}`}>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+            <div className={BOOK_GRID}>
               {displayBooks.map((book) => (
                 <BookCard
                   key={book.olid}
