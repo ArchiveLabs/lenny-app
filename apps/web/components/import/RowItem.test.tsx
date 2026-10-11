@@ -218,3 +218,11 @@ describe("alignment", () => {
     expect(screen.queryByRole("button", { name: /Change edition for/ })).not.toBeInTheDocument()
   })
 })
+
+it("left-aligns the Open Library id in its column so the check icons line up", () => {
+  show(row({ olid: 5 }))
+  const link = screen.getByRole("link", { name: /OL5M/ })
+  expect(link.className).toContain("justify-start")
+  expect(link.className).not.toContain("justify-end")
+  expect(link.className).toContain("@2xl:w-40")
+})

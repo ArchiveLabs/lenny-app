@@ -116,13 +116,13 @@ export const RowItem = memo(function RowItem({
           )}
           {canPick && mustChoose && <Button size="sm" onClick={() => onOpen(row)}>{t("Choose edition")}</Button>}
           {row.olid ? (
-            // A fixed-width column, so the ids line up row to row whatever the author text is.
+            // A fixed-width, left-aligned column: the check icons and the ids start at the same x on every row.
             <a
               href={`https://openlibrary.org/books/${editionKey(row.olid)}`}
               target="_blank"
               rel="noopener noreferrer"
               title={t("Linked to Open Library")}
-              className="inline-flex shrink-0 items-center justify-end gap-1 text-sm text-green-700 underline-offset-4 hover:underline @2xl:w-40"
+              className="inline-flex shrink-0 items-center justify-start gap-1.5 text-sm tabular-nums text-green-700 underline-offset-4 hover:underline @2xl:w-40"
             >
               <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
               {editionKey(row.olid)}
