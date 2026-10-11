@@ -34,7 +34,9 @@ export const AdminItemSearchResultSchema = z.object({
   author: z.string().nullable().optional(),
   encrypted: z.boolean(),
   formats: z.string(),
-  created_at: z.string()
+  created_at: z.string(),
+  available_copies: z.number().optional(),
+  num_lendable_total: z.number().optional()
 })
 export type AdminItemSearchResult = z.infer<typeof AdminItemSearchResultSchema>
 

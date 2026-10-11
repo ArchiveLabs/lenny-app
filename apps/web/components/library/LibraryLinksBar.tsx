@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 import { Button } from "@workspace/ui/components/button"
 import { useLibraryLinks } from "@/hooks/use-library-links"
-import { readerUrl } from "@/lib/library/links"
 import { copyText } from "@/lib/library/share"
 import { COPIED_TOAST_MS } from "./ShareButton"
 
@@ -43,7 +42,7 @@ export function LibraryLinksBar() {
           </Button>
         </div>
         <Button asChild variant="outline" className="font-semibold shadow-sm" title={t("Browse this library in Internet Archive's reader")}>
-          <a href={readerUrl(links)} target="_blank" rel="noopener noreferrer">
+          <a href={links.reader_url} target="_blank" rel="noopener noreferrer">
             <BookOpenText className="mr-2 h-4 w-4" aria-hidden />
             {t("Open in Internet Archive reader")}
           </a>
@@ -53,7 +52,7 @@ export function LibraryLinksBar() {
         <Alert role="note" className="max-w-md border-amber-200 bg-amber-50 text-amber-900">
           <Info aria-hidden />
           <AlertDescription className="text-xs text-inherit">
-            {t("These links only work on your own network. Set LENNY_PUBLIC_URL to your domain or tunnel to share them with others.")}
+            {t("These links only work on your own network. Set LENNY_PROXY in Lenny's .env to your domain to share them with others.")}
           </AlertDescription>
         </Alert>
       )}

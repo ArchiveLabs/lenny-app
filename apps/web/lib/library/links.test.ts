@@ -47,12 +47,8 @@ describe("the response", () => {
   })
 })
 
-describe("readerUrl", () => {
-  const { readerUrl } = require("./links")
-  it("puts the feed after ?opds=, as Internet Archive's reader expects", () => {
-    expect(readerUrl(links({ opds_feed: "https://lender.briet.app/v1/api/opds" }))).toBe("https://reader.archive.org/?opds=https://lender.briet.app/v1/api/opds")
-  })
-  it("follows whatever domain the feed has", () => {
-    expect(readerUrl(links({ opds_feed: "http://localhost:8080/v1/api/opds" }))).toBe("https://reader.archive.org/?opds=http://localhost:8080/v1/api/opds")
-  })
+it("takes the reader link as sent, and the source Lenny names", () => {
+  const l = LibraryLinksSchema.parse(links({ source: "host_and_port", reader_url: "https://reader.archive.org/?opds=http://localhost:8080/v1/api/opds" }))
+  expect(l.reader_url).toBe("https://reader.archive.org/?opds=http://localhost:8080/v1/api/opds")
+  expect(l.source).toBe("host_and_port")
 })

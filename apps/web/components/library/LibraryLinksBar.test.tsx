@@ -10,7 +10,7 @@ jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s
 
 const links = (over = {}) => ({
   opds_feed: "https://lenny.example/v1/api/opds", opds_book_template: "https://lenny.example/v1/api/opds/{olid}",
-  reader_url: "https://reader.archive.org/catalog?home=https%3A%2F%2Flenny.example%2Fv1%2Fapi%2Fopds", is_public: true, ...over,
+  reader_url: "https://reader.archive.org/?opds=https://lenny.example/v1/api/opds", is_public: true, ...over,
 })
 const setNavigator = (props) => Object.defineProperty(window, "navigator", { value: props, configurable: true })
 const original = window.navigator
@@ -62,7 +62,7 @@ it("shows the feed link in a message when the clipboard is blocked, so it can be
 })
 
 describe("the warning that the links are not public", () => {
-  const WARNING = "These links only work on your own network. Set LENNY_PUBLIC_URL to your domain or tunnel to share them with others."
+  const WARNING = "These links only work on your own network. Set LENNY_PROXY in Lenny's .env to your domain to share them with others."
 
   it("shows beside the buttons when is_public is false, and still shows the buttons", () => {
     useLibraryLinks.mockReturnValue({ data: links({ is_public: false }) })
@@ -77,8 +77,15 @@ describe("the warning that the links are not public", () => {
   })
 })
 
-it("builds the reader link from the feed Lenny gives, so it follows the owner's domain", () => {
-  useLibraryLinks.mockReturnValue({ data: links({ opds_feed: "https://lender.briet.app/v1/api/opds", reader_url: "ignored" }) })
+it("uses the reader link exactly as Lenny returns it, without building its own", () => {
+  useLibraryLinks.mockReturnValue({ data: links({ opds_feed: "https://other.example/v1/api/opds", reader_url: "https://reader.archive.org/?opds=https://lender.briet.app/v1/api/opds" }) })
   render(<LibraryLinksBar />)
   expect(screen.getByRole("link", { name: "Open in Internet Archive reader" })).toHaveAttribute("href", "https://reader.archive.org/?opds=https://lender.briet.app/v1/api/opds")
+})
+
+it("names LENNY_PROXY, not LENNY_PUBLIC_URL, in the warning", () => {
+  useLibraryLinks.mockReturnValue({ data: links({ is_public: false }) })
+  render(<LibraryLinksBar />)
+  expect(screen.getByRole("note")).toHaveTextContent("LENNY_PROXY")
+  expect(screen.getByRole("note")).not.toHaveTextContent("LENNY_PUBLIC_URL")
 })

@@ -9,7 +9,8 @@ export function parseItems(data: Record<string, any>): LennyBook[] {
       title: item.title ?? "Unknown Title",
       author_name: item.author_name ?? [],
       cover_i: item.editions?.docs?.[0]?.cover_i,
-      lenny: item.lenny,
+      // The copy count arrives next to the record, not inside lenny{}; fold it in so the book sheet can show it.
+      lenny: { ...item.lenny, available_copies: item.available_copies ?? item.lenny.available_copies },
     }))
 }
 

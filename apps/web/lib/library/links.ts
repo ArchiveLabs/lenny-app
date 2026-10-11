@@ -4,8 +4,8 @@ import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 // GET /admin/library/links: where this library can be reached from outside, for sharing.
 export const LibraryLinksSchema = z.object({
   base_url: z.string().nullish(),
-  source: z.string().nullish(), // "configured" (LENNY_PUBLIC_URL) or "request" (the address the admin is browsing from)
-  is_public: z.boolean().default(true), // false: only works on this machine or network
+  source: z.string().nullish(), // "configured" (LENNY_PROXY is set) or "host_and_port" (built from LENNY_HOST and LENNY_PORT)
+  is_public: z.boolean().default(true), // false: the configured address is localhost, a private IP or .local
   opds_feed: z.string(),
   opds_search: z.string().nullish(),
   opds_book_template: z.string(), // contains {olid}
@@ -17,9 +17,6 @@ export const fetchLibraryLinks = () => fetchAdmin("library/links").then((r) => h
 
 /** The number in an edition key: OL123M becomes 123. */
 export const editionNumber = (olid: string | number) => String(olid).replace(/\D/g, "")
-
-/** Internet Archive's reader takes the feed as ?opds=<feed>. Built from the feed Lenny gives us, so it follows the owner's domain. */
-export const readerUrl = (links: LibraryLinks) => `https://reader.archive.org/?opds=${links.opds_feed}`
 
 /** The OPDS link to share for one book. */
 export const bookLink = (links: LibraryLinks, olid: string | number) => links.opds_book_template.replace("{olid}", editionNumber(olid))
