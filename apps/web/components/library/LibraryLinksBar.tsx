@@ -15,13 +15,13 @@ export function LibraryLinksBar() {
   if (!links) return null
 
   return (
-    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+    <div className="flex flex-wrap items-stretch gap-2 lg:justify-end">
       {/* The feed and its copy button read as one control */}
-      <div className="flex items-center">
+      <div className="flex items-stretch">
         <Button
           asChild
           variant="outline"
-          className="h-8 rounded-r-none text-xs font-semibold shadow-sm sm:h-9 sm:text-sm"
+          className="h-auto min-h-8 rounded-r-none text-xs font-semibold shadow-sm sm:min-h-9 sm:text-sm"
           title={t("Lenny's catalog feed for reading apps")}
         >
           <a href={links.opds_feed} target="_blank" rel="noopener noreferrer">
@@ -47,7 +47,7 @@ export function LibraryLinksBar() {
       <Button
         asChild
         variant="outline"
-        className="h-8 text-xs font-semibold shadow-sm sm:h-9 sm:text-sm"
+        className="h-auto min-h-8 text-xs font-semibold shadow-sm sm:min-h-9 sm:text-sm"
         title={t("Browse this library in Internet Archive's reader")}
       >
         <a href={links.reader_url} target="_blank" rel="noopener noreferrer" aria-label={t("Open in Internet Archive reader")}>

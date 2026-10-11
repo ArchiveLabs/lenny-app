@@ -90,11 +90,31 @@ describe("on a phone", () => {
   it("makes the buttons shorter below sm, and full size from sm up", () => {
     render(<LibraryLinksBar />)
     for (const el of [screen.getByRole("link", { name: "OPDS feed" }), screen.getByRole("link", { name: "Open in Internet Archive reader" })]) {
-      expect(el.className).toContain("h-8")
-      expect(el.className).toContain("sm:h-9")
+      expect(el.className).toContain("min-h-8")
+      expect(el.className).toContain("sm:min-h-9")
     }
     const copy = screen.getByRole("button", { name: "Copy the OPDS feed link" })
     expect(copy.className).toContain("h-8 w-8")
     expect(copy.className).toContain("sm:h-9 sm:w-9") // the same height as the feed button beside it, at every size
+  })
+})
+
+describe("the buttons are one height", () => {
+  it("lets the links stretch to the tallest control in their row, so the feed link is never shorter than its copy button", () => {
+    const { container } = render(<LibraryLinksBar />)
+    expect(container.firstElementChild.className).toContain("items-stretch")
+    const group = screen.getByRole("link", { name: "OPDS feed" }).parentElement
+    expect(group.className).toContain("items-stretch")
+    for (const link of [screen.getByRole("link", { name: "OPDS feed" }), screen.getByRole("link", { name: "Open in Internet Archive reader" })]) {
+      expect(link.className).toContain("h-auto") // not a fixed height, which would ignore the 36px minimum buttons get on touch screens
+    }
+  })
+
+  it("keeps the feed link and its copy button in one group, joined at the edge", () => {
+    render(<LibraryLinksBar />)
+    const group = screen.getByRole("link", { name: "OPDS feed" }).parentElement
+    expect(group).toContainElement(screen.getByRole("button", { name: "Copy the OPDS feed link" }))
+    expect(screen.getByRole("link", { name: "OPDS feed" }).className).toContain("rounded-r-none")
+    expect(screen.getByRole("button", { name: "Copy the OPDS feed link" }).className).toContain("rounded-l-none")
   })
 })
