@@ -37,7 +37,7 @@ describe("import contract schemas", () => {
 
 describe("#246 schemas", () => {
   it("parses a match job and detects active status", () => {
-    const j = MatchJobSchema.parse({ id: 1, batch_id: 2, status: "running", total: 10, done: 3, error: null })
+    const j = MatchJobSchema.parse({ id: "ab12", batch_id: 2, status: "running", total: 10, done: 3, error: null })
     expect(isJobActive(j)).toBe(true)
     expect(isJobActive({ status: "done" })).toBe(false)
   })
@@ -56,6 +56,6 @@ describe("#246 schemas", () => {
   })
 
   it("parses edition lookup with in_library default", () => {
-    expect(EditionLookupSchema.parse({ olid: "OL1M" }).in_library).toBe(false)
+    expect(EditionLookupSchema.parse({ olid: 1 }).in_library).toBe(false)
   })
 })

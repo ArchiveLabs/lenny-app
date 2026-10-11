@@ -78,7 +78,7 @@ export const needsAction = (r: Pick<ImportRow, "state">) =>
 
 // #246: matching job, candidates, edition lookup, limits.
 export const MatchJobSchema = z.object({
-  id: z.number(),
+  id: z.string(),
   batch_id: z.number(),
   status: z.enum(["queued", "running", "done", "failed"]),
   total: z.number(),
@@ -90,7 +90,7 @@ export type MatchJob = z.infer<typeof MatchJobSchema>
 export const ImportCandidatesSchema = z.object({ candidates: z.array(ImportCandidateSchema) })
 
 export const EditionLookupSchema = z.object({
-  olid: z.string(),
+  olid: z.number(),
   title: z.string().nullish(),
   publisher: z.string().nullish(),
   year: z.number().nullish(),
@@ -99,7 +99,7 @@ export const EditionLookupSchema = z.object({
 })
 export type EditionLookup = z.infer<typeof EditionLookupSchema>
 
-export const DuplicateCheckSchema = z.object({ existing: z.array(z.string()) })
+export const DuplicateCheckSchema = z.object({ existing: z.array(z.number()) })
 
 export const ImportLimitsSchema = z.object({
   max_rows_per_call: z.number(),
