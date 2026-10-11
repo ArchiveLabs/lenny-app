@@ -1,6 +1,6 @@
 "use client"
 
-import { Search, Upload } from "lucide-react"
+import { BookOpen, Search, Upload } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { SourceList } from "@/components/import/SourceList"
 
@@ -11,7 +11,7 @@ export default function ImportHub() {
       <section className="space-y-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">{t("Import")}</h1>
-          <p className="text-muted-foreground">{t("Add EPUB files from your computer.")}</p>
+          <p className="text-muted-foreground">{t("Add EPUB files from your computer, or pick free books.")}</p>
         </div>
         <SourceList
           sources={[
@@ -20,6 +20,12 @@ export default function ImportHub() {
               description: t("Drop a folder or many EPUBs. Books are matched to Open Library and reviewed before they are imported."),
               href: "/import/upload",
               icon: <Upload className="h-5 w-5 text-muted-foreground" aria-hidden />,
+            },
+            {
+              title: t("Free books"),
+              description: t("Pick from public-domain Standard Ebooks and add them to your library."),
+              href: "/import/free-books",
+              icon: <BookOpen className="h-5 w-5 text-muted-foreground" aria-hidden />,
             },
           ]}
         />

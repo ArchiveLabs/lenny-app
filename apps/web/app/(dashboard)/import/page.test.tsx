@@ -16,3 +16,8 @@ it("links marketplace search to the marketplaces page", () => {
   render(<ImportHub />)
   expect(screen.getByRole("link", { name: /Search all Marketplaces/ })).toHaveAttribute("href", "/import/marketplaces")
 })
+
+it("links the free books source", () => {
+  render(<ImportHub />)
+  expect(screen.getByRole("link", { name: /Free books/ })).toHaveAttribute("href", "/import/free-books")
+})
