@@ -226,3 +226,18 @@ it("left-aligns the Open Library id in its column so the check icons line up", (
   expect(link.className).not.toContain("justify-end")
   expect(link.className).toContain("@2xl:w-40")
 })
+
+describe("year shown next to the author", () => {
+  it("uses Open Library's year for a linked book, not the file's", () => {
+    show(row({ olid: 5, author: "Frank Herbert", year: 1900, match_year: 1965 }))
+    expect(screen.getByText("Frank Herbert · 1965")).toBeInTheDocument()
+  })
+  it("falls back to the file's year when the match has none", () => {
+    show(row({ olid: 5, author: "Frank Herbert", year: 1900, match_year: null }))
+    expect(screen.getByText("Frank Herbert · 1900")).toBeInTheDocument()
+  })
+  it("uses the file's year when there is no match", () => {
+    show(row({ olid: null, state: "no_match", author: "Frank Herbert", year: 1900, match_year: 1965 }))
+    expect(screen.getByText("Frank Herbert · 1900")).toBeInTheDocument()
+  })
+})

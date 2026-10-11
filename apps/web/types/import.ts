@@ -73,6 +73,7 @@ export const ImportRowSchema = z.object({
   author: z.string().nullish(),
   match_title: z.string().nullish(), // from the Open Library record
   match_author: z.string().nullish(),
+  match_year: z.number().nullish(), // from the Open Library edition; `year` is the EPUB's own
   language: z.string().nullish(),
   publisher: z.string().nullish(),
   year: z.number().nullish(),

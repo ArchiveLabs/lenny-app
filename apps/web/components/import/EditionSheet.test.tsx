@@ -74,6 +74,15 @@ describe("choosing an edition", () => {
     expect(onPick).toHaveBeenLastCalledWith(row, 9)
   })
 
+  it("shows a spinner while the change is in flight, since Open Library is asked first", async () => {
+    let finish
+    open(jest.fn().mockImplementation(() => new Promise((ok) => (finish = ok))))
+    fireEvent.click(await screen.findByText("Dune (1965)"))
+    expect(await screen.findByText("Changing the edition…")).toBeInTheDocument()
+    finish()
+    await waitFor(() => expect(screen.queryByText("Changing the edition…")).not.toBeInTheDocument())
+  })
+
   it("does not send a second change while one is in flight", async () => {
     let finish
     const onPick = jest.fn().mockImplementation(() => new Promise((ok) => (finish = ok)))

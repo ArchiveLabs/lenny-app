@@ -73,7 +73,13 @@ export function EditionSheet({
           <SheetDescription className="truncate">{row?.title || row?.path}</SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-6 px-4 pb-6">
+        <div className={`space-y-6 px-4 pb-6 ${picking ? "pointer-events-none opacity-60" : ""}`} aria-busy={picking}>
+          {picking && (
+            <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner aria-hidden />
+              {t("Changing the edition…")}
+            </p>
+          )}
           {pickError && (
             <div className="space-y-1">
               <p className="text-sm font-medium">{t("The edition was not changed.")}</p>

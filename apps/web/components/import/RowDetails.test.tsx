@@ -10,7 +10,7 @@ const row = (over = {}) => ({
   id: 1, path: "ebooks/dune.epub", size: 3 * 1024 * 1024, mtime: 1700000000000, state: "matched", decision: "auto",
   skipped: false, staged: true, encrypted: false, auto_picked: true, confidence: 92, candidates_count: 4,
   title: "Dune", author: "Frank Herbert", isbn: "9780441172719", publisher: "Ace", year: 1965, language: "eng",
-  olid: 123, match_title: "Dune (Ace)", match_author: "F. Herbert", ...over,
+  olid: 123, match_title: "Dune (Ace)", match_author: "F. Herbert", match_year: 1966, ...over,
 })
 const show = (r, over = {}) => {
   const onClose = jest.fn()
@@ -42,6 +42,8 @@ it("compares the file's title and author with Open Library's in a table", () => 
   expect(rows[1]).toHaveTextContent("Dune (Ace)")
   expect(rows[2]).toHaveTextContent("Frank Herbert")
   expect(rows[2]).toHaveTextContent("F. Herbert")
+  expect(rows[3]).toHaveTextContent("1965") // the file's year
+  expect(rows[3]).toHaveTextContent("1966") // Open Library's
   expect(screen.getByText("4 other editions were suggested.")).toBeInTheDocument()
 })
 
