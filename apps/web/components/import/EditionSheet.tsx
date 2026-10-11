@@ -96,7 +96,7 @@ export function EditionSheet({
             <ul className="space-y-2">
               {candidates.data?.candidates.map((c) => (
                 <li key={c.olid}>
-                  <EditionCard c={c} selected={row?.olid === c.olid} note={c.score != null ? `${Math.round(c.score)}%` : undefined} onPick={pick} />
+                  <EditionCard c={c} selected={row?.olid === c.olid} score={c.score} onPick={pick} />
                 </li>
               ))}
             </ul>

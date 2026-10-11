@@ -122,3 +122,15 @@ it("says Open Library is not answering on a 502 and retries", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Try again" }))
   await screen.findByText("Book 1")
 })
+
+describe("the match pill in search results", () => {
+  it("shows a coloured pill from 60, none below, and uses the note for the top result otherwise", async () => {
+    importApi.searchEditions.mockResolvedValue({ candidates: [cand(1, { score: 90 }), cand(2, { score: 65 }), cand(3, { score: 20 })] })
+    const { box } = setup()
+    type(box, "dune")
+    await screen.findByText("Book 1")
+    expect(screen.getByText("90%")).toHaveAttribute("data-tone", "strong")
+    expect(screen.getByText("65%")).toHaveAttribute("data-tone", "fair")
+    expect(screen.queryByText("20%")).not.toBeInTheDocument()
+  })
+})

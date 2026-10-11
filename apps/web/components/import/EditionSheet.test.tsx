@@ -94,3 +94,14 @@ describe("choosing an edition", () => {
     finish()
   })
 })
+
+it("shows each suggestion's match as a coloured pill", async () => {
+  importApi.candidates.mockResolvedValue({ candidates: [{ olid: 1, title: "A", authors: [], score: 90, in_library: false }, { olid: 2, title: "B", authors: [], score: 62, in_library: false }] })
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <EditionSheet batchId={7} row={row} onClose={jest.fn()} onPick={jest.fn()} onStartOver={jest.fn()} />
+    </QueryClientProvider>,
+  )
+  expect(await screen.findByText("90%")).toHaveAttribute("data-tone", "strong")
+  expect(screen.getByText("62%")).toHaveAttribute("data-tone", "fair")
+})

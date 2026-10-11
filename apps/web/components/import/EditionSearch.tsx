@@ -43,8 +43,9 @@ export const EditionSearch = forwardRef<HTMLInputElement, { batchId: number; row
     })
     const results = enabled ? (search.data?.candidates ?? []) : []
     const anyStrong = results.some((c) => (c.score ?? 0) >= SHOW_SCORE_FROM)
-    const note = (c: (typeof results)[number], i: number) =>
-      (c.score ?? 0) >= SHOW_SCORE_FROM ? `${Math.round(c.score!)}%` : i === 0 && !anyStrong ? t("Top result") : undefined
+    // Only a score of 60 or more is shown, as a pill; with no strong match the first result is the "Top result" by order.
+    const scoreOf = (c: (typeof results)[number]) => ((c.score ?? 0) >= SHOW_SCORE_FROM ? c.score : null)
+    const note = (c: (typeof results)[number], i: number) => (i === 0 && !anyStrong ? t("Top result") : undefined)
 
     useEffect(() => setActive(-1), [q])
 
@@ -99,7 +100,7 @@ export const EditionSearch = forwardRef<HTMLInputElement, { batchId: number; row
           <ul id="edition-results" role="listbox" className="space-y-2">
             {results.map((c, i) => (
               <li key={c.olid} role="presentation">
-                <EditionCard c={c} id={`edition-result-${i}`} active={i === active} selected={row.olid === c.olid} note={note(c, i)} onPick={onPick} />
+                <EditionCard c={c} id={`edition-result-${i}`} active={i === active} selected={row.olid === c.olid} note={note(c, i)} score={scoreOf(c)} onPick={onPick} />
               </li>
             ))}
           </ul>
