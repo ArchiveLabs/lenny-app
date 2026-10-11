@@ -1,12 +1,14 @@
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import {
-  PreloadCatalogSchema, PreloadCollectionsSchema, PreloadImportResultSchema, type PreloadImportBody,
+  PreloadCatalogSchema, PreloadCollectionsSchema, PreloadImportResultSchema, PreloadRefreshSchema, type PreloadImportBody,
 } from "@/types/preload"
 
 export interface CatalogQuery {
   q?: string
   collection?: string
   hide_owned?: boolean
+  sort?: "title" | "added_desc"
+  new_only?: boolean
   cursor?: string
   limit?: number
 }
@@ -18,6 +20,8 @@ export const preloadApi = {
     const qs = p.toString()
     return fetchAdmin(`preload/catalog${qs ? `?${qs}` : ""}`).then((r) => handleApiResponse(r, PreloadCatalogSchema))
   },
+  /** Checks archive.org now. started is false when a rebuild is already running. */
+  refresh: () => fetchAdmin("preload/refresh", { method: "POST" }).then((r) => handleApiResponse(r, PreloadRefreshSchema)),
   collections: () => fetchAdmin("preload/collections").then((r) => handleApiResponse(r, PreloadCollectionsSchema)),
   importBooks: (body: PreloadImportBody) =>
     fetchAdmin("preload/import", {

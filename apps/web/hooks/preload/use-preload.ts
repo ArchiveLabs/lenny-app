@@ -1,8 +1,10 @@
 "use client"
 
+import { useCallback, useState } from "react"
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { preloadApi } from "@/lib/preload/api"
+import { toMs } from "@/lib/preload/time"
 import { forceFreshLibraryOnNextVisit } from "@/lib/query-client"
 import { ImportsResponseSchema, type ImportJob } from "@/types/api"
 import type { PreloadImportBody } from "@/types/preload"
@@ -10,11 +12,15 @@ import type { PreloadImportBody } from "@/types/preload"
 export const SOURCE = "standardebooks"
 const inFlight = (j: ImportJob) => j.status === "pending" || j.status === "downloading"
 
-export function useCatalog(f: { q: string; collection: string; hideOwned: boolean }) {
+export type CatalogSort = "title" | "added_desc"
+
+export function useCatalog(f: { q: string; collection: string; hideOwned: boolean; sort?: CatalogSort; newOnly?: boolean }) {
   return useInfiniteQuery({
     queryKey: ["preload-catalog", f],
     queryFn: ({ pageParam }) =>
-      preloadApi.catalog({ q: f.q.trim(), collection: f.collection, hide_owned: f.hideOwned, cursor: pageParam, limit: 48 }),
+      preloadApi.catalog({
+        q: f.q.trim(), collection: f.collection, hide_owned: f.hideOwned, sort: f.sort, new_only: f.newOnly, cursor: pageParam, limit: 48,
+      }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (p) => p.next_cursor ?? undefined,
     staleTime: 60_000,
@@ -26,8 +32,6 @@ export function useCollections() {
   return useQuery({ queryKey: ["preload-collections"], queryFn: preloadApi.collections, staleTime: 5 * 60_000 })
 }
 
-// updated_at has no timezone marker from the API; it is UTC.
-const toMs = (iso: string) => Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(iso) ? iso : `${iso}Z`)
 // Allow for a little clock difference between this browser and the server.
 const SKEW_MS = 5000
 
@@ -69,4 +73,39 @@ export function useLoadBooks() {
       qc.invalidateQueries({ queryKey: ["preload-catalog"] })
     },
   })
+}
+
+const CHECK_EVERY_MS = 3000
+const CHECK_FOR_MS = 60_000
+const sleep = (ms: number) => new Promise((ok) => setTimeout(ok, ms))
+
+/**
+ * "Refresh": ask the server to check archive.org now, then reload the catalog every 3 seconds until its rebuild is
+ * done (it gives up after 60), and once more. Also waits that way when a rebuild was already running.
+ */
+export function useCatalogRefresh(refetchCatalog: () => Promise<{ data?: { pages: { refreshing: boolean }[] } }>) {
+  const [checking, setChecking] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const refresh = useCallback(async () => {
+    setError(null)
+    setChecking(true)
+    try {
+      await preloadApi.refresh()
+      const until = Date.now() + CHECK_FOR_MS
+      for (;;) {
+        await sleep(CHECK_EVERY_MS)
+        const res = await refetchCatalog()
+        if (!res.data?.pages[0]?.refreshing) {
+          await refetchCatalog()
+          break
+        }
+        if (Date.now() >= until) break
+      }
+    } catch (e) {
+      setError(e)
+    } finally {
+      setChecking(false)
+    }
+  }, [refetchCatalog])
+  return { checking, error, refresh }
 }

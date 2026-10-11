@@ -28,3 +28,15 @@ it("surfaces a load already running", async () => {
   fetchAdmin.mockReturnValue(ok({ detail: "A load is already running" }, 409))
   await expect(preloadApi.importBooks({ collection: "poetry" })).rejects.toThrow("A load is already running")
 })
+
+it("asks for the newest first and for only new books", async () => {
+  ;(fetchAdmin as jest.Mock).mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ books: [], total: 0, available: 0 }), { status: 200 })))
+  await preloadApi.catalog({ sort: "added_desc", new_only: true })
+  expect(fetchAdmin).toHaveBeenCalledWith("preload/catalog?sort=added_desc&new_only=true")
+})
+
+it("checks archive.org now", async () => {
+  ;(fetchAdmin as jest.Mock).mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ started: false }), { status: 202 })))
+  expect(await preloadApi.refresh()).toEqual({ started: false })
+  expect((fetchAdmin as jest.Mock).mock.calls.at(-1)).toEqual(["preload/refresh", { method: "POST" }])
+})

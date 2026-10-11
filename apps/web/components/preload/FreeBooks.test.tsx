@@ -2,9 +2,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { FreeBooks } from "./FreeBooks"
 import { ApiError } from "@/types/api"
-import { useCatalog, useCollections, useLoadBooks, useLoadProgress } from "@/hooks/preload/use-preload"
+import { useCatalog, useCatalogRefresh, useCollections, useLoadBooks, useLoadProgress } from "@/hooks/preload/use-preload"
+import { toast } from "sonner"
 
 jest.mock("@/hooks/preload/use-preload")
+jest.mock("sonner", () => ({ toast: { info: jest.fn() } }))
 jest.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])),
@@ -22,10 +24,12 @@ const catalog = (books, over = {}) => ({
   data: { pages: [{ books, total: books.length, available: 190, in_library: 7 }] }, ...over,
 })
 const mutateAsync = jest.fn()
+const refresh = jest.fn()
 const progress = (over = {}) => ({ jobs: [], active: 0, done: 0, failed: [], ...over })
 
-const setup = ({ cat = catalog([book(1), book(2), book(3, { in_library: true })]), prog = progress() } = {}) => {
+const setup = ({ cat = catalog([book(1), book(2), book(3, { in_library: true })]), prog = progress(), refreshState = {} } = {}) => {
   useCatalog.mockReturnValue(cat)
+  useCatalogRefresh.mockReturnValue({ checking: false, error: null, refresh, ...refreshState })
   useCollections.mockReturnValue({ data: { collections: [{ id: "poetry", name: "Poetry", count: 12, in_library: 0 }] } })
   useLoadBooks.mockReturnValue({ mutateAsync, isPending: false })
   useLoadProgress.mockReturnValue(prog)
@@ -33,6 +37,9 @@ const setup = ({ cat = catalog([book(1), book(2), book(3, { in_library: true })]
 }
 
 beforeEach(() => {
+  refresh.mockReset()
+  toast.info.mockReset()
+  sessionStorage.clear()
   mutateAsync.mockReset().mockResolvedValue({ queued: 1, already_in_library: 0, unknown: [] })
 })
 
@@ -195,6 +202,7 @@ describe("the page's chrome", () => {
     useCollections.mockReturnValue({ data: { collections: [] } })
     useLoadBooks.mockReturnValue({ mutateAsync, isPending: false })
     useLoadProgress.mockReturnValue(progress())
+    useCatalogRefresh.mockReturnValue({ checking: false, error: null, refresh })
     render(<FreeBooks />)
     expect(screen.queryByRole("group", { name: "Collections" })).not.toBeInTheDocument()
   })
@@ -231,5 +239,156 @@ describe("the page's chrome", () => {
     setup({ prog: progress({ jobs: [1], active: 0, done: 5 }) })
     expect(screen.getByText("5 books added")).toBeInTheDocument()
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument()
+  })
+})
+
+describe("what is new", () => {
+  const withMeta = (books, meta = {}) =>
+    catalog(books, { data: { pages: [{ books, total: books.length, available: 190, in_library: 7, new: 0, updated_at: null, refreshing: false, ...meta }] } })
+
+  it("marks only the new books", () => {
+    setup({ cat: withMeta([book(1, { is_new: true }), book(2)], { new: 1 }) })
+    expect(screen.getAllByText("New")).toHaveLength(1)
+    expect(screen.getByRole("button", { name: /Book 1/ })).toHaveTextContent("New")
+    expect(screen.getByRole("button", { name: /Book 2/ })).not.toHaveTextContent("New")
+  })
+
+  it("shows a New (N) chip only when something is new", () => {
+    setup({ cat: withMeta([book(1)], { new: 0 }) })
+    expect(screen.queryByRole("button", { name: /^New \(/ })).not.toBeInTheDocument()
+  })
+
+  it("filters to new books with the chip, and asks the catalog for new_only", () => {
+    setup({ cat: withMeta([book(1, { is_new: true })], { new: 3 }) })
+    fireEvent.click(screen.getByRole("button", { name: "New (3)" }))
+    expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ newOnly: true, collection: "" }))
+    expect(screen.getByRole("button", { name: "New (3)" })).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("lets a collection or All replace the New filter", () => {
+    setup({ cat: withMeta([book(1)], { new: 3 }) })
+    fireEvent.click(screen.getByRole("button", { name: "New (3)" }))
+    fireEvent.click(screen.getByRole("button", { name: /Poetry/ }))
+    expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ newOnly: false, collection: "poetry" }))
+    fireEvent.click(screen.getByRole("button", { name: "New (3)" }))
+    fireEvent.click(screen.getByRole("button", { name: "All" }))
+    expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ newOnly: false, collection: "" }))
+  })
+
+  it("says nothing is new when the new filter has no books", () => {
+    setup({ cat: withMeta([], { new: 2 }) })
+    fireEvent.click(screen.getByRole("button", { name: "New (2)" }))
+    expect(screen.getByText("Nothing new in the last 14 days")).toBeInTheDocument()
+    expect(screen.queryByText("No books match.")).not.toBeInTheDocument()
+  })
+})
+
+describe("sorting", () => {
+  it("is A-Z by default, and asks for newest first when chosen", () => {
+    setup()
+    expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "title" }))
+    fireEvent.click(screen.getByRole("radio", { name: "Newest first" }))
+    expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "added_desc" }))
+  })
+
+  it("remembers the choice for the session", () => {
+    setup()
+    fireEvent.click(screen.getByRole("radio", { name: "Newest first" }))
+    expect(sessionStorage.getItem("lenny-free-books-sort")).toBe("added_desc")
+  })
+
+  it("starts from the remembered choice", () => {
+    sessionStorage.setItem("lenny-free-books-sort", "added_desc")
+    setup()
+    expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "added_desc" }))
+    expect(screen.getByRole("radio", { name: "Newest first" })).toBeChecked()
+  })
+
+  it("still works when the browser blocks storage", () => {
+    const get = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked") })
+    const set = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked") })
+    setup()
+    fireEvent.click(screen.getByRole("radio", { name: "Newest first" }))
+    expect(useCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ sort: "added_desc" }))
+    get.mockRestore()
+    set.mockRestore()
+  })
+})
+
+describe("updating from archive.org", () => {
+  const meta = (over = {}) => ({ data: { pages: [{ books: [book(1)], total: 1, available: 190, in_library: 7, new: 0, updated_at: new Date(Date.now() - 5 * 60_000).toISOString(), refreshing: false, ...over }] } })
+
+  it("shows when the list was last updated", () => {
+    setup({ cat: catalog([book(1)], meta()) })
+    expect(screen.getByText("Updated 5 minutes ago")).toBeInTheDocument()
+  })
+
+  it("shows no time when the server does not know it", () => {
+    setup({ cat: catalog([book(1)], meta({ updated_at: null })) })
+    expect(screen.queryByText(/^Updated/)).not.toBeInTheDocument()
+  })
+
+  it("checks archive.org from the refresh button", () => {
+    setup({ cat: catalog([book(1)], meta()) })
+    fireEvent.click(screen.getByRole("button", { name: "Check for new books" }))
+    expect(refresh).toHaveBeenCalled()
+  })
+
+  it("shows a spinner and Checking archive.org… while it checks, with the button disabled", () => {
+    setup({ cat: catalog([book(1)], meta()), refreshState: { checking: true } })
+    expect(screen.getByText("Checking archive.org…")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Check for new books" })).toBeDisabled()
+    expect(screen.queryByText(/^Updated/)).not.toBeInTheDocument()
+  })
+
+  it("shows the same while the server is rebuilding on its own", () => {
+    setup({ cat: catalog([book(1)], meta({ refreshing: true })) })
+    expect(screen.getByText("Checking archive.org…")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Check for new books" })).toBeDisabled()
+  })
+
+  it("says so when the check fails, with a retry", () => {
+    setup({ cat: catalog([book(1)], meta()), refreshState: { error: new ApiError("bad gateway", 502) } })
+    expect(screen.getByRole("alert")).toHaveTextContent("archive.org did not answer. Try again in a moment.")
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+    expect(refresh).toHaveBeenCalled()
+  })
+})
+
+describe("telling the admin the list grew", () => {
+  const withAvailable = (n) => catalog([book(1)], { data: { pages: [{ books: [book(1)], total: 1, available: n, in_library: 0, new: 0, updated_at: null, refreshing: false }] } })
+  const mount = (n) => {
+    useCatalog.mockReturnValue(withAvailable(n))
+    useCatalogRefresh.mockReturnValue({ checking: false, error: null, refresh })
+    useCollections.mockReturnValue({ data: { collections: [] } })
+    useLoadBooks.mockReturnValue({ mutateAsync, isPending: false })
+    useLoadProgress.mockReturnValue(progress())
+    return render(<FreeBooks />)
+  }
+  const reload = (view, n) => {
+    useCatalog.mockReturnValue(withAvailable(n))
+    view.rerender(<FreeBooks />)
+  }
+
+  it("does not toast on the first load", () => {
+    mount(190)
+    expect(toast.info).not.toHaveBeenCalled()
+  })
+
+  it("toasts the increase, once per increase", () => {
+    const view = mount(190)
+    reload(view, 193)
+    expect(toast.info).toHaveBeenCalledTimes(1)
+    expect(toast.info).toHaveBeenCalledWith("3 new books are available")
+    reload(view, 193) // the same list again
+    expect(toast.info).toHaveBeenCalledTimes(1)
+    reload(view, 194)
+    expect(toast.info).toHaveBeenLastCalledWith("1 new books are available")
+  })
+
+  it("does not toast when the list shrinks", () => {
+    const view = mount(190)
+    reload(view, 180)
+    expect(toast.info).not.toHaveBeenCalled()
   })
 })

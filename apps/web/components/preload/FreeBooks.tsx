@@ -7,6 +7,7 @@ import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
+import { ToggleGroup, ToggleGroupItem } from "@workspace/ui/components/toggle-group"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Spinner } from "@workspace/ui/components/spinner"
 import { ErrorNotice, errorKind } from "@/components/ErrorNotice"
@@ -14,7 +15,9 @@ import { Notice } from "@/components/import/Notice"
 import { EmptyPreload } from "./EmptyPreload"
 import { ProgressPanel } from "@/components/import/ProgressPanel"
 import { ApiError } from "@/types/api"
-import { useCatalog, useCollections, useLoadBooks, useLoadProgress } from "@/hooks/preload/use-preload"
+import { toast } from "sonner"
+import { useCatalog, useCatalogRefresh, useCollections, useLoadBooks, useLoadProgress, type CatalogSort } from "@/hooks/preload/use-preload"
+import { relativeTime } from "@/lib/preload/time"
 import { MAX_LISTED_IDS, formatSize, parseBookList, type PreloadBook, type PreloadImportResult } from "@/types/preload"
 
 function useDebounced<T>(value: T, ms = 300) {
@@ -24,6 +27,23 @@ function useDebounced<T>(value: T, ms = 300) {
     return () => clearTimeout(id)
   }, [value, ms])
   return v
+}
+
+const SORT_KEY = "lenny-free-books-sort"
+// Kept for the session only, and never required: a blocked store just means the default.
+const readSort = (): CatalogSort => {
+  try {
+    return sessionStorage.getItem(SORT_KEY) === "added_desc" ? "added_desc" : "title"
+  } catch {
+    return "title"
+  }
+}
+const writeSort = (v: CatalogSort) => {
+  try {
+    sessionStorage.setItem(SORT_KEY, v)
+  } catch {
+    // blocked storage
+  }
 }
 
 function BookTile({ book, selected, onToggle }: { book: PreloadBook; selected: boolean; onToggle: () => void }) {
@@ -44,6 +64,9 @@ function BookTile({ book, selected, onToggle }: { book: PreloadBook; selected: b
             <img src={book.cover_url} alt="" loading="lazy" className="h-full w-full object-cover" />
           )}
           {owned && <Badge className="absolute left-2 top-2">{t("In library")}</Badge>}
+          {book.is_new && (
+            <Badge variant="secondary" className="absolute bottom-2 left-2 bg-green-100 text-green-800">{t("New")}</Badge>
+          )}
           {selected && (
             <span className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
               <Check className="h-4 w-4" aria-hidden />
@@ -65,6 +88,12 @@ export function FreeBooks() {
   const q = useDebounced(search)
   const [collection, setCollection] = useState("")
   const [hideOwned, setHideOwned] = useState(false)
+  const [newOnly, setNewOnly] = useState(false)
+  const [sort, setSort] = useState<CatalogSort>(readSort)
+  const changeSort = (v: CatalogSort) => {
+    setSort(v)
+    writeSort(v)
+  }
   const [picked, setPicked] = useState<Map<number, PreloadBook>>(new Map())
   const [list, setList] = useState("")
   const [listResult, setListResult] = useState<PreloadImportResult | null>(null)
@@ -72,7 +101,7 @@ export function FreeBooks() {
   const [listOpen, setListOpen] = useState(false)
   const listBox = useRef<HTMLTextAreaElement>(null)
 
-  const catalog = useCatalog({ q, collection, hideOwned })
+  const catalog = useCatalog({ q, collection, hideOwned, sort, newOnly })
   // No catalog on the server (a 404) is "nothing preloaded yet": offer ways to start rather than a bare error.
   const noCatalog = catalog.isError && errorKind(catalog.error) === "gone"
   const collections = useCollections().data?.collections ?? []
@@ -80,8 +109,20 @@ export function FreeBooks() {
   const [since, setSince] = useState<number | null>(null)
   const progress = useLoadProgress(since)
 
+  const refreshing = useCatalogRefresh(catalog.refetch)
   const books = useMemo(() => catalog.data?.pages.flatMap((p) => p.books) ?? [], [catalog.data])
   const head = catalog.data?.pages[0]
+  // Tell the admin when the list grew, once per increase (a refresh, or the catalog reloading on focus).
+  const available = head?.available
+  const seenAvailable = useRef<number | null>(null)
+  useEffect(() => {
+    if (available === undefined) return
+    if (seenAvailable.current !== null && available > seenAvailable.current) {
+      toast.info(t("{{n}} new books are available", { n: available - seenAvailable.current }))
+    }
+    seenAvailable.current = available
+  }, [available, t])
+  const checking = refreshing.checking || !!head?.refreshing
   const bytes = [...picked.values()].reduce((n, b) => n + (b.size ?? 0), 0)
   const selectable = books.filter((b) => !b.in_library)
   const running = progress.active > 0
@@ -131,9 +172,33 @@ export function FreeBooks() {
   return (
     <div className="space-y-5">
       {head && (
-        <p className="text-sm text-muted-foreground">
-          {t("{{n}} free books available · {{lib}} in your library", { n: head.available, lib: head.in_library })}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          <p>{t("{{n}} free books available · {{lib}} in your library", { n: head.available, lib: head.in_library })}</p>
+          <span className="flex items-center gap-1">
+            {checking ? (
+              <>
+                <Spinner className="h-3.5 w-3.5" role="presentation" aria-hidden />
+                {t("Checking archive.org…")}
+              </>
+            ) : (
+              head.updated_at && relativeTime(head.updated_at) && <span>{t("Updated {{when}}", { when: relativeTime(head.updated_at) })}</span>
+            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              aria-label={t("Check for new books")}
+              title={t("Check archive.org for new books")}
+              disabled={checking}
+              onClick={refreshing.refresh}
+            >
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+            </Button>
+          </span>
+        </div>
+      )}
+      {refreshing.error != null && (
+        <ErrorNotice boxed error={refreshing.error} onRetry={refreshing.refresh} texts={{ gone: "Checking for new books is not available right now.", unreachable: "archive.org did not answer. Try again in a moment." }} />
       )}
 
       {runError != null &&
@@ -180,13 +245,18 @@ export function FreeBooks() {
         </Notice>
       )}
 
-      {!catalog.isError && collections.length > 0 && (
+      {!catalog.isError && (collections.length > 0 || (head?.new ?? 0) > 0) && (
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("Collections")}>
-        <Button size="sm" variant={collection === "" ? "default" : "outline"} aria-pressed={collection === ""} onClick={() => setCollection("")}>
+        <Button size="sm" variant={collection === "" && !newOnly ? "default" : "outline"} aria-pressed={collection === "" && !newOnly} onClick={() => { setCollection(""); setNewOnly(false) }}>
           {t("All")}
         </Button>
+        {(head?.new ?? 0) > 0 && (
+          <Button size="sm" variant={newOnly ? "default" : "outline"} aria-pressed={newOnly} onClick={() => { setNewOnly(true); setCollection("") }}>
+            {t("New ({{n}})", { n: head!.new })}
+          </Button>
+        )}
         {collections.map((c) => (
-          <Button key={c.id} size="sm" variant={collection === c.id ? "default" : "outline"} aria-pressed={collection === c.id} onClick={() => setCollection(c.id)}>
+          <Button key={c.id} size="sm" variant={collection === c.id ? "default" : "outline"} aria-pressed={collection === c.id} onClick={() => { setCollection(c.id); setNewOnly(false) }}>
             {c.name} <span className="ml-1 tabular-nums opacity-80">{c.count}</span>
           </Button>
         ))}
@@ -200,6 +270,10 @@ export function FreeBooks() {
           <Checkbox checked={hideOwned} onCheckedChange={(c) => setHideOwned(c === true)} />
           {t("Not in my library")}
         </label>
+        <ToggleGroup type="single" variant="outline" size="sm" value={sort} onValueChange={(v) => v && changeSort(v as CatalogSort)} aria-label={t("Sort")}>
+          <ToggleGroupItem value="title">{t("A-Z")}</ToggleGroupItem>
+          <ToggleGroupItem value="added_desc">{t("Newest first")}</ToggleGroupItem>
+        </ToggleGroup>
         {selectable.length > 0 && (
           <Button size="sm" variant="ghost" onClick={() => setPicked(new Map([...picked, ...selectable.map((b) => [b.olid, b] as const)]))}>
             {t("Select all shown")}
@@ -241,7 +315,11 @@ export function FreeBooks() {
           texts={{ unreachable: "Open Library did not answer. Try again in a moment." }}
         />
       )}
-      {catalog.isSuccess && books.length === 0 && <p className="rounded-xl border p-8 text-center text-muted-foreground">{t("No books match.")}</p>}
+      {catalog.isSuccess && books.length === 0 && (
+        <p className="rounded-xl border p-8 text-center text-muted-foreground">
+          {newOnly ? t("Nothing new in the last 14 days") : t("No books match.")}
+        </p>
+      )}
 
       {books.length > 0 && (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">

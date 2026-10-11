@@ -12,6 +12,8 @@ export const PreloadBookSchema = z.object({
   source_id: z.string(),
   size: z.number().nullish(), // bytes
   in_library: z.boolean().default(false),
+  added_at: z.string().nullish(), // when it was added to the archive.org item; null for books from other items
+  is_new: z.boolean().default(false), // added in the last 14 days
 })
 export type PreloadBook = z.infer<typeof PreloadBookSchema>
 
@@ -21,10 +23,15 @@ export const PreloadCatalogSchema = z.object({
   available: z.number(),
   known: z.number().default(0),
   in_library: z.number().default(0),
+  new: z.number().default(0), // how many books are new
+  updated_at: z.string().nullish(), // the archive.org item's last update (UTC)
+  refreshing: z.boolean().default(false), // a rebuild is running right now
   // The server pages by offset, so this arrives as a number; kept as a string because it only travels back as ?cursor=.
   next_cursor: z.union([z.string(), z.number()]).nullable().optional().transform((v) => (v == null ? v : String(v))),
 })
 export type PreloadCatalog = z.infer<typeof PreloadCatalogSchema>
+
+export const PreloadRefreshSchema = z.object({ started: z.boolean() })
 
 export const PreloadCollectionsSchema = z.object({
   collections: z.array(z.object({ id: z.string(), name: z.string(), count: z.number(), in_library: z.number().default(0) })),

@@ -47,3 +47,21 @@ describe("the catalog's next_cursor", () => {
     expect(page().next_cursor).toBeUndefined()
   })
 })
+
+describe("what is new in the catalog", () => {
+  it("reads is_new, added_at and the catalog's new, updated_at and refreshing", () => {
+    const c = PreloadCatalogSchema.parse({
+      books: [{ olid: 1, title: "T", source_id: "a/b", is_new: true, added_at: "2026-10-01T00:00:00Z" }],
+      total: 1, available: 1, new: 1, updated_at: "2026-10-11T10:00:00", refreshing: true,
+    })
+    expect(c.books[0]).toMatchObject({ is_new: true, added_at: "2026-10-01T00:00:00Z" })
+    expect(c).toMatchObject({ new: 1, updated_at: "2026-10-11T10:00:00", refreshing: true })
+  })
+
+  it("defaults them for an older server", () => {
+    const c = PreloadCatalogSchema.parse({ books: [{ olid: 1, title: "T", source_id: "a/b" }], total: 1, available: 1 })
+    expect(c.books[0]).toMatchObject({ is_new: false })
+    expect(c.books[0]!.added_at).toBeUndefined()
+    expect(c).toMatchObject({ new: 0, refreshing: false })
+  })
+})
