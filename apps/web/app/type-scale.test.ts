@@ -3,42 +3,28 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
 const css = readFileSync(join(__dirname, "../../../packages/ui/src/styles/globals.css"), "utf8")
-const base = css.slice(css.indexOf("@layer base"))
+const density = readFileSync(join(__dirname, "density.css"), "utf8")
 
-const sizeAt = (query: string | null) => {
-  const re = query
-    ? new RegExp(`@media \\(${query}\\) \\{\\s*html \\{\\s*font-size: (\\d+)px;`)
-    : /html \{\s*font-size: (\d+)px;/
-  return Number(base.match(re)?.[1])
-}
-
-describe("the root font size", () => {
-  it("is smallest on phones", () => expect(sizeAt(null)).toBe(13))
-  it("steps up on large phones and small tablets", () => expect(sizeAt("min-width: 640px")).toBe(14))
-  it("steps up again on tablets", () => expect(sizeAt("min-width: 768px")).toBe(15))
-  it("is the full 16px on a desktop", () => expect(sizeAt("min-width: 1024px")).toBe(16))
-
-  it("only ever grows with the screen", () => {
-    expect(sizeAt(null)).toBeLessThan(sizeAt("min-width: 640px"))
-    expect(sizeAt("min-width: 640px")).toBeLessThan(sizeAt("min-width: 768px"))
-    expect(sizeAt("min-width: 768px")).toBeLessThan(sizeAt("min-width: 1024px"))
+describe("who sets the root font size", () => {
+  it("is density.css alone: globals.css must not set it too, because density.css's rule would win and hide the mistake", () => {
+    expect(css).not.toMatch(/\bhtml\s*\{[^}]*font-size/)
+    expect(density).toMatch(/html\s*\{\s*font-size:\s*var\(--root-size\)/)
   })
 
-  it("is not scaled by the browser's text size adjustment", () => {
-    expect(base).toContain("-webkit-text-size-adjust: 100%")
+  it("does not set the field size in globals.css either: density.css keeps touch fields at 16px", () => {
+    expect(css).not.toMatch(/input,\s*select,\s*textarea\s*\{\s*font-size/)
+    expect(density).toMatch(/font-size:\s*16px !important/)
   })
 })
 
-describe("form fields on small screens", () => {
-  it("stay at 16px so iOS does not zoom the page when one is focused", () => {
-    const block = base.match(/@media \(max-width: 767px\) \{\s*input,\s*select,\s*textarea \{\s*font-size: (\d+)px;/)
-    expect(Number(block?.[1])).toBe(16)
-  })
-})
+describe("page headings", () => {
+  const pages = ["loans", "library", "import", "import/upload", "import/marketplaces", "import/free-books"]
 
-it("is set on html, so every rem-based size scales with it", () => {
-  expect(base).toMatch(/\n  html \{/)
-  expect(base).not.toMatch(/\n  body \{[^}]*font-size/)
+  it.each(pages)("%s has a smaller heading on a phone (text-xl) and the full size from sm up", (page) => {
+    const src = readFileSync(join(__dirname, `(dashboard)/${page}/page.tsx`), "utf8")
+    expect(src).toContain("text-xl font-bold tracking-tight sm:text-3xl")
+    expect(src).not.toMatch(/(^|[^:])text-3xl font-bold tracking-tight/)
+  })
 })
 
 describe("the Library toolbar on a phone", () => {
@@ -80,11 +66,5 @@ describe("the dashboard frame on a phone", () => {
 
   it("keeps the desktop sidebar width", () => {
     expect(layout).toContain('"--sidebar-width": "calc(var(--spacing) * 72)"')
-  })
-})
-
-describe("what stays readable", () => {
-  it("never takes the phone's root size below 13px, which keeps small text near 10px at least", () => {
-    expect(sizeAt(null)).toBeGreaterThanOrEqual(13)
   })
 })
