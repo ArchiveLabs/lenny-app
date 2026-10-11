@@ -80,7 +80,7 @@ export const RowItem = memo(function RowItem({
   const BadgeIcon = badge?.icon
 
   return (
-    <div className={`flex items-center gap-3 border-b px-3 py-3 ${selected ? "bg-muted/40" : ""}`}>
+    <div className={`flex items-center gap-3 px-3 py-3 ${selected ? "bg-muted/40" : ""}`}>
       <Checkbox
         checked={selected}
         disabled={row.state === "importing"}
