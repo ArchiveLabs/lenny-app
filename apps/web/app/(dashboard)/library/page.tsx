@@ -273,7 +273,7 @@ export default function LibraryPage() {
 
       {/* Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
           {Array.from({ length: PAGE_SIZE }).map((_, i) => <BookCardSkeleton key={i} />)}
         </div>
       ) : activeError ? (
@@ -322,7 +322,7 @@ export default function LibraryPage() {
             </div>
           )}
           <div className={`transition-opacity duration-300 ${isFetching ? "opacity-40 pointer-events-none" : "opacity-100"}`}>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
               {displayBooks.map((book) => (
                 <BookCard
                   key={book.olid}

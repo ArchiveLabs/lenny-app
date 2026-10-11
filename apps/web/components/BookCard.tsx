@@ -1,8 +1,7 @@
 "use client"
 
-import { ReactNode } from "react"
-import { BookOpen, ChevronRight, Lock, Unlock } from "lucide-react"
-import { Card, CardContent, CardFooter } from "@workspace/ui/components/card"
+import { BookOpen, Lock, Unlock } from "lucide-react"
+import { Badge } from "@workspace/ui/components/badge"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { LennyBook } from "@/types/api"
@@ -10,118 +9,19 @@ import { BookEditSheet } from "@/components/BookEditSheet"
 import { ShareButton } from "@/components/library/ShareButton"
 import { useTranslation } from "react-i18next"
 
-export function FormatBadge({ formats }: { formats: string }) {
-  const labels: Record<string, string> = {
-    EPUB: "EPUB",
-    PDF: "PDF",
-    EPUB_PDF: "EPUB + PDF",
-  }
-  return (
-    <span className="inline-flex items-center rounded-md border border-border/60 bg-muted/60 px-2 py-0.5 text-[11px] font-bold text-foreground">
-      {labels[formats] ?? formats}
-    </span>
-  )
-}
+const FORMAT_LABELS: Record<string, string> = { EPUB: "EPUB", PDF: "PDF", EPUB_PDF: "EPUB + PDF" }
 
 export function BookCardSkeleton() {
   return (
-    <div className="flex gap-3 rounded-lg border border-border/60 bg-card p-3">
-      <Skeleton className="h-28 w-20 shrink-0 rounded-md" />
-      <div className="flex flex-1 flex-col justify-between py-0.5">
-        <div className="space-y-1.5">
-          <Skeleton className="h-4 w-4/5" />
-          <Skeleton className="h-3 w-2/3" />
-        </div>
-        <Skeleton className="h-3 w-24" />
-        <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/50">
-          <Skeleton className="h-5 w-16 rounded-md" />
-          <Skeleton className="h-5 w-10" />
-        </div>
-      </div>
+    <div className="space-y-2 rounded-xl border p-2">
+      <Skeleton className="aspect-[2/3] w-full rounded-lg" />
+      <Skeleton className="h-4 w-4/5" />
+      <Skeleton className="h-3 w-1/2" />
     </div>
   )
 }
 
-export interface BaseBookCardProps {
-  title: string
-  author: string
-  coverUrl: string | null
-  idBadge?: ReactNode
-  topRightBadge?: ReactNode
-  footer?: ReactNode
-  contentMiddle?: ReactNode
-  selectMode?: boolean
-  selected?: boolean
-  onSelectChange?: (checked: boolean) => void
-}
-
-export function BaseBookCard({ title, author, coverUrl, idBadge, topRightBadge, footer, contentMiddle, selectMode, selected, onSelectChange }: BaseBookCardProps) {
-  return (
-    <Card className={`group relative flex flex-row items-stretch gap-3 border bg-card py-3 pr-7 shadow-sm transition-all duration-200 hover:shadow-md ${
-      selectMode && selected ? "border-primary bg-primary/5" : "border-border/60 hover:border-primary/40 hover:bg-accent/20"
-    } ${selectMode ? "pl-2" : "pl-3"}`}>
-      {!selectMode && (
-        <ChevronRight className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
-      )}
-
-      {selectMode && (
-        <div
-          className="flex shrink-0 items-center pr-1"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Checkbox checked={!!selected} onCheckedChange={(c) => onSelectChange?.(!!c)} aria-label={`Select ${title}`} />
-        </div>
-      )}
-
-      {/* Cover — a fixed-size thumbnail, deliberately separate from the details column */}
-      <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-md bg-muted/50">
-        {coverUrl ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={coverUrl}
-            alt={`${title} cover`}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <BookOpen className="h-5 w-5 text-muted-foreground/30" />
-          </div>
-        )}
-      </div>
-
-      {/* Details */}
-      <CardContent className="flex min-w-0 flex-1 flex-col justify-between p-0">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="line-clamp-2 h-10 text-sm font-bold leading-snug tracking-tight text-foreground group-hover:text-primary transition-colors duration-200" title={title}>
-              {title}
-            </h3>
-            <p className="line-clamp-1 text-xs text-muted-foreground">{author}</p>
-          </div>
-          {topRightBadge && <div className="flex shrink-0 items-center gap-1.5">{topRightBadge}</div>}
-        </div>
-
-        <div className="flex items-center gap-2 min-h-[18px]">
-          {idBadge && (
-            <span className="shrink-0 rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              {idBadge}
-            </span>
-          )}
-          <div className="min-w-0 flex-1">{contentMiddle}</div>
-        </div>
-
-        {footer && (
-          <CardFooter className="mt-2 flex items-center justify-between gap-2 border-t border-border/50 p-0 pt-2">
-            {footer}
-          </CardFooter>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
+/** A book as a cover tile, the same shape as the free books cards: cover, title, author, access and copies. */
 export function BookCard({
   book,
   selectMode,
@@ -134,54 +34,72 @@ export function BookCard({
   onSelectChange?: (checked: boolean) => void
 }) {
   const { t } = useTranslation()
-  const coverUrl = book.cover_i
-    ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg`
-    : null
+  const coverUrl = book.cover_i ? `https://covers.openlibrary.org/b/id/${book.cover_i}-M.jpg` : null
   const author = book.author_name && book.author_name.length > 0 ? book.author_name.join(", ") : t("Unknown Author")
+  const copies = book.lenny.available_copies
+  const format = FORMAT_LABELS[book.lenny.formats] // an unknown value is not worth showing
+  const picked = !!selectMode && !!selected
 
   const card = (
-    <BaseBookCard
-      title={book.title}
-      author={author}
-      coverUrl={coverUrl}
-      selectMode={selectMode}
-      selected={selected}
-      onSelectChange={onSelectChange}
-      topRightBadge={
-        book.lenny.encrypted ? (
-          <span className="flex items-center gap-1 rounded-md bg-amber-500/10 border border-amber-500/20 px-1.5 py-1 text-[10px] font-bold text-amber-700 dark:text-amber-400">
-            <Lock className="h-3 w-3" />
-            DRM
-          </span>
+    <div
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        // A tile is a button: Enter or Space does what a click does.
+        if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+          e.preventDefault()
+          e.currentTarget.click()
+        }
+      }}
+      className={`group relative flex h-full cursor-pointer flex-col gap-2 rounded-xl border bg-card p-2 text-left shadow-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 ${
+        picked ? "border-primary ring-2 ring-primary" : ""
+      }`}
+    >
+      <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-muted">
+        {coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={coverUrl} alt={`${book.title} cover`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
         ) : (
-          <span className="flex items-center gap-1 rounded-md bg-green-500/10 border border-green-500/20 px-1.5 py-1 text-[10px] font-bold text-green-700 dark:text-green-400">
-            <Unlock className="h-3 w-3" />
-            Open
-          </span>
-        )
-      }
-      footer={
-        <>
-          <FormatBadge formats={book.lenny.formats} />
-          {/* The copies and the share button sit together on the right */}
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-muted-foreground">
-              <span className="font-bold text-foreground/80">{book.lenny.available_copies}</span>{" "}
-              {book.lenny.available_copies === 1 ? t("copy") : t("copies")}
-            </span>
-            {!selectMode && <ShareButton olid={book.olid} title={book.title} />}
+          <div className="flex h-full w-full items-center justify-center">
+            <BookOpen className="h-8 w-8 text-muted-foreground/30" aria-hidden />
           </div>
-        </>
-      }
-    />
+        )}
+        {book.lenny.encrypted ? (
+          <Badge variant="secondary" className="absolute left-2 top-2 gap-1 bg-amber-100 text-amber-800">
+            <Lock className="h-3 w-3" aria-hidden />
+            DRM
+          </Badge>
+        ) : (
+          <Badge variant="secondary" className="absolute left-2 top-2 gap-1 bg-green-100 text-green-800">
+            <Unlock className="h-3 w-3" aria-hidden />
+            Open
+          </Badge>
+        )}
+        <div className="absolute right-2 top-2" onClick={(e) => e.stopPropagation()}>
+          {selectMode ? (
+            <Checkbox
+              checked={!!selected}
+              onCheckedChange={(c) => onSelectChange?.(!!c)}
+              aria-label={`Select ${book.title}`}
+              className="h-5 w-5 bg-background shadow-sm"
+            />
+          ) : (
+            <span className="flex rounded-full bg-background/90 shadow-sm">
+              <ShareButton olid={book.olid} title={book.title} />
+            </span>
+          )}
+        </div>
+      </div>
+      <span className="line-clamp-2 min-h-10 text-sm font-semibold leading-tight" title={book.title}>{book.title}</span>
+      <span className="line-clamp-1 text-xs text-muted-foreground">{author}</span>
+      <span className="text-xs text-muted-foreground">
+        {[format, `${copies} ${copies === 1 ? t("copy") : t("copies")}`].filter(Boolean).join(" · ")}
+      </span>
+    </div>
   )
 
   if (selectMode) {
-    return (
-      <div className="cursor-pointer" onClick={() => onSelectChange?.(!selected)}>
-        {card}
-      </div>
-    )
+    return <div onClick={() => onSelectChange?.(!selected)}>{card}</div>
   }
 
   return <BookEditSheet book={book}>{card}</BookEditSheet>
