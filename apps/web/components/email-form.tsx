@@ -5,12 +5,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 import { Loader2 } from "lucide-react"
-import { z } from "zod"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { LIBRARIANS_KEY, ME_KEY, updateLibrarian, useFailure } from "@/hooks/use-accounts"
-import { ACCOUNT } from "@/lib/accounts"
+import { ACCOUNT, EmailSchema } from "@/lib/accounts"
 
 /** Saves the signed-in person's own email (PUT on their own row). Shared by the account page and the first-login prompt. */
 export function EmailForm({ id, email, onSaved, secondary }: { id: number; email: string | null; onSaved?: () => void; secondary?: React.ReactNode }) {
@@ -33,14 +32,14 @@ export function EmailForm({ id, email, onSaved, secondary }: { id: number; email
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    const parsed = z.string().trim().email().safeParse(value)
-    if (!parsed.success) return setError(t("Enter a valid email address."))
+    const parsed = EmailSchema.safeParse(value)
+    if (!parsed.success) return setError(t(parsed.error.issues[0]!.message))
     setError("")
     save.mutate(parsed.data)
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3">
+    <form onSubmit={submit} noValidate className="space-y-3">
       <div className="space-y-2">
         <Label htmlFor="account-email">{t(ACCOUNT.emailLabel)}</Label>
         <Input

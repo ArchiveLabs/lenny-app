@@ -15,46 +15,51 @@ import { EmailForm } from "@/components/email-form"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
 import { updateLibrarian, useFailure, useMe } from "@/hooks/use-accounts"
-import { ACCOUNT, MIN_PASSWORD, TEAM } from "@/lib/accounts"
+import { ACCOUNT, ChangePasswordSchema, TEAM, fieldErrors } from "@/lib/accounts"
 
 function PasswordForm({ id }: { id: number }) {
   const { t } = useTranslation()
   const fail = useFailure()
-  const [current, setCurrent] = useState("")
-  const [next, setNext] = useState("")
-  const [again, setAgain] = useState("")
-  const [error, setError] = useState("")
+  const [values, setValues] = useState({ current: "", next: "", again: "" })
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   const save = useMutation({
-    mutationFn: () => updateLibrarian(id, { password: next, current_password: current }),
+    mutationFn: () => updateLibrarian(id, { password: values.next, current_password: values.current }),
     onSuccess: () => {
       toast.success(t(ACCOUNT.passwordSaved))
-      setCurrent(""); setNext(""); setAgain("")
+      setValues({ current: "", next: "", again: "" })
     },
     onError: fail,
   })
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (next.length < MIN_PASSWORD) return setError(t(ACCOUNT.passwordShort))
-    if (next !== again) return setError(t(ACCOUNT.passwordMismatch))
-    setError("")
+    const parsed = ChangePasswordSchema.safeParse(values)
+    if (!parsed.success) return setErrors(fieldErrors(parsed.error))
+    setErrors({})
     save.mutate()
   }
 
-  const field = (key: string, label: string, value: string, set: (v: string) => void, auto: string) => (
+  const field = (key: keyof typeof values, label: string, auto: string) => (
     <div className="space-y-2">
-      <Label htmlFor={key}>{t(label)}</Label>
-      <PasswordInput id={key} autoComplete={auto} value={value} onChange={(e) => { set(e.target.value); setError("") }} required />
+      <Label htmlFor={`password-${key}`}>{t(label)}</Label>
+      <PasswordInput
+        id={`password-${key}`}
+        autoComplete={auto}
+        value={values[key]}
+        onChange={(e) => { setValues({ ...values, [key]: e.target.value }); setErrors({ ...errors, [key]: "" }) }}
+        aria-invalid={!!errors[key]}
+        aria-describedby={errors[key] ? `password-${key}-error` : undefined}
+      />
+      {errors[key] && <p id={`password-${key}-error`} role="alert" className="text-sm text-destructive">{t(errors[key])}</p>}
     </div>
   )
 
   return (
-    <form onSubmit={submit} className="space-y-3">
-      {field("current-password", ACCOUNT.currentPassword, current, setCurrent, "current-password")}
-      {field("new-password", ACCOUNT.newPassword, next, setNext, "new-password")}
-      {field("repeat-password", ACCOUNT.confirmPassword, again, setAgain, "new-password")}
-      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    <form onSubmit={submit} noValidate className="space-y-3">
+      {field("current", ACCOUNT.currentPassword, "current-password")}
+      {field("next", ACCOUNT.newPassword, "new-password")}
+      {field("again", ACCOUNT.confirmPassword, "new-password")}
       <Button type="submit" disabled={save.isPending}>
         {save.isPending && <Loader2 className="size-4 animate-spin" />}
         {t(ACCOUNT.passwordTitle)}

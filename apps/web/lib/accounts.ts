@@ -1,3 +1,5 @@
+import { z } from "zod"
+
 // All user-facing naming for the account screens lives here so it can be changed in one edit.
 export const MIN_PASSWORD = 12
 
@@ -59,3 +61,28 @@ export const TEAM = {
   promoted: (name: string) => `${name} is now a super user.`,
   demoted: (name: string) => `${name} is no longer a super user.`,
 } as const
+
+export const EmailSchema = z.string().trim().min(1, "Enter an email address.").email("Enter a valid email address.")
+export const NewPasswordSchema = z.string().min(MIN_PASSWORD, ACCOUNT.passwordShort)
+
+export const ChangePasswordSchema = z
+  .object({
+    current: z.string().min(1, "Enter your current password."),
+    next: NewPasswordSchema,
+    again: z.string(),
+  })
+  .refine((v) => v.next === v.again, { path: ["again"], message: ACCOUNT.passwordMismatch })
+  .refine((v) => v.next !== v.current, { path: ["next"], message: "Choose a password you haven't used here before." })
+
+export const NewPersonSchema = z.object({
+  username: z.string().trim().min(1, "Enter a username."),
+  email: EmailSchema,
+  password: NewPasswordSchema,
+})
+
+/** The first problem for each field, keyed by field name, for showing under the inputs. */
+export function fieldErrors(error: z.ZodError): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const i of error.issues) out[String(i.path[0] ?? "")] ??= i.message
+  return out
+}

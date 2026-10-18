@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 import { Loader2, Plus } from "lucide-react"
-import { z } from "zod"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
@@ -20,21 +19,15 @@ import { PasswordInput } from "@/components/password-input"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
 import { LIBRARIANS_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
-import { ACCOUNT, MIN_PASSWORD, TEAM } from "@/lib/accounts"
+import { ACCOUNT, NewPersonSchema, TEAM, fieldErrors } from "@/lib/accounts"
 import { Librarian } from "@/types/api"
-
-const NewPerson = z.object({
-  username: z.string().trim().min(1, "Username is required"),
-  email: z.string().trim().email("Enter a valid email address."),
-  password: z.string().min(MIN_PASSWORD, ACCOUNT.passwordShort),
-})
 
 function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const fail = useFailure()
   const [form, setForm] = useState({ username: "", email: "", password: "" })
-  const [error, setError] = useState("")
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   const add = useMutation({
     mutationFn: createLibrarian,
@@ -49,23 +42,34 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    const parsed = NewPerson.safeParse(form)
-    if (!parsed.success) return setError(t(parsed.error.issues[0]!.message))
-    setError("")
+    const parsed = NewPersonSchema.safeParse(form)
+    if (!parsed.success) return setErrors(fieldErrors(parsed.error))
+    setErrors({})
     add.mutate(parsed.data)
   }
 
-  const field = (key: keyof typeof form, label: string, type: string, auto: string) => (
-    <div className="space-y-2">
-      <Label htmlFor={`team-${key}`}>{t(label)}</Label>
-      {type === "password" ? <PasswordInput id={`team-${key}`} autoComplete={auto} value={form[key]} onChange={(e) => { setForm({ ...form, [key]: e.target.value }); setError("") }} required /> : <Input id={`team-${key}`} type={type} autoComplete={auto} value={form[key]} onChange={(e) => { setForm({ ...form, [key]: e.target.value }); setError("") }} required />}
-    </div>
-  )
+  const field = (key: keyof typeof form, label: string, type: string, auto: string) => {
+    const props = {
+      id: `team-${key}`,
+      autoComplete: auto,
+      value: form[key],
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setForm({ ...form, [key]: e.target.value }); setErrors({ ...errors, [key]: "" }) },
+      "aria-invalid": !!errors[key],
+      "aria-describedby": errors[key] ? `team-${key}-error` : undefined,
+    }
+    return (
+      <div className="space-y-2">
+        <Label htmlFor={props.id}>{t(label)}</Label>
+        {type === "password" ? <PasswordInput {...props} /> : <Input type={type} {...props} />}
+        {errors[key] && <p id={`team-${key}-error`} role="alert" className="text-sm text-destructive">{t(errors[key])}</p>}
+      </div>
+    )
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-md">
-        <form onSubmit={submit} className="flex h-full flex-col">
+        <form onSubmit={submit} noValidate className="flex h-full flex-col">
           <SheetHeader>
             <SheetTitle>{t(TEAM.add)}</SheetTitle>
             <SheetDescription>{t(TEAM.addDescription)}</SheetDescription>
@@ -74,7 +78,6 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
             {field("username", TEAM.username, "text", "off")}
             {field("email", TEAM.email, "email", "off")}
             {field("password", TEAM.password, "password", "new-password")}
-            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           </div>
           <SheetFooter>
             <Button type="submit" disabled={add.isPending}>
