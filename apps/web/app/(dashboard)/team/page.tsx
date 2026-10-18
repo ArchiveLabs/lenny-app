@@ -16,6 +16,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog"
+import { PasswordInput } from "@/components/password-input"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
 import { LIBRARIANS_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
@@ -57,7 +58,7 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
   const field = (key: keyof typeof form, label: string, type: string, auto: string) => (
     <div className="space-y-2">
       <Label htmlFor={`team-${key}`}>{t(label)}</Label>
-      <Input id={`team-${key}`} type={type} autoComplete={auto} value={form[key]} onChange={(e) => { setForm({ ...form, [key]: e.target.value }); setError("") }} required />
+      {type === "password" ? <PasswordInput id={`team-${key}`} autoComplete={auto} value={form[key]} onChange={(e) => { setForm({ ...form, [key]: e.target.value }); setError("") }} required /> : <Input id={`team-${key}`} type={type} autoComplete={auto} value={form[key]} onChange={(e) => { setForm({ ...form, [key]: e.target.value }); setError("") }} required />}
     </div>
   )
 

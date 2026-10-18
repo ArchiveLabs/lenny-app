@@ -7,14 +7,15 @@ import { useTranslation } from "react-i18next"
 import { Loader2 } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
-import { Input } from "@workspace/ui/components/input"
+import Link from "next/link"
+import { PasswordInput } from "@/components/password-input"
 import { Label } from "@workspace/ui/components/label"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { EmailForm } from "@/components/email-form"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
 import { updateLibrarian, useFailure, useMe } from "@/hooks/use-accounts"
-import { ACCOUNT, MIN_PASSWORD } from "@/lib/accounts"
+import { ACCOUNT, MIN_PASSWORD, TEAM } from "@/lib/accounts"
 
 function PasswordForm({ id }: { id: number }) {
   const { t } = useTranslation()
@@ -44,7 +45,7 @@ function PasswordForm({ id }: { id: number }) {
   const field = (key: string, label: string, value: string, set: (v: string) => void, auto: string) => (
     <div className="space-y-2">
       <Label htmlFor={key}>{t(label)}</Label>
-      <Input id={key} type="password" autoComplete={auto} value={value} onChange={(e) => { set(e.target.value); setError("") }} required />
+      <PasswordInput id={key} autoComplete={auto} value={value} onChange={(e) => { set(e.target.value); setError("") }} required />
     </div>
   )
 
@@ -69,20 +70,44 @@ export default function AccountPage() {
   if (error) return <ErrorState error={error as Error} onRetry={() => void refetch()} />
   if (!me) return <Skeleton className="h-64 w-full max-w-2xl" aria-busy="true" aria-label={t("Loading")} />
 
+  const joined = new Date(me.created_at)
+  const joinedText = Number.isNaN(joined.getTime()) ? "" : joined.toLocaleDateString(undefined, { dateStyle: "long" })
+
   return (
-    <div className="w-full min-w-0 max-w-2xl space-y-8">
-      <div className="flex items-center gap-4">
-        <UserAvatar username={me.username} size={56} />
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{me.username}</h1>
-          <Badge variant="secondary" className="mt-1">{me.is_super ? t(ACCOUNT.roleSuper) : t(ACCOUNT.roleLibrarian)}</Badge>
-        </div>
+    <div className="w-full min-w-0 max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">{t(ACCOUNT.title)}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t(ACCOUNT.description)}</p>
       </div>
-      <section className="space-y-3 rounded-xl border bg-card p-4">
+
+      <section className="flex flex-wrap items-center gap-4 rounded-xl border bg-card p-4">
+        <UserAvatar username={me.username} size={64} />
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="truncate text-lg font-semibold">{me.username}</h2>
+            <Badge variant="secondary">{me.is_super ? t(ACCOUNT.roleSuper) : t(ACCOUNT.roleLibrarian)}</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">{me.is_super ? t(ACCOUNT.roleSuperHelp) : t(ACCOUNT.roleLibrarianHelp)}</p>
+          {joinedText && <p className="text-xs text-muted-foreground">{t(ACCOUNT.joined(joinedText))}</p>}
+        </div>
+        {me.is_super && (
+          <Button asChild variant="outline" size="sm"><Link href={TEAM.route}>{t(ACCOUNT.manageTeam)}</Link></Button>
+        )}
+      </section>
+
+      <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-6">
+        <div>
+          <h2 className="text-base font-semibold">{t(ACCOUNT.emailTitle)}</h2>
+          <p className="text-sm text-muted-foreground">{t(ACCOUNT.emailHelp)}</p>
+        </div>
         <EmailForm key={me.email ?? ""} id={me.id} email={me.email} />
       </section>
-      <section className="space-y-3 rounded-xl border bg-card p-4">
-        <h2 className="text-base font-semibold">{t(ACCOUNT.passwordTitle)}</h2>
+
+      <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-6">
+        <div>
+          <h2 className="text-base font-semibold">{t(ACCOUNT.passwordTitle)}</h2>
+          <p className="text-sm text-muted-foreground">{t(ACCOUNT.passwordHelp)}</p>
+        </div>
         <PasswordForm id={me.id} />
       </section>
     </div>
