@@ -8,7 +8,7 @@ import { Loader2, Plus } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
+import { FormField } from "@/components/form-field"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@workspace/ui/components/sheet"
 import {
@@ -19,7 +19,7 @@ import { PasswordInput } from "@/components/password-input"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
 import { LIBRARIANS_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
-import { ACCOUNT, NewPersonSchema, TEAM, fieldErrors } from "@/lib/accounts"
+import { ACCOUNT, MIN_PASSWORD, NewPersonSchema, TEAM, fieldErrors } from "@/lib/accounts"
 import { Librarian } from "@/types/api"
 
 function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -48,23 +48,19 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
     add.mutate(parsed.data)
   }
 
-  const field = (key: keyof typeof form, label: string, type: string, auto: string) => {
-    const props = {
-      id: `team-${key}`,
-      autoComplete: auto,
-      value: form[key],
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setForm({ ...form, [key]: e.target.value }); setErrors({ ...errors, [key]: "" }) },
-      "aria-invalid": !!errors[key],
-      "aria-describedby": errors[key] ? `team-${key}-error` : undefined,
-    }
-    return (
-      <div className="space-y-2">
-        <Label htmlFor={props.id}>{t(label)}</Label>
-        {type === "password" ? <PasswordInput {...props} /> : <Input type={type} {...props} />}
-        {errors[key] && <p id={`team-${key}-error`} role="alert" className="text-sm text-destructive">{t(errors[key])}</p>}
-      </div>
-    )
-  }
+  const field = (key: keyof typeof form, label: string, type: string, auto: string, extra: { hint?: string; ok?: string } = {}) => (
+    <FormField id={`team-${key}`} label={t(label)} error={errors[key] && t(errors[key])} {...extra}>
+      {(aria) => {
+        const props = {
+          ...aria,
+          autoComplete: auto,
+          value: form[key],
+          onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setForm({ ...form, [key]: e.target.value }); setErrors({ ...errors, [key]: "" }) },
+        }
+        return type === "password" ? <PasswordInput {...props} /> : <Input type={type} {...props} />
+      }}
+    </FormField>
+  )
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -75,9 +71,10 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
             <SheetDescription>{t(TEAM.addDescription)}</SheetDescription>
           </SheetHeader>
           <div className="flex-1 space-y-4 px-4">
-            {field("username", TEAM.username, "text", "off")}
+            {field("username", TEAM.username, "text", "off", { hint: t(TEAM.usernameHint) })}
             {field("email", TEAM.email, "email", "off")}
-            {field("password", TEAM.password, "password", "new-password")}
+            {field("password", TEAM.password, "password", "new-password",
+              form.password.length >= MIN_PASSWORD ? { ok: t(ACCOUNT.longEnough) } : { hint: t(ACCOUNT.lengthSoFar(form.password.length)) })}
           </div>
           <SheetFooter>
             <Button type="submit" disabled={add.isPending}>

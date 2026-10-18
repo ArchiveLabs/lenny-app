@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next"
 import { Loader2 } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
+import { FormField } from "@/components/form-field"
 import { LIBRARIANS_KEY, ME_KEY, updateLibrarian, useFailure } from "@/hooks/use-accounts"
 import { ACCOUNT, EmailSchema } from "@/lib/accounts"
 
@@ -40,19 +40,17 @@ export function EmailForm({ id, email, onSaved, secondary }: { id: number; email
 
   return (
     <form onSubmit={submit} noValidate className="space-y-3">
-      <div className="space-y-2">
-        <Label htmlFor="account-email">{t(ACCOUNT.emailLabel)}</Label>
-        <Input
-          id="account-email"
-          type="email"
-          autoComplete="email"
-          value={value}
-          onChange={(e) => { setValue(e.target.value); setError("") }}
-          aria-invalid={!!error}
-          aria-describedby={error ? "account-email-error" : undefined}
-        />
-        {error && <p id="account-email-error" role="alert" className="text-sm text-destructive">{error}</p>}
-      </div>
+      <FormField id="account-email" label={t(ACCOUNT.emailLabel)} error={error}>
+        {(aria) => (
+          <Input
+            {...aria}
+            type="email"
+            autoComplete="email"
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setError("") }}
+          />
+        )}
+      </FormField>
       <div className="flex gap-2">
         <Button type="submit" disabled={save.isPending || value.trim() === (email ?? "")}>
           {save.isPending && <Loader2 className="size-4 animate-spin" />}
