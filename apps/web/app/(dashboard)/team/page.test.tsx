@@ -27,6 +27,9 @@ describe("TeamPage", () => {
     renderPage()
     expect(await screen.findByText("ann")).toBeTruthy()
     expect(screen.getAllByText("Disable")).toHaveLength(1) // not on your own row
+    expect(screen.getAllByText("Make super user")).toHaveLength(1)
+    expect(screen.queryByText("Remove super access")).toBeNull()
+    expect(screen.queryByText("Step down")).toBeNull()
     fireEvent.click(screen.getByText("Disable"))
     expect(await screen.findByText("Disable ann?")).toBeTruthy()
   })

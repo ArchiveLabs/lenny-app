@@ -18,7 +18,7 @@ import {
 import { PasswordInput, PasswordRules } from "@/components/password-input"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
-import { LIBRARIANS_KEY, ME_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
+import { LIBRARIANS_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
 import { ACCOUNT, NewPersonSchema, TEAM, fieldErrors } from "@/lib/accounts"
 import { ApiError, Librarian } from "@/types/api"
 
@@ -88,7 +88,7 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
   )
 }
 
-function RoleSheet({ person, isMe, onClose }: { person: Librarian | null; isMe: boolean; onClose: () => void }) {
+function RoleSheet({ person, onClose }: { person: Librarian | null; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const fail = useFailure()
@@ -101,7 +101,6 @@ function RoleSheet({ person, isMe, onClose }: { person: Librarian | null; isMe: 
     onSuccess: (_, p) => {
       toast.success(t(p.is_super ? TEAM.demoted(p.username) : TEAM.promoted(p.username)))
       void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY })
-      void qc.invalidateQueries({ queryKey: ME_KEY })
       close()
     },
     // A wrong password is the person's to fix, so it stays in the form; everything else is a toast.
@@ -116,8 +115,8 @@ function RoleSheet({ person, isMe, onClose }: { person: Librarian | null; isMe: 
     setError("")
     change.mutate(person)
   }
-  const title = !person ? "" : promoting ? TEAM.promoteTitle(person.username) : isMe ? TEAM.stepDownTitle : TEAM.demoteTitle(person.username)
-  const body = promoting ? TEAM.promoteBody : isMe ? TEAM.stepDownBody : TEAM.demoteBody
+  const title = !person ? "" : promoting ? TEAM.promoteTitle(person.username) : TEAM.demoteTitle(person.username)
+  const body = promoting ? TEAM.promoteBody : TEAM.demoteBody
 
   return (
     <Sheet open={!!person} onOpenChange={(o) => !o && close()}>
@@ -172,10 +171,10 @@ function Row({ person, isMe, onDisable, onRole }: { person: Librarian; isMe: boo
         <p className="truncate text-sm text-muted-foreground">{person.email ?? t(TEAM.noEmail)}</p>
       </div>
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => onRole(person)}>
-          {t(person.is_super ? (isMe ? TEAM.stepDown : TEAM.demote) : TEAM.promote)}
-        </Button>
-        {/* The server refuses to disable your own account, so don't offer it. */}
+        {/* The server refuses to disable you or change your own super status, so your row has no actions. */}
+        {isMe ? null : <Button variant="outline" size="sm" disabled={busy} onClick={() => onRole(person)}>
+          {t(person.is_super ? TEAM.demote : TEAM.promote)}
+        </Button>}
         {isMe ? null : person.disabled ? (
           <Button variant="outline" size="sm" disabled={busy} onClick={() => enable.mutate()}>{t(TEAM.enable)}</Button>
         ) : (
@@ -231,7 +230,7 @@ export default function TeamPage() {
       )}
 
       <AddSheet open={adding} onOpenChange={setAdding} />
-      <RoleSheet person={roleTarget} isMe={roleTarget?.id === me.id} onClose={() => setRoleTarget(null)} />
+      <RoleSheet person={roleTarget} onClose={() => setRoleTarget(null)} />
 
       <AlertDialog open={!!target} onOpenChange={(o) => !o && setTarget(null)}>
         <AlertDialogContent>
