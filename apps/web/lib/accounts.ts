@@ -11,7 +11,7 @@ export const ACCOUNT = {
   roleLibrarianHelp: "You can use this admin. Only a super user can manage the team.",
   manageTeam: "Manage team",
   emailTitle: "Email",
-  emailHelp: "Used to reach you. It isn't shown to patrons.",
+  emailHelp: "The email on your admin account.",
   emailLabel: "Email",
   emailSaved: "Email saved.",
   passwordTitle: "Change password",
@@ -28,7 +28,7 @@ export const ACCOUNT = {
   roleSuper: "Super user",
   roleLibrarian: "Librarian",
   promptTitle: "Add your email",
-  promptBody: "Your account has no email yet. Add one so the team can reach you.",
+  promptBody: "Your account has no email yet. Add the one you want on it.",
   promptLater: "Later",
 } as const
 
