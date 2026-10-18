@@ -128,4 +128,44 @@ describe("TeamPage", () => {
     fireEvent.click(screen.getByText("Confirm"))
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/account"))
   })
+
+  it("deletes only after your password, and not on super or your own row", async () => {
+    const me = person({})
+    fetchAdmin.mockImplementation((path, init) =>
+      init?.method === "POST" ? ok({ deleted: true }) : ok(path === "me" ? me : { librarians: [me, person({ id: 2, username: "ann", is_super: false })] }))
+    renderPage()
+    await screen.findByText("ann")
+    expect(screen.getAllByText("Delete")).toHaveLength(1) // ann only
+    fireEvent.click(screen.getByText("Delete"))
+    expect(await screen.findByText("Delete ann?")).toBeTruthy()
+    expect(screen.getByText(/cannot be undone/)).toBeTruthy()
+    fireEvent.click(screen.getAllByText("Delete")[1]) // submit with no password
+    expect(await screen.findByText("Enter your password.")).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(/Confirm with your own password/), { target: { value: "my-password-1!" } })
+    fireEvent.click(screen.getAllByText("Delete")[1])
+    await waitFor(() =>
+      expect(fetchAdmin).toHaveBeenCalledWith("librarians/2/delete", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ current_password: "my-password-1!" }),
+      })))
+  })
+
+  it("keeps a refused delete in the form", async () => {
+    const me = person({})
+    fetchAdmin.mockImplementation((path, init) =>
+      init?.method === "POST"
+        ? Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({ detail: "Invalid password." }) })
+        : ok(path === "me" ? me : { librarians: [me, person({ id: 2, username: "ann", is_super: false })] }))
+    jest.requireMock("@/lib/api-client").handleApiResponse.mockImplementation(async (res) => {
+      if (!res.ok) throw new (require("@/types/api").ApiError)((await res.json()).detail, res.status)
+      return res.json()
+    })
+    renderPage()
+    await screen.findByText("ann")
+    fireEvent.click(screen.getByText("Delete"))
+    fireEvent.change(await screen.findByLabelText(/Confirm with your own password/), { target: { value: "nope" } })
+    fireEvent.click(screen.getAllByText("Delete")[1])
+    expect(await screen.findByText("Invalid password.")).toBeTruthy()
+    expect(screen.getByText("Delete ann?")).toBeTruthy()
+  })
 })

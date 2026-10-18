@@ -36,6 +36,8 @@ export const updateLibrarian = (id: number, body: { name?: string; email?: strin
 export const createLibrarian = (body: { name: string; email: string; password: string }) =>
     send("librarians", "POST", body)
 
+export const deleteLibrarian = (id: number, current_password: string) => send(`librarians/${id}/delete`, "POST", { current_password })
+
 export const setDisabled = (id: number, disabled: boolean) => send(`librarians/${id}/disable`, "POST", { disabled })
 
 // Failed-request wording: an expired session goes to the login page, anything else becomes a toast.

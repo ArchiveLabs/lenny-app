@@ -20,7 +20,7 @@ import { PasswordInput, PasswordRules } from "@/components/password-input"
 import { CopyButton } from "@/components/copy-button"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
-import { LIBRARIANS_KEY, ME_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
+import { LIBRARIANS_KEY, ME_KEY, createLibrarian, deleteLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
 import { ACCOUNT, NewPersonSchema, TEAM, displayName, fieldErrors, generatePassword } from "@/lib/accounts"
 import { ApiError, Librarian } from "@/types/api"
 
@@ -186,7 +186,61 @@ function RoleSheet({ person, onClose }: { person: Librarian | null; onClose: () 
   )
 }
 
-function Row({ person, isMe, onDisable, onRole }: { person: Librarian; isMe: boolean; onDisable: (p: Librarian) => void; onRole: (p: Librarian) => void }) {
+function DeleteSheet({ person, onClose }: { person: Librarian | null; onClose: () => void }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const fail = useFailure()
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+
+  const remove = useMutation({
+    mutationFn: (p: Librarian) => deleteLibrarian(p.id, password),
+    onSuccess: (_, p) => {
+      toast.success(t(TEAM.deleted(displayName(p))))
+      void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY })
+      close()
+    },
+    // A wrong password (or an account already gone) is shown in the form; everything else is a toast.
+    onError: (e) => (e instanceof ApiError && e.status === 400 ? setError(e.message) : fail(e)),
+  })
+
+  const close = () => { setPassword(""); setError(""); onClose() }
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!person) return
+    if (!password) return setError(t("Enter your password."))
+    setError("")
+    remove.mutate(person)
+  }
+
+  return (
+    <Sheet open={!!person} onOpenChange={(o) => !o && close()}>
+      <SheetContent className="sm:max-w-md">
+        <form onSubmit={submit} noValidate className="flex h-full flex-col">
+          <SheetHeader>
+            <SheetTitle>{t(TEAM.deleteTitle(person ? displayName(person) : ""))}</SheetTitle>
+            <SheetDescription>{t(TEAM.deleteBody)}</SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 px-4">
+            <FormField id="delete-password" label={t(TEAM.confirmPassword)} hint={t(TEAM.confirmPasswordHelp)} error={error}>
+              {(aria) => (
+                <PasswordInput {...aria} autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); setError("") }} />
+              )}
+            </FormField>
+          </div>
+          <SheetFooter>
+            <Button type="submit" variant="destructive" disabled={remove.isPending}>
+              {remove.isPending && <Loader2 className="size-4 animate-spin" />}
+              {t(TEAM.delete)}
+            </Button>
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function Row({ person, isMe, onDisable, onRole, onDelete }: { person: Librarian; isMe: boolean; onDisable: (p: Librarian) => void; onRole: (p: Librarian) => void; onDelete: (p: Librarian) => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const fail = useFailure()
@@ -221,6 +275,7 @@ function Row({ person, isMe, onDisable, onRole }: { person: Librarian; isMe: boo
             ) : (
               <Button variant="outline" size="sm" disabled={busy} onClick={() => onDisable(person)}>{t(TEAM.disable)}</Button>
             )}
+            <Button variant="outline" size="sm" disabled={busy} className="text-destructive hover:text-destructive" onClick={() => onDelete(person)}>{t(TEAM.delete)}</Button>
           </>
         )}
       </div>
@@ -237,6 +292,7 @@ export default function TeamPage() {
   const [adding, setAdding] = useState(false)
   const [target, setTarget] = useState<Librarian | null>(null)
   const [roleTarget, setRoleTarget] = useState<Librarian | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Librarian | null>(null)
 
   const disable = useMutation({
     mutationFn: (p: Librarian) => setDisabled(p.id, true),
@@ -268,12 +324,13 @@ export default function TeamPage() {
         <p className="text-sm text-muted-foreground">{t(TEAM.empty)}</p>
       ) : (
         <ul className="divide-y overflow-hidden rounded-xl border bg-card">
-          {data.librarians.map((p) => <Row key={p.id} person={p} isMe={p.id === me.id} onDisable={setTarget} onRole={setRoleTarget} />)}
+          {data.librarians.map((p) => <Row key={p.id} person={p} isMe={p.id === me.id} onDisable={setTarget} onRole={setRoleTarget} onDelete={setDeleteTarget} />)}
         </ul>
       )}
 
       <AddSheet open={adding} onOpenChange={setAdding} />
       <RoleSheet person={roleTarget} onClose={() => setRoleTarget(null)} />
+      <DeleteSheet person={deleteTarget} onClose={() => setDeleteTarget(null)} />
 
       <AlertDialog open={!!target} onOpenChange={(o) => !o && setTarget(null)}>
         <AlertDialogContent>
