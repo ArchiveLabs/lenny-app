@@ -13,7 +13,7 @@ import { LIBRARIANS_KEY, ME_KEY, updateLibrarian, useFailure } from "@/hooks/use
 import { ACCOUNT } from "@/lib/accounts"
 
 /** Saves the signed-in person's own email (PUT on their own row). Shared by the account page and the first-login prompt. */
-export function EmailForm({ id, email, onSaved }: { id: number; email: string | null; onSaved?: () => void }) {
+export function EmailForm({ id, email, onSaved, secondary }: { id: number; email: string | null; onSaved?: () => void; secondary?: React.ReactNode }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const fail = useFailure()
@@ -54,10 +54,13 @@ export function EmailForm({ id, email, onSaved }: { id: number; email: string | 
         />
         {error && <p id="account-email-error" role="alert" className="text-sm text-destructive">{error}</p>}
       </div>
-      <Button type="submit" disabled={save.isPending || value.trim() === (email ?? "")}>
-        {save.isPending && <Loader2 className="size-4 animate-spin" />}
-        {t(ACCOUNT.save)}
-      </Button>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={save.isPending || value.trim() === (email ?? "")}>
+          {save.isPending && <Loader2 className="size-4 animate-spin" />}
+          {t(ACCOUNT.save)}
+        </Button>
+        {secondary}
+      </div>
     </form>
   )
 }

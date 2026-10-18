@@ -31,8 +31,12 @@ export function EmailPrompt() {
           <SheetDescription>{t(ACCOUNT.promptBody)}</SheetDescription>
         </SheetHeader>
         <div className="space-y-4 px-4">
-          <EmailForm id={me.id} email={null} onSaved={close} />
-          <Button variant="ghost" onClick={close}>{t(ACCOUNT.promptLater)}</Button>
+          <EmailForm
+            id={me.id}
+            email={null}
+            onSaved={close}
+            secondary={<Button type="button" variant="outline" onClick={close}>{t(ACCOUNT.promptLater)}</Button>}
+          />
         </div>
       </SheetContent>
     </Sheet>
