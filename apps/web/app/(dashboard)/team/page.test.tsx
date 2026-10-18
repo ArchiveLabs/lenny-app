@@ -133,6 +133,8 @@ describe("TeamPage", () => {
     fireEvent.click(await screen.findByText("Delete"))
     expect(await screen.findByText("Delete Ann Lee?")).toBeTruthy()
     expect(screen.getByText(/cannot be undone/)).toBeTruthy()
+    expect(screen.getAllByText("Ann Lee").length).toBeGreaterThan(1) // the row and the person card in the panel
+    expect(screen.getAllByText(/ann · a@a.test/).length).toBeGreaterThan(1)
     fireEvent.click(screen.getByRole("button", { name: "Delete" })) // no password yet
     expect(await screen.findByText("Enter your password.")).toBeTruthy()
     fireEvent.change(screen.getByLabelText(/Confirm with your own password/), { target: { value: "my-password-1!" } })

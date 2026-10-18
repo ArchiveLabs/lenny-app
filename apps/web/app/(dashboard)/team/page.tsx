@@ -243,7 +243,16 @@ function DeleteSheet({ person, onClose }: { person: Librarian | null; onClose: (
             <SheetTitle>{t(TEAM.deleteTitle(person ? displayName(person) : ""))}</SheetTitle>
             <SheetDescription>{t(TEAM.deleteBody)}</SheetDescription>
           </SheetHeader>
-          <div className="flex-1 px-4">
+          <div className="flex-1 space-y-4 px-4">
+            {person && (
+              <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
+                <UserAvatar seed={String(person.id)} />
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{displayName(person)}</p>
+                  <p className="truncate text-sm text-muted-foreground">{person.username} · {person.email ?? t(TEAM.noEmail)}</p>
+                </div>
+              </div>
+            )}
             <FormField id="delete-password" label={t(TEAM.confirmPassword)} hint={t(TEAM.confirmPasswordHelp)} error={error}>
               {(aria) => (
                 <PasswordInput {...aria} autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); setError("") }} />
