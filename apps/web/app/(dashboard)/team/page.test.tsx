@@ -75,4 +75,21 @@ describe("TeamPage", () => {
     expect(await screen.findByText("The current password is wrong.")).toBeTruthy()
     expect(screen.getByText("Make ann a super user?")).toBeTruthy()
   })
+
+  it("shows the new person's password once after adding, and not again", async () => {
+    const me = person({})
+    fetchAdmin.mockImplementation((path, init) =>
+      init?.method === "POST" ? ok(person({ id: 3, username: "bob", is_super: false })) : ok(path === "me" ? me : { librarians: [me] }))
+    renderPage()
+    await screen.findByText("Team")
+    fireEvent.click(screen.getByText("Add a person"))
+    fireEvent.change(await screen.findByLabelText(/Username/), { target: { value: "bob" } })
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: "bob@b.test" } })
+    fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "correct-horse-9!" } })
+    fireEvent.click(screen.getByText("Add"))
+    expect(await screen.findByText("bob was added")).toBeTruthy()
+    expect(screen.getByText("correct-horse-9!")).toBeTruthy()
+    fireEvent.click(screen.getByText("Done"))
+    await waitFor(() => expect(screen.queryByText("correct-horse-9!")).toBeNull())
+  })
 })

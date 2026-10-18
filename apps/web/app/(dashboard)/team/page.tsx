@@ -16,10 +16,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog"
 import { PasswordInput, PasswordRules } from "@/components/password-input"
+import { CopyButton } from "@/components/copy-button"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
 import { LIBRARIANS_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
-import { ACCOUNT, NewPersonSchema, TEAM, fieldErrors } from "@/lib/accounts"
+import { ACCOUNT, NewPersonSchema, TEAM, fieldErrors, generatePassword } from "@/lib/accounts"
 import { ApiError, Librarian } from "@/types/api"
 
 function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -28,17 +29,29 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
   const fail = useFailure()
   const [form, setForm] = useState({ username: "", email: "", password: "" })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  // Bumped on each Generate so the password field remounts already revealed.
+  const [generations, setGenerations] = useState(0)
+  // Held only while this sheet is open: the password can't be shown again after it closes.
+  const [created, setCreated] = useState<{ username: string; password: string } | null>(null)
 
   const add = useMutation({
     mutationFn: createLibrarian,
-    onSuccess: (p) => {
+    onSuccess: (p, vars) => {
       toast.success(t(TEAM.added(p.username)))
       void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY })
+      setCreated({ username: p.username, password: vars.password })
       setForm({ username: "", email: "", password: "" })
-      onOpenChange(false)
+      setGenerations(0)
     },
     onError: fail,
   })
+
+  const finish = () => { setCreated(null); onOpenChange(false) }
+  const generate = () => {
+    setForm({ ...form, password: generatePassword() })
+    setErrors({ ...errors, password: "" })
+    setGenerations(generations + 1)
+  }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,14 +70,33 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
           value: form[key],
           onChange: (e: React.ChangeEvent<HTMLInputElement>) => { setForm({ ...form, [key]: e.target.value }); setErrors({ ...errors, [key]: "" }) },
         }
-        return type === "password" ? <PasswordInput {...props} /> : <Input type={type} {...props} />
+        return type === "password" ? <PasswordInput key={generations} defaultShown={generations > 0} {...props} /> : <Input type={type} {...props} />
       }}
     </FormField>
   )
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={(o) => (o ? onOpenChange(true) : finish())}>
       <SheetContent className="sm:max-w-md">
+        {created ? (
+          <div className="flex h-full flex-col">
+            <SheetHeader>
+              <SheetTitle>{t(TEAM.sharedTitle(created.username))}</SheetTitle>
+              <SheetDescription>{t(TEAM.sharedBody)}</SheetDescription>
+            </SheetHeader>
+            <dl className="flex-1 space-y-4 px-4 text-sm">
+              <div><dt className="text-muted-foreground">{t(TEAM.username)}</dt><dd className="font-medium">{created.username}</dd></div>
+              <div>
+                <dt className="text-muted-foreground">{t(TEAM.password)}</dt>
+                <dd className="mt-1 flex items-center gap-2">
+                  <code className="min-w-0 flex-1 break-all rounded-md bg-muted px-2 py-1.5 font-mono">{created.password}</code>
+                  <CopyButton value={created.password} />
+                </dd>
+              </div>
+            </dl>
+            <SheetFooter><Button onClick={finish}>{t(TEAM.done)}</Button></SheetFooter>
+          </div>
+        ) : (
         <form onSubmit={submit} noValidate className="flex h-full flex-col">
           <SheetHeader>
             <SheetTitle>{t(TEAM.add)}</SheetTitle>
@@ -74,7 +106,11 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
             {field("username", TEAM.username, "text", "off", { hint: t(TEAM.usernameHint) })}
             {field("email", TEAM.email, "email", "off")}
             {field("password", TEAM.password, "password", "new-password",
-              { hint: <PasswordRules value={form.password} /> })}
+              { hint: <><PasswordRules value={form.password} />{generations > 0 && <p className="mt-2">{t(TEAM.generated)}</p>}</> })}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={generate}>{t(TEAM.generate)}</Button>
+              <CopyButton value={form.password} />
+            </div>
           </div>
           <SheetFooter>
             <Button type="submit" disabled={add.isPending}>
@@ -83,6 +119,7 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
             </Button>
           </SheetFooter>
         </form>
+        )}
       </SheetContent>
     </Sheet>
   )

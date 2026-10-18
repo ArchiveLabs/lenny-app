@@ -1,4 +1,4 @@
-import { ChangePasswordSchema, EmailSchema, NewPersonSchema, fieldErrors } from "./accounts"
+import { ChangePasswordSchema, generatePassword, NewPasswordSchema, EmailSchema, NewPersonSchema, fieldErrors } from "./accounts"
 
 const GOOD = "new-password-12!"
 const change = (v: object) => ChangePasswordSchema.safeParse({ current: "old-password-1", next: GOOD, again: GOOD, ...v })
@@ -26,4 +26,18 @@ describe("NewPersonSchema", () => {
     const r = NewPersonSchema.safeParse({ username: " ", email: "x", password: "short" })
     expect(Object.keys(fieldErrors((r as any).error)).sort()).toEqual(["email", "password", "username"])
   })
+})
+
+describe("generatePassword", () => {
+  beforeAll(() => { Object.defineProperty(globalThis, "crypto", { value: require("crypto").webcrypto, configurable: true }) })
+
+  it("is 20 characters, passes the password rules and has no look-alikes", () => {
+    for (let i = 0; i < 200; i++) {
+      const p = generatePassword()
+      expect(p).toHaveLength(20)
+      expect(NewPasswordSchema.safeParse(p).success).toBe(true)
+      expect(p).not.toMatch(/[0OIl1]/)
+    }
+  })
+  it("differs every time", () => expect(new Set(Array.from({ length: 50 }, () => generatePassword())).size).toBe(50))
 })

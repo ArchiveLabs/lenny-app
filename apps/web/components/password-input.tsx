@@ -7,9 +7,9 @@ import { Input } from "@workspace/ui/components/input"
 import { ACCOUNT, PASSWORD_RULES } from "@/lib/accounts"
 
 /** A password field with a show/hide toggle, for forms where a typo is costly. */
-export function PasswordInput(props: Omit<React.ComponentProps<typeof Input>, "type">) {
+export function PasswordInput({ defaultShown = false, ...props }: Omit<React.ComponentProps<typeof Input>, "type"> & { defaultShown?: boolean }) {
   const { t } = useTranslation()
-  const [shown, setShown] = useState(false)
+  const [shown, setShown] = useState(defaultShown)
   return (
     <div className="relative">
       <Input {...props} type={shown ? "text" : "password"} className="pr-10" />

@@ -62,6 +62,14 @@ export const TEAM = {
   confirmPassword: "Confirm with your own password",
   confirmPasswordHelp: "This is the password you sign in with, not theirs.",
   confirm: "Confirm",
+  generate: "Generate",
+  generated: "Shown only now. Pass it to the new person: Lenny keeps only a scrambled copy and can't show it again.",
+  copy: "Copy",
+  copied: "Copied",
+  copyBlocked: "Couldn't copy",
+  sharedTitle: (name: string) => `${name} was added`,
+  sharedBody: "Share these with them now. The password is shown only this once.",
+  done: "Done",
   noEmail: "No email",
   disableTitle: (name: string) => `Disable ${name}?`,
   disableBody: "They are signed out at once and can't sign in until you enable them again.",
@@ -105,4 +113,31 @@ export function fieldErrors(error: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {}
   for (const i of error.issues) out[String(i.path[0] ?? "")] ??= i.message
   return out
+}
+
+// No look-alikes: no 0/O, 1/l/I.
+const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz"
+const DIGITS = "23456789"
+const SYMBOLS = "!#$%*+-=?@"
+
+/** Unbiased random integer below `max` (rejection sampling), from the browser's secure generator. */
+function randomBelow(max: number): number {
+  const limit = Math.floor(0x100000000 / max) * max
+  const buf = new Uint32Array(1)
+  do crypto.getRandomValues(buf)
+  while (buf[0]! >= limit)
+  return buf[0]! % max
+}
+
+/** A random password with at least one letter, digit and symbol, shuffled so the kinds aren't in fixed places. */
+export function generatePassword(length = 20): string {
+  const all = LETTERS + DIGITS + SYMBOLS
+  const pick = (set: string) => set[randomBelow(set.length)]!
+  const chars = [pick(LETTERS), pick(DIGITS), pick(SYMBOLS)]
+  while (chars.length < length) chars.push(pick(all))
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomBelow(i + 1)
+    ;[chars[i], chars[j]] = [chars[j]!, chars[i]!]
+  }
+  return chars.join("")
 }
