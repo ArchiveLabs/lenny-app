@@ -47,3 +47,18 @@ it("sends the secret to Lenny only, and a bad login gets only Lenny's message", 
   expect((await res.json()).error).toBe("Invalid email, username or password.")
   expect((spy.mock.calls[0]![1] as any).headers["X-Admin-Internal-Secret"]).toBe("test-secret")
 })
+
+it("refuses non-string or oversized credentials before they reach Lenny", async () => {
+  const spy = jest.spyOn(global, "fetch")
+  const ok = { origin: "http://admin.test" }
+  expect((await login({ username: { $ne: 1 }, password: "pw" }, ok)).status).toBe(400)
+  expect((await login({ username: "a", password: ["x"] }, ok)).status).toBe(400)
+  expect((await login({ username: "a", password: "x".repeat(1025) }, ok)).status).toBe(400)
+  expect(spy).not.toHaveBeenCalled()
+})
+
+it("never passes a non-string upstream error to the page", async () => {
+  upstream({ detail: [{ msg: "bad", loc: ["body"] }] }, 422)
+  const res = await login({ username: "a", password: "pw" }, { origin: "http://admin.test" })
+  expect(typeof (await res.json()).error).toBe("string")
+})

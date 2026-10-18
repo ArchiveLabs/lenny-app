@@ -68,7 +68,7 @@ export function LoginForm({
         return // keep the button busy until the next page loads
       }
       const data = await res.json().catch(() => ({}))
-      setError(data.error || LOGIN.failed)
+      setError(typeof data.error === "string" && data.error ? data.error : LOGIN.failed)
     } catch {
       setError(LOGIN.unreachable)
     }

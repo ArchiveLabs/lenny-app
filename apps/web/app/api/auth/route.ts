@@ -18,8 +18,12 @@ async function login(request: Request) {
         return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
 
-    if (!username || !password) {
+    // Only plain, bounded strings go upstream: no objects, and no huge password to hash.
+    if (typeof username !== "string" || typeof password !== "string" || !username || !password) {
         return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
+    }
+    if (username.length > 254 || password.length > 1024) {
+        return NextResponse.json({ error: "Invalid email, username or password." }, { status: 400 })
     }
 
     // In production: call FastAPI internal endpoint
@@ -48,7 +52,7 @@ async function login(request: Request) {
             if (!res.ok) {
                 const detail = await res.json().catch(() => ({}))
                 return NextResponse.json(
-                    { error: detail.detail || "Invalid credentials" },
+                    { error: typeof detail.detail === "string" && detail.detail ? detail.detail : "Invalid credentials" },
                     { status: res.status }
                 )
             }
