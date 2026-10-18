@@ -11,8 +11,7 @@ import Link from "next/link"
 import { PasswordInput, PasswordRules } from "@/components/password-input"
 import { FormField } from "@/components/form-field"
 import { Skeleton } from "@workspace/ui/components/skeleton"
-import { EmailForm } from "@/components/email-form"
-import { NameForm } from "@/components/name-form"
+import { ProfileForm } from "@/components/profile-form"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
 import { updateLibrarian, useFailure, useMe } from "@/hooks/use-accounts"
@@ -87,32 +86,23 @@ export default function AccountPage() {
       </div>
 
       <section className="flex flex-wrap items-center gap-4 rounded-xl border bg-card p-4">
-        <UserAvatar seed={String(me.id)} size={64} />
-        <div className="min-w-0 flex-1 space-y-1">
+        <UserAvatar seed={String(me.id)} size={56} />
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="truncate text-lg font-semibold">{displayName(me)}</h2>
             <Badge variant="secondary">{me.is_super ? t(ACCOUNT.roleSuper) : t(ACCOUNT.roleLibrarian)}</Badge>
           </div>
-          <p className="text-sm text-muted-foreground">{t(ACCOUNT.usernameLine(me.username))}</p>
-          <p className="text-sm text-muted-foreground">{me.is_super ? t(ACCOUNT.roleSuperHelp) : t(ACCOUNT.roleLibrarianHelp)}</p>
-          {joinedText && <p className="text-xs text-muted-foreground">{t(ACCOUNT.joined(joinedText))}</p>}
+          <p className="truncate text-sm text-muted-foreground">
+            {[me.username, joinedText && t(ACCOUNT.joined(joinedText))].filter(Boolean).join(" · ")}
+          </p>
         </div>
         {me.is_super && (
           <Button asChild variant="outline" size="sm"><Link href={TEAM.route}>{t(ACCOUNT.manageTeam)}</Link></Button>
         )}
       </section>
 
-      <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-6">
-        <h2 className="text-base font-semibold">{t(ACCOUNT.nameTitle)}</h2>
-        <NameForm key={me.name ?? ""} id={me.id} name={me.name ?? null} />
-      </section>
-
-      <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-6">
-        <div>
-          <h2 className="text-base font-semibold">{t(ACCOUNT.emailTitle)}</h2>
-          <p className="text-sm text-muted-foreground">{t(ACCOUNT.emailHelp)}</p>
-        </div>
-        <EmailForm key={me.email ?? ""} id={me.id} email={me.email} />
+      <section className="rounded-xl border bg-card p-4 sm:p-6">
+        <ProfileForm key={`${me.name ?? ""}|${me.email ?? ""}`} id={me.id} name={me.name ?? null} email={me.email} />
       </section>
 
       <section className="space-y-4 rounded-xl border bg-card p-4 sm:p-6">
