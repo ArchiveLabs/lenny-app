@@ -55,12 +55,9 @@ export const TEAM = {
   disable: "Disable",
   enable: "Enable",
   promote: "Make super user",
-  demote: "Remove super access",
   you: "You",
   promoteTitle: (name: string) => `Make ${name} a super user?`,
-  demoteTitle: (name: string) => `Remove super access from ${name}?`,
-  promoteBody: "A super user can add and disable people and change who else is a super user.",
-  demoteBody: "They keep their account but can no longer manage the team.",
+  promoteBody: "There is only one super user, so this hands the role over. You will become a normal member and lose access to Team and these settings.",
   confirmPassword: "Confirm with your own password",
   confirmPasswordHelp: "This is the password you sign in with, not theirs.",
   confirm: "Confirm",
@@ -77,8 +74,7 @@ export const TEAM = {
   disableBody: "They are signed out at once and can't sign in until you enable them again.",
   disabled: (name: string) => `${name} is disabled.`,
   enabled: (name: string) => `${name} is enabled.`,
-  promoted: (name: string) => `${name} is now a super user.`,
-  demoted: (name: string) => `${name} is no longer a super user.`,
+  promoted: (name: string) => `${name} is now the super user.`,
 } as const
 
 export const EmailSchema = z.string().trim().min(1, "Enter an email address.").email("Enter a valid email address.")

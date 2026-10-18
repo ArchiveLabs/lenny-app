@@ -9,6 +9,8 @@ jest.mock("@/lib/api-client", () => ({
   redirectToLogin: jest.fn(),
   handleApiResponse: jest.fn((res) => res.json()),
 }))
+const replace = jest.fn()
+jest.mock("next/navigation", () => ({ useRouter: () => ({ replace, push: jest.fn() }) }))
 jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s }) }))
 jest.mock("@blobatar/react", () => ({ Blobatar: () => null }))
 
@@ -99,5 +101,31 @@ describe("TeamPage", () => {
     renderPage()
     expect(await screen.findByText("Ann Lee")).toBeTruthy()
     expect(screen.getByText(/ann · a@a.test/)).toBeTruthy()
+  })
+
+  it("has no actions on any super row, and no promote on a disabled account", async () => {
+    const me = person({})
+    serve(me, [me, person({ id: 2, username: "old", is_super: true }), person({ id: 3, username: "off", is_super: false, disabled: true })])
+    renderPage()
+    await screen.findByText("off")
+    expect(screen.queryByText("Remove super access")).toBeNull()
+    expect(screen.queryByText("Make super user")).toBeNull()
+    expect(screen.getAllByText("Enable")).toHaveLength(1)
+    expect(screen.queryByText("Disable")).toBeNull()
+  })
+
+  it("leaves the team page after handing the role over", async () => {
+    const me = person({})
+    fetchAdmin.mockImplementation((path, init) =>
+      init?.method === "PUT"
+        ? ok(person({ id: 2, username: "ann", is_super: true, transferred: true }))
+        : ok(path === "me" ? me : { librarians: [me, person({ id: 2, username: "ann", is_super: false })] }))
+    renderPage()
+    await screen.findByText("ann")
+    fireEvent.click(screen.getByText("Make super user"))
+    expect(await screen.findByText(/You will become a normal member/)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(/Confirm with your own password/), { target: { value: "my-password-1!" } })
+    fireEvent.click(screen.getByText("Confirm"))
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/account"))
   })
 })

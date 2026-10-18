@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
@@ -19,7 +20,7 @@ import { PasswordInput, PasswordRules } from "@/components/password-input"
 import { CopyButton } from "@/components/copy-button"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
-import { LIBRARIANS_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
+import { LIBRARIANS_KEY, ME_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
 import { ACCOUNT, NewPersonSchema, TEAM, displayName, fieldErrors, generatePassword } from "@/lib/accounts"
 import { ApiError, Librarian } from "@/types/api"
 
@@ -130,16 +131,19 @@ function RoleSheet({ person, onClose }: { person: Librarian | null; onClose: () 
   const { t } = useTranslation()
   const qc = useQueryClient()
   const fail = useFailure()
+  const router = useRouter()
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const promoting = !person?.is_super
 
   const change = useMutation({
-    mutationFn: (p: Librarian) => updateLibrarian(p.id, { is_super: !p.is_super, current_password: password }),
+    mutationFn: (p: Librarian) => updateLibrarian(p.id, { is_super: true, current_password: password }),
+    // The hand-over makes you a normal member: the team list is now forbidden, so leave this page.
     onSuccess: (_, p) => {
-      toast.success(t(p.is_super ? TEAM.demoted(displayName(p)) : TEAM.promoted(displayName(p))))
-      void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY })
+      toast.success(t(TEAM.promoted(displayName(p))))
+      qc.removeQueries({ queryKey: LIBRARIANS_KEY })
+      void qc.invalidateQueries({ queryKey: ME_KEY })
       close()
+      router.replace(ACCOUNT.route)
     },
     // A wrong password is the person's to fix, so it stays in the form; everything else is a toast.
     onError: (e) => (e instanceof ApiError && e.status === 400 ? setError(e.message) : fail(e)),
@@ -153,8 +157,7 @@ function RoleSheet({ person, onClose }: { person: Librarian | null; onClose: () 
     setError("")
     change.mutate(person)
   }
-  const title = !person ? "" : promoting ? TEAM.promoteTitle(displayName(person)) : TEAM.demoteTitle(displayName(person))
-  const body = promoting ? TEAM.promoteBody : TEAM.demoteBody
+  const title = person ? TEAM.promoteTitle(displayName(person)) : ""
 
   return (
     <Sheet open={!!person} onOpenChange={(o) => !o && close()}>
@@ -162,7 +165,7 @@ function RoleSheet({ person, onClose }: { person: Librarian | null; onClose: () 
         <form onSubmit={submit} noValidate className="flex h-full flex-col">
           <SheetHeader>
             <SheetTitle>{t(title)}</SheetTitle>
-            <SheetDescription>{t(body)}</SheetDescription>
+            <SheetDescription>{t(TEAM.promoteBody)}</SheetDescription>
           </SheetHeader>
           <div className="flex-1 px-4">
             <FormField id="role-password" label={t(TEAM.confirmPassword)} hint={t(TEAM.confirmPasswordHelp)} error={error}>
@@ -209,14 +212,16 @@ function Row({ person, isMe, onDisable, onRole }: { person: Librarian; isMe: boo
         <p className="truncate text-sm text-muted-foreground">{person.username} · {person.email ?? t(TEAM.noEmail)}</p>
       </div>
       <div className="flex gap-2">
-        {/* The server refuses to disable you or change your own super status, so your row has no actions. */}
-        {isMe ? null : <Button variant="outline" size="sm" disabled={busy} onClick={() => onRole(person)}>
-          {t(person.is_super ? TEAM.demote : TEAM.promote)}
-        </Button>}
-        {isMe ? null : person.disabled ? (
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => enable.mutate()}>{t(TEAM.enable)}</Button>
-        ) : (
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => onDisable(person)}>{t(TEAM.disable)}</Button>
+        {/* The server refuses to disable or demote the super user, so a super row (yours included) has no actions. */}
+        {person.is_super ? null : (
+          <>
+            {!person.disabled && <Button variant="outline" size="sm" disabled={busy} onClick={() => onRole(person)}>{t(TEAM.promote)}</Button>}
+            {person.disabled ? (
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => enable.mutate()}>{t(TEAM.enable)}</Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => onDisable(person)}>{t(TEAM.disable)}</Button>
+            )}
+          </>
         )}
       </div>
     </li>
