@@ -25,3 +25,15 @@ describe("isSameOrigin", () => {
   it("blocks another origin", () => expect(isSameOrigin(req({ origin: "http://evil.test", host: "a.test" }))).toBe(false))
   it("blocks a malformed origin", () => expect(isSameOrigin(req({ origin: "null", host: "a.test" }))).toBe(false))
 })
+
+describe("pinned host", () => {
+  afterEach(() => { delete process.env.ADMIN_PUBLIC_HOST })
+  it("ignores a forged x-forwarded-host once the host is pinned", () => {
+    process.env.ADMIN_PUBLIC_HOST = "admin.example"
+    expect(isSameOrigin(req({ origin: "http://evil.test", host: "internal:3000", "x-forwarded-host": "evil.test" }))).toBe(false)
+  })
+  it("still allows the pinned host", () => {
+    process.env.ADMIN_PUBLIC_HOST = "admin.example"
+    expect(isSameOrigin(req({ origin: "https://admin.example", host: "internal:3000" }))).toBe(true)
+  })
+})

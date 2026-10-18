@@ -17,7 +17,9 @@ export function isSameOrigin(request: Request): boolean {
     if (request.headers.get("sec-fetch-site") === "cross-site") return false
     const origin = request.headers.get("origin")
     if (!origin) return true // non-browser caller, or a browser that sends no Origin
-    const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host")
+    // x-forwarded-host is whatever the client sent unless a trusted proxy overwrites it, so
+    // set ADMIN_PUBLIC_HOST to the host the admin is served on and it is the only one trusted.
+    const host = process.env.ADMIN_PUBLIC_HOST || request.headers.get("x-forwarded-host") || request.headers.get("host")
     if (!host) return false
     try {
         return new URL(origin).hostname === hostname(host.split(",")[0]!.trim())

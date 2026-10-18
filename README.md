@@ -237,6 +237,7 @@ Notes for anyone upgrading a working install of `apps/web` (the admin UI served 
 | `LENNY_INTERNAL_API_URL` | Lenny API base for the admin proxy and login, e.g. `http://lenny_api:1337/v1/api`. Server-side only. Required in production. |
 | `ADMIN_INTERNAL_SECRET` | Shared secret the proxy sends to Lenny. Server-side only. Required in production. |
 | `ADMIN_USERNAME`, `ADMIN_PASSWORD` | Development login only, used when the two variables above are unset and `NODE_ENV` is not `production`. |
+| `ADMIN_PUBLIC_HOST` | The host the admin is served on. Set it in production so the CSRF check trusts only that host and not a client-supplied `X-Forwarded-Host`. |
 | `AUTH_BYPASS` | Development only: skips the login check. |
 
 Never put a secret in a `NEXT_PUBLIC_*` variable; those are bundled into the browser.

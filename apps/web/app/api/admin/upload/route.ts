@@ -53,6 +53,7 @@ export async function POST(request: Request) {
         status: upstream.status,
         headers: {
             "Content-Type": upstream.headers.get("Content-Type") || "application/json",
+            "Cache-Control": "no-store",
         },
     })
 }

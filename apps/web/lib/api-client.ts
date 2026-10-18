@@ -67,6 +67,7 @@ function friendlyStatus(status: number, statusText: string): string {
   if (status === 401) return "Your session has expired. Sign in again."
   if (status === 403) return "You don't have permission to do that."
   if (status === 404) return "Not found."
+  if (status === 429) return "Too many attempts, try again in a few minutes."
   if (status >= 500) return "The server had a problem. Try again in a moment."
   return statusText || "Something went wrong."
 }

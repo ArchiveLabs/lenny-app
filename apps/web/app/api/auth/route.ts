@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/admin-session"
 
 export async function POST(request: Request) {
     let username: string | undefined
@@ -36,6 +37,9 @@ export async function POST(request: Request) {
                 body: JSON.stringify({ username, password }),
             })
 
+            if (res.status === 429) {
+                return NextResponse.json({ error: "Too many attempts, try again in a few minutes." }, { status: 429 })
+            }
             if (!res.ok) {
                 const detail = await res.json().catch(() => ({}))
                 return NextResponse.json(
@@ -76,14 +80,7 @@ export async function POST(request: Request) {
 
     const response = NextResponse.json({ success: true })
 
-    // httpOnly auth token (not readable by JS)
-    response.cookies.set("admin_token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-        maxAge: 60 * 60 * 24,
-    })
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions)
 
     // Non-httpOnly username cookie (readable by client for display purposes only)
     response.cookies.set("admin_user", signedInAs, {

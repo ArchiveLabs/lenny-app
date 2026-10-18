@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { hasUnsafeSegment, isSameOrigin } from "@/lib/admin-guard"
+import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/admin-session"
 
 const internalApiUrl = process.env.LENNY_INTERNAL_API_URL // e.g. http://127.0.0.1:1337/v1/api
 const internalSecret = process.env.ADMIN_INTERNAL_SECRET
@@ -82,7 +83,23 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
     // (e.g. DELETE /admin/items/{id}, which correctly returns 204) already succeeded.
     const isNullBodyStatus = upstream.status === 204 || upstream.status === 205 || upstream.status === 304
 
-    return new NextResponse(isNullBodyStatus ? null : responseBody, {
+    // Changing your own password ends the old token and returns a new one. Keep it in the
+    // cookie (so the person stays signed in) and out of the page's reach.
+    let newToken: string | undefined
+    let outBody: string | null = isNullBodyStatus ? null : responseBody
+    if (request.method === "PUT" && upstream.ok && pathArray[0] === "librarians" && outBody) {
+        try {
+            const { token, ...rest } = JSON.parse(outBody)
+            if (typeof token === "string" && token) {
+                newToken = token
+                outBody = JSON.stringify(rest)
+            }
+        } catch {
+            // not JSON: pass it through untouched
+        }
+    }
+
+    const response = new NextResponse(outBody, {
         status: upstream.status,
         headers: {
             "Content-Type": upstream.headers.get("Content-Type") || "application/json",
@@ -90,6 +107,8 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
             "Cache-Control": "no-store",
         },
     })
+    if (newToken) response.cookies.set(SESSION_COOKIE, newToken, sessionCookieOptions)
+    return response
 }
 
 export const GET = proxyRequest
