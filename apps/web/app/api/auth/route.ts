@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { isSameOrigin } from "@/lib/admin-guard"
-import { SESSION_COOKIE, USER_COOKIE, sessionCookieOptions, userCookieOptions } from "@/lib/admin-session"
+import { SESSION_COOKIE, USER_COOKIE, clearLegacySession, sessionCookieOptions, userCookieOptions } from "@/lib/admin-session"
 
 async function login(request: Request) {
     // Another site must not be able to sign you in as someone it controls.
@@ -89,6 +89,8 @@ async function login(request: Request) {
 
     // Readable by the page, for display only.
     response.cookies.set(USER_COOKIE, signedInAs, userCookieOptions)
+    // After the sets above: the cookie jar rewrites the Set-Cookie header, so it would drop this if added first.
+    clearLegacySession(response)
 
     return response
 }

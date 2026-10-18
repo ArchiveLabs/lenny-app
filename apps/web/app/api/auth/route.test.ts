@@ -29,6 +29,8 @@ it("sets a scoped httpOnly session cookie, keeps the token out of the body and i
   expect(token).toMatch(/Path=\/admin/)
   expect(token).toMatch(/SameSite=strict/i)
   expect(cookies.find((c) => c.startsWith("admin_user="))).toContain("Ann")
+  // a cookie from before the /admin scope must not linger beside the new one
+  expect(cookies).toContainEqual(expect.stringMatching(/^admin_token=; Path=\/; Max-Age=0/))
 })
 
 it("says plainly when there have been too many attempts", async () => {

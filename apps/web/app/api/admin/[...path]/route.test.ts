@@ -18,6 +18,9 @@ it("keeps the new token in the cookie and out of the page's reach after a passwo
   const res = await put("librarians/1")
   expect(res.cookies.get("admin_token")?.value).toBe("new-token")
   expect(res.cookies.get("admin_token")?.httpOnly).toBe(true)
+  expect(res.cookies.get("admin_token")?.path).toBe("/admin")
+  // the stale broader-path cookie is expired in the same response
+  expect(res.headers.getSetCookie()).toContainEqual(expect.stringMatching(/^admin_token=; Path=\/; Max-Age=0/))
   expect(await res.json()).toEqual({ id: 1, username: "admin" })
 })
 

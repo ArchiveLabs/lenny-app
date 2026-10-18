@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { hasUnsafeSegment, isSameOrigin } from "@/lib/admin-guard"
-import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/admin-session"
+import { SESSION_COOKIE, clearLegacySession, sessionCookieOptions } from "@/lib/admin-session"
 
 const internalApiUrl = process.env.LENNY_INTERNAL_API_URL // e.g. http://127.0.0.1:1337/v1/api
 const internalSecret = process.env.ADMIN_INTERNAL_SECRET
@@ -118,7 +118,11 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
             "Cache-Control": "no-store",
         },
     })
-    if (newToken) response.cookies.set(SESSION_COOKIE, newToken, sessionCookieOptions)
+    if (newToken) {
+        response.cookies.set(SESSION_COOKIE, newToken, sessionCookieOptions)
+        // After the set: the cookie jar rewrites the Set-Cookie header, so it would drop this if added first.
+        clearLegacySession(response)
+    }
     return response
 }
 
