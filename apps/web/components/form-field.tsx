@@ -17,8 +17,10 @@ export function FormField({ id, label, required = true, hint, ok, error, childre
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>
-        {label}
-        {required && <span aria-hidden className="text-destructive">*</span>}
+        <span>
+          {label}
+          {required && <span aria-hidden className="ml-0.5 text-destructive">*</span>}
+        </span>
       </Label>
       {children({ id, "aria-invalid": !!error, "aria-required": required, "aria-describedby": error || ok || hint ? noteId : undefined })}
       {error ? (

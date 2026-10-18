@@ -30,12 +30,12 @@ export function PasswordInput({ defaultShown = false, ...props }: Omit<React.Com
 export function PasswordRules({ value }: { value: string }) {
   const { t } = useTranslation()
   return (
-    <ul className="space-y-1">
+    <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
       {PASSWORD_RULES.map((r) => {
         const ok = r.ok(value)
         return (
           <li key={r.key} className={ok ? "flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400" : "flex items-center gap-1.5"}>
-            {ok ? <Check className="size-4 shrink-0" aria-hidden /> : <Circle className="size-3 shrink-0 mx-0.5" aria-hidden />}
+            {ok ? <Check className="size-3.5 shrink-0" aria-hidden /> : <Circle className="size-2.5 shrink-0 mx-px" aria-hidden />}
             <span>{t(r.label)}</span>
             <span className="sr-only">{ok ? t("done") : t("not yet")}</span>
           </li>
