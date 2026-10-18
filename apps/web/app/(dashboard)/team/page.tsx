@@ -18,9 +18,9 @@ import {
 import { PasswordInput, PasswordRules } from "@/components/password-input"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
-import { LIBRARIANS_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
+import { LIBRARIANS_KEY, ME_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
 import { ACCOUNT, NewPersonSchema, TEAM, fieldErrors } from "@/lib/accounts"
-import { Librarian } from "@/types/api"
+import { ApiError, Librarian } from "@/types/api"
 
 function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { t } = useTranslation()
@@ -88,7 +88,65 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
   )
 }
 
-function Row({ person, isMe, onDisable }: { person: Librarian; isMe: boolean; onDisable: (p: Librarian) => void }) {
+function RoleSheet({ person, isMe, onClose }: { person: Librarian | null; isMe: boolean; onClose: () => void }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const fail = useFailure()
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const promoting = !person?.is_super
+
+  const change = useMutation({
+    mutationFn: (p: Librarian) => updateLibrarian(p.id, { is_super: !p.is_super, current_password: password }),
+    onSuccess: (_, p) => {
+      toast.success(t(p.is_super ? TEAM.demoted(p.username) : TEAM.promoted(p.username)))
+      void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY })
+      void qc.invalidateQueries({ queryKey: ME_KEY })
+      close()
+    },
+    // A wrong password is the person's to fix, so it stays in the form; everything else is a toast.
+    onError: (e) => (e instanceof ApiError && e.status === 400 ? setError(e.message) : fail(e)),
+  })
+
+  const close = () => { setPassword(""); setError(""); onClose() }
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!person) return
+    if (!password) return setError(t("Enter your password."))
+    setError("")
+    change.mutate(person)
+  }
+  const title = !person ? "" : promoting ? TEAM.promoteTitle(person.username) : isMe ? TEAM.stepDownTitle : TEAM.demoteTitle(person.username)
+  const body = promoting ? TEAM.promoteBody : isMe ? TEAM.stepDownBody : TEAM.demoteBody
+
+  return (
+    <Sheet open={!!person} onOpenChange={(o) => !o && close()}>
+      <SheetContent className="sm:max-w-md">
+        <form onSubmit={submit} noValidate className="flex h-full flex-col">
+          <SheetHeader>
+            <SheetTitle>{t(title)}</SheetTitle>
+            <SheetDescription>{t(body)}</SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 px-4">
+            <FormField id="role-password" label={t(TEAM.confirmPassword)} hint={t(TEAM.confirmPasswordHelp)} error={error}>
+              {(aria) => (
+                <PasswordInput {...aria} autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); setError("") }} />
+              )}
+            </FormField>
+          </div>
+          <SheetFooter>
+            <Button type="submit" disabled={change.isPending}>
+              {change.isPending && <Loader2 className="size-4 animate-spin" />}
+              {t(TEAM.confirm)}
+            </Button>
+          </SheetFooter>
+        </form>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function Row({ person, isMe, onDisable, onRole }: { person: Librarian; isMe: boolean; onDisable: (p: Librarian) => void; onRole: (p: Librarian) => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const fail = useFailure()
@@ -99,12 +157,7 @@ function Row({ person, isMe, onDisable }: { person: Librarian; isMe: boolean; on
     onSuccess: () => done(t(TEAM.enabled(person.username))),
     onError: fail,
   })
-  const role = useMutation({
-    mutationFn: () => updateLibrarian(person.id, { is_super: !person.is_super }),
-    onSuccess: () => done(t(person.is_super ? TEAM.demoted(person.username) : TEAM.promoted(person.username))),
-    onError: fail,
-  })
-  const busy = enable.isPending || role.isPending
+  const busy = enable.isPending
 
   return (
     <li className="flex flex-wrap items-center gap-3 p-4">
@@ -119,8 +172,8 @@ function Row({ person, isMe, onDisable }: { person: Librarian; isMe: boolean; on
         <p className="truncate text-sm text-muted-foreground">{person.email ?? t(TEAM.noEmail)}</p>
       </div>
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" disabled={busy} onClick={() => role.mutate()}>
-          {t(person.is_super ? TEAM.demote : TEAM.promote)}
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => onRole(person)}>
+          {t(person.is_super ? (isMe ? TEAM.stepDown : TEAM.demote) : TEAM.promote)}
         </Button>
         {person.disabled ? (
           <Button variant="outline" size="sm" disabled={busy} onClick={() => enable.mutate()}>{t(TEAM.enable)}</Button>
@@ -140,6 +193,7 @@ export default function TeamPage() {
   const { data, error, refetch } = useLibrarians(!!me?.is_super)
   const [adding, setAdding] = useState(false)
   const [target, setTarget] = useState<Librarian | null>(null)
+  const [roleTarget, setRoleTarget] = useState<Librarian | null>(null)
 
   const disable = useMutation({
     mutationFn: (p: Librarian) => setDisabled(p.id, true),
@@ -171,11 +225,12 @@ export default function TeamPage() {
         <p className="text-sm text-muted-foreground">{t(TEAM.empty)}</p>
       ) : (
         <ul className="divide-y overflow-hidden rounded-xl border bg-card">
-          {data.librarians.map((p) => <Row key={p.id} person={p} isMe={p.id === me.id} onDisable={setTarget} />)}
+          {data.librarians.map((p) => <Row key={p.id} person={p} isMe={p.id === me.id} onDisable={setTarget} onRole={setRoleTarget} />)}
         </ul>
       )}
 
       <AddSheet open={adding} onOpenChange={setAdding} />
+      <RoleSheet person={roleTarget} isMe={roleTarget?.id === me.id} onClose={() => setRoleTarget(null)} />
 
       <AlertDialog open={!!target} onOpenChange={(o) => !o && setTarget(null)}>
         <AlertDialogContent>

@@ -36,4 +36,39 @@ describe("TeamPage", () => {
     expect(await screen.findByText("Only a super user can manage the team.")).toBeTruthy()
     await waitFor(() => expect(fetchAdmin).not.toHaveBeenCalledWith("librarians"))
   })
+
+  it("asks for your own password before changing who is super, and sends it", async () => {
+    const me = person({})
+    serve(me, [me, person({ id: 2, username: "ann", is_super: false })])
+    renderPage()
+    await screen.findByText("ann")
+    fireEvent.click(screen.getByText("Make super user"))
+    expect(await screen.findByText("Make ann a super user?")).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(/Confirm with your own password/), { target: { value: "my-password-1!" } })
+    fireEvent.click(screen.getByText("Confirm"))
+    await waitFor(() =>
+      expect(fetchAdmin).toHaveBeenCalledWith("librarians/2", expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ is_super: true, current_password: "my-password-1!" }),
+      })))
+  })
+
+  it("keeps a wrong password in the form instead of closing", async () => {
+    const me = person({})
+    fetchAdmin.mockImplementation((path, init) =>
+      init?.method === "PUT"
+        ? Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({ detail: "The current password is wrong." }) })
+        : ok(path === "me" ? me : { librarians: [me, person({ id: 2, username: "ann", is_super: false })] }))
+    jest.requireMock("@/lib/api-client").handleApiResponse.mockImplementation(async (res) => {
+      if (!res.ok) throw new (require("@/types/api").ApiError)((await res.json()).detail, res.status)
+      return res.json()
+    })
+    renderPage()
+    await screen.findByText("ann")
+    fireEvent.click(screen.getByText("Make super user"))
+    fireEvent.change(await screen.findByLabelText(/Confirm with your own password/), { target: { value: "nope" } })
+    fireEvent.click(screen.getByText("Confirm"))
+    expect(await screen.findByText("The current password is wrong.")).toBeTruthy()
+    expect(screen.getByText("Make ann a super user?")).toBeTruthy()
+  })
 })
