@@ -79,17 +79,25 @@ describe("TeamPage", () => {
   it("shows the new person's password once after adding, and not again", async () => {
     const me = person({})
     fetchAdmin.mockImplementation((path, init) =>
-      init?.method === "POST" ? ok(person({ id: 3, username: "bob", is_super: false })) : ok(path === "me" ? me : { librarians: [me] }))
+      init?.method === "POST" ? ok(person({ id: 3, username: "bob", name: "Bob Jones", display_name: "Bob Jones", is_super: false })) : ok(path === "me" ? me : { librarians: [me] }))
     renderPage()
     await screen.findByText("Team")
     fireEvent.click(screen.getByText("Add a person"))
-    fireEvent.change(await screen.findByLabelText(/Username/), { target: { value: "bob" } })
+    fireEvent.change(await screen.findByLabelText(/^Name/), { target: { value: "Bob Jones" } })
     fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: "bob@b.test" } })
     fireEvent.change(screen.getByLabelText(/^Password/), { target: { value: "correct-horse-9!" } })
     fireEvent.click(screen.getByText("Add"))
-    expect(await screen.findByText("bob was added")).toBeTruthy()
+    expect(await screen.findByText("Bob Jones was added")).toBeTruthy()
     expect(screen.getByText("correct-horse-9!")).toBeTruthy()
     fireEvent.click(screen.getByText("Done"))
     await waitFor(() => expect(screen.queryByText("correct-horse-9!")).toBeNull())
+  })
+
+  it("shows the name, with the username beside the email", async () => {
+    const me = person({})
+    serve(me, [me, person({ id: 2, username: "ann", name: "Ann Lee", display_name: "Ann Lee", is_super: false })])
+    renderPage()
+    expect(await screen.findByText("Ann Lee")).toBeTruthy()
+    expect(screen.getByText(/ann · a@a.test/)).toBeTruthy()
   })
 })

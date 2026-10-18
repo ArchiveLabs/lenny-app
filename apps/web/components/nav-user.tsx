@@ -10,7 +10,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { UserAvatar } from "@/components/user-avatar"
 import { useMe } from "@/hooks/use-accounts"
-import { ACCOUNT } from "@/lib/accounts"
+import { ACCOUNT, displayName } from "@/lib/accounts"
 
 function getCookieValue(name: string): string {
   if (typeof document === "undefined") return ""
@@ -22,8 +22,8 @@ function getCookieValue(name: string): string {
 export function NavUser() {
   const [username, setUsername] = useState("")
   const { t } = useTranslation()
-  const { data: me } = useMe()
-  const name = me?.username || username
+  const { data: me, isLoading } = useMe()
+  const name = me ? displayName(me) : username
 
   useEffect(() => {
     setUsername(getCookieValue("admin_user"))
@@ -45,7 +45,7 @@ export function NavUser() {
         {/* One row: who you are, and a quiet way out. */}
         <div className="flex items-center gap-3 rounded-lg px-3 py-2">
           <Link href={ACCOUNT.route} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg" aria-label={t(ACCOUNT.title)}>
-            <UserAvatar username={name} />
+            {isLoading ? <span className="size-9 shrink-0 rounded-lg bg-muted" aria-hidden /> : <UserAvatar seed={me ? String(me.id) : username} />}
             <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{name || "Admin"}</span>
               <span className="truncate text-xs text-muted-foreground">

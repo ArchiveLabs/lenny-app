@@ -246,6 +246,9 @@ export const OAuth2SecretRotatedSchema = z.object({
 export const LibrarianSchema = z.object({
   id: z.number(),
   username: z.string(),
+  // The server is adding these; until it does, display falls back to the username.
+  name: z.string().nullable().optional(),
+  display_name: z.string().optional(),
   email: z.string().nullable(),
   is_super: z.boolean(),
   disabled: z.boolean(),

@@ -36,7 +36,7 @@ export function LoginForm({
 
     try {
       const parsed = z.object({
-        username: z.string().min(1, "Username is required"),
+        username: z.string().min(1, "Enter your email or username"),
         password: z.string().min(1, "Password is required")
       }).safeParse({ username, password })
 
@@ -86,12 +86,12 @@ export function LoginForm({
               <div className="space-y-2.5">
                 <Label htmlFor="username" className="text-sm font-semibold flex items-center gap-2">
                   <User className="w-3.5 h-3.5 text-muted-foreground" />
-                  Username
+                  Email or username
                 </Label>
                 <Input
                   id="username"
                   type="text"
-                  placeholder="admin"
+                  placeholder="you@example.com"
                   value={username}
                   onChange={(e) => { setUsername(e.target.value); setError("") }}
                   required

@@ -3,11 +3,19 @@ import { z } from "zod"
 // All user-facing naming for the account screens lives here so it can be changed in one edit.
 export const MIN_PASSWORD = 12
 
+/** What to show for a person: their name, else their username. */
+export const displayName = (p: { username: string; name?: string | null; display_name?: string }) =>
+  p.display_name || p.name || p.username
+
 export const ACCOUNT = {
   route: "/account",
   title: "My account",
   description: "Your sign-in details.",
   profileTitle: "Profile",
+  nameTitle: "Name",
+  nameLabel: "Name",
+  nameSaved: "Name saved.",
+  usernameLine: (u: string) => `Username: ${u}`,
   joined: (date: string) => `Joined ${date}`,
   roleSuperHelp: "You can manage the team and everything in this admin.",
   roleLibrarianHelp: "You can use this admin. Only a super user can manage the team.",
@@ -41,8 +49,9 @@ export const TEAM = {
   description: "People who can sign in to this admin.",
   add: "Add a person",
   addDescription: "They can sign in right away with this password.",
+  name: "Name",
   username: "Username",
-  usernameHint: "They use this to sign in.",
+  signIn: "They can sign in with their email or this username.",
   email: "Email",
   password: "Password",
   create: "Add",
@@ -68,7 +77,7 @@ export const TEAM = {
   copied: "Copied",
   copyBlocked: "Couldn't copy",
   sharedTitle: (name: string) => `${name} was added`,
-  sharedBody: "Share these with them now. The password is shown only this once.",
+  sharedBody: "Share the password with them now. It is shown only this once.",
   done: "Done",
   noEmail: "No email",
   disableTitle: (name: string) => `Disable ${name}?`,
@@ -102,8 +111,10 @@ export const ChangePasswordSchema = z
   .refine((v) => v.next === v.again, { path: ["again"], message: ACCOUNT.passwordMismatch })
   .refine((v) => v.next !== v.current, { path: ["next"], message: "Choose a password you haven't used here before." })
 
+export const NameSchema = z.string().trim().min(1, "Enter a name.").max(100, "Use 100 characters or fewer.")
+
 export const NewPersonSchema = z.object({
-  username: z.string().trim().min(1, "Enter a username."),
+  name: NameSchema,
   email: EmailSchema,
   password: NewPasswordSchema,
 })

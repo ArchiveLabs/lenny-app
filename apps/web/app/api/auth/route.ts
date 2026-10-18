@@ -47,7 +47,8 @@ export async function POST(request: Request) {
             const data = await res.json()
             token = data.token
             // The server's spelling of the name, so the avatar and header match what /admin/me says.
-            if (typeof data.username === "string" && data.username) signedInAs = data.username
+            const shown = data.display_name || data.username
+            if (typeof shown === "string" && shown) signedInAs = shown
         } catch (error) {
             console.error("Failed to reach Lenny API for auth:", error)
             return NextResponse.json(

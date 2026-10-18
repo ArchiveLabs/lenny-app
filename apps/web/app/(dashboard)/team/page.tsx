@@ -20,27 +20,27 @@ import { CopyButton } from "@/components/copy-button"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
 import { LIBRARIANS_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
-import { ACCOUNT, NewPersonSchema, TEAM, fieldErrors, generatePassword } from "@/lib/accounts"
+import { ACCOUNT, NewPersonSchema, TEAM, displayName, fieldErrors, generatePassword } from "@/lib/accounts"
 import { ApiError, Librarian } from "@/types/api"
 
 function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const fail = useFailure()
-  const [form, setForm] = useState({ username: "", email: "", password: "" })
+  const [form, setForm] = useState({ name: "", email: "", password: "" })
   const [errors, setErrors] = useState<Record<string, string>>({})
   // Bumped on each Generate so the password field remounts already revealed.
   const [generations, setGenerations] = useState(0)
   // Held only while this sheet is open: the password can't be shown again after it closes.
-  const [created, setCreated] = useState<{ username: string; password: string } | null>(null)
+  const [created, setCreated] = useState<{ name: string; username: string; email: string; password: string } | null>(null)
 
   const add = useMutation({
     mutationFn: createLibrarian,
     onSuccess: (p, vars) => {
-      toast.success(t(TEAM.added(p.username)))
+      toast.success(t(TEAM.added(displayName(p))))
       void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY })
-      setCreated({ username: p.username, password: vars.password })
-      setForm({ username: "", email: "", password: "" })
+      setCreated({ name: displayName(p), username: p.username, email: vars.email, password: vars.password })
+      setForm({ name: "", email: "", password: "" })
       setGenerations(0)
     },
     onError: fail,
@@ -81,10 +81,11 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
         {created ? (
           <div className="flex h-full flex-col">
             <SheetHeader>
-              <SheetTitle>{t(TEAM.sharedTitle(created.username))}</SheetTitle>
+              <SheetTitle>{t(TEAM.sharedTitle(created.name))}</SheetTitle>
               <SheetDescription>{t(TEAM.sharedBody)}</SheetDescription>
             </SheetHeader>
             <dl className="flex-1 space-y-4 px-4 text-sm">
+              <div><dt className="text-muted-foreground">{t(TEAM.email)}</dt><dd className="font-medium">{created.email}</dd></div>
               <div><dt className="text-muted-foreground">{t(TEAM.username)}</dt><dd className="font-medium">{created.username}</dd></div>
               <div>
                 <dt className="text-muted-foreground">{t(TEAM.password)}</dt>
@@ -103,8 +104,8 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
             <SheetDescription>{t(TEAM.addDescription)}</SheetDescription>
           </SheetHeader>
           <div className="flex-1 space-y-4 px-4">
-            {field("username", TEAM.username, "text", "off", { hint: t(TEAM.usernameHint) })}
-            {field("email", TEAM.email, "email", "off")}
+            {field("name", TEAM.name, "text", "off")}
+            {field("email", TEAM.email, "email", "off", { hint: t(TEAM.signIn) })}
             {field("password", TEAM.password, "password", "new-password",
               { hint: <><PasswordRules value={form.password} />{generations > 0 && <p className="mt-2">{t(TEAM.generated)}</p>}</> })}
             <div className="flex gap-2">
@@ -136,7 +137,7 @@ function RoleSheet({ person, onClose }: { person: Librarian | null; onClose: () 
   const change = useMutation({
     mutationFn: (p: Librarian) => updateLibrarian(p.id, { is_super: !p.is_super, current_password: password }),
     onSuccess: (_, p) => {
-      toast.success(t(p.is_super ? TEAM.demoted(p.username) : TEAM.promoted(p.username)))
+      toast.success(t(p.is_super ? TEAM.demoted(displayName(p)) : TEAM.promoted(displayName(p))))
       void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY })
       close()
     },
@@ -152,7 +153,7 @@ function RoleSheet({ person, onClose }: { person: Librarian | null; onClose: () 
     setError("")
     change.mutate(person)
   }
-  const title = !person ? "" : promoting ? TEAM.promoteTitle(person.username) : TEAM.demoteTitle(person.username)
+  const title = !person ? "" : promoting ? TEAM.promoteTitle(displayName(person)) : TEAM.demoteTitle(displayName(person))
   const body = promoting ? TEAM.promoteBody : TEAM.demoteBody
 
   return (
@@ -190,22 +191,22 @@ function Row({ person, isMe, onDisable, onRole }: { person: Librarian; isMe: boo
 
   const enable = useMutation({
     mutationFn: () => setDisabled(person.id, false),
-    onSuccess: () => done(t(TEAM.enabled(person.username))),
+    onSuccess: () => done(t(TEAM.enabled(displayName(person)))),
     onError: fail,
   })
   const busy = enable.isPending
 
   return (
     <li className="flex flex-wrap items-center gap-3 p-4">
-      <UserAvatar username={person.username} />
+      <UserAvatar seed={String(person.id)} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate font-medium">{person.username}</span>
+          <span className="truncate font-medium">{displayName(person)}</span>
           {isMe && <Badge variant="outline">{t(TEAM.you)}</Badge>}
           {person.is_super && <Badge variant="secondary">{t(ACCOUNT.roleSuper)}</Badge>}
           {person.disabled && <Badge variant="destructive">{t(TEAM.disabledBadge)}</Badge>}
         </div>
-        <p className="truncate text-sm text-muted-foreground">{person.email ?? t(TEAM.noEmail)}</p>
+        <p className="truncate text-sm text-muted-foreground">{person.username} · {person.email ?? t(TEAM.noEmail)}</p>
       </div>
       <div className="flex gap-2">
         {/* The server refuses to disable you or change your own super status, so your row has no actions. */}
@@ -235,7 +236,7 @@ export default function TeamPage() {
   const disable = useMutation({
     mutationFn: (p: Librarian) => setDisabled(p.id, true),
     onSuccess: (_, p) => {
-      toast.success(t(TEAM.disabled(p.username)))
+      toast.success(t(TEAM.disabled(displayName(p))))
       void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY })
     },
     onError: fail,
@@ -272,7 +273,7 @@ export default function TeamPage() {
       <AlertDialog open={!!target} onOpenChange={(o) => !o && setTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t(TEAM.disableTitle(target?.username ?? ""))}</AlertDialogTitle>
+            <AlertDialogTitle>{t(TEAM.disableTitle(target ? displayName(target) : ""))}</AlertDialogTitle>
             <AlertDialogDescription>{t(TEAM.disableBody)}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

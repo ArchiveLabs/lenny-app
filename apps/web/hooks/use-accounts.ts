@@ -30,10 +30,10 @@ const send = (path: string, method: string, body: unknown) =>
     fetchAdmin(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
         .then((res) => handleApiResponse<Librarian>(res, LibrarianSchema))
 
-export const updateLibrarian = (id: number, body: { email?: string; password?: string; current_password?: string; is_super?: boolean }) =>
+export const updateLibrarian = (id: number, body: { name?: string; email?: string; password?: string; current_password?: string; is_super?: boolean }) =>
     send(`librarians/${id}`, "PUT", body)
 
-export const createLibrarian = (body: { username: string; email: string; password: string }) =>
+export const createLibrarian = (body: { name: string; email: string; password: string }) =>
     send("librarians", "POST", body)
 
 export const setDisabled = (id: number, disabled: boolean) => send(`librarians/${id}/disable`, "POST", { disabled })

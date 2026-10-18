@@ -24,9 +24,9 @@ it("shows who is signed in, with an avatar and the role", async () => {
 })
 
 it("shows the server's name and role once /admin/me answers", () => {
-  me = { username: "Ann", is_super: true }
+  me = { id: 7, username: "ann", display_name: "Ann Lee", is_super: true }
   show()
-  expect(screen.getByText("Ann")).toBeInTheDocument()
+  expect(screen.getByText("Ann Lee")).toBeInTheDocument()
   expect(screen.getByText("Super user")).toBeInTheDocument()
 })
 

@@ -23,8 +23,8 @@ describe("ChangePasswordSchema", () => {
 
 describe("NewPersonSchema", () => {
   it("reports every bad field at once", () => {
-    const r = NewPersonSchema.safeParse({ username: " ", email: "x", password: "short" })
-    expect(Object.keys(fieldErrors((r as any).error)).sort()).toEqual(["email", "password", "username"])
+    const r = NewPersonSchema.safeParse({ name: " ", email: "x", password: "short" })
+    expect(Object.keys(fieldErrors((r as any).error)).sort()).toEqual(["email", "name", "password"])
   })
 })
 
