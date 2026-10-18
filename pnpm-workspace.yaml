@@ -4,3 +4,8 @@ packages:
 allowBuilds:
   esbuild: true
   sharp: true
+overrides:
+  # Build-time transitives of next with published advisories; raise them to the patched releases.
+  browserslist: ">=4.28.7"
+  source-map-js: ">=1.2.2"
+  baseline-browser-mapping: ">=2.11.0"

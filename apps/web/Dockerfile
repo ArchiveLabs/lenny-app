@@ -31,12 +31,16 @@ RUN corepack enable
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/web ./apps/web
+COPY --chown=node:node package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY --from=builder --chown=node:node /app/packages ./packages
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/apps/web ./apps/web
+
+# Don't run as root: a bug in the app should not be a bug in the container.
+USER node
 
 EXPOSE 3000
 
-CMD ["pnpm", "--filter", "web...", "start"]
-
+# Start Next directly: going through pnpm would try to download pnpm for this user at startup.
+WORKDIR /app/apps/web
+CMD ["./node_modules/.bin/next", "start"]

@@ -1,0 +1,63 @@
+"use client"
+
+import { useState } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
+import { Loader2 } from "lucide-react"
+import { Button } from "@workspace/ui/components/button"
+import { Input } from "@workspace/ui/components/input"
+import { FormField } from "@/components/form-field"
+import { LIBRARIANS_KEY, ME_KEY, updateLibrarian, useFailure } from "@/hooks/use-accounts"
+import { ACCOUNT, EmailSchema } from "@/lib/accounts"
+
+/** Saves the signed-in person's own email (PUT on their own row). Shared by the account page and the first-login prompt. */
+export function EmailForm({ id, email, onSaved, secondary }: { id: number; email: string | null; onSaved?: () => void; secondary?: React.ReactNode }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const fail = useFailure()
+  const [value, setValue] = useState(email ?? "")
+  const [error, setError] = useState("")
+
+  const save = useMutation({
+    mutationFn: (next: string) => updateLibrarian(id, { email: next }),
+    onSuccess: () => {
+      toast.success(t(ACCOUNT.emailSaved))
+      void qc.invalidateQueries({ queryKey: ME_KEY })
+      void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY })
+      onSaved?.()
+    },
+    onError: fail,
+  })
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const parsed = EmailSchema.safeParse(value)
+    if (!parsed.success) return setError(t(parsed.error.issues[0]!.message))
+    setError("")
+    save.mutate(parsed.data)
+  }
+
+  return (
+    <form onSubmit={submit} noValidate className="space-y-3">
+      <FormField id="account-email" label={t(ACCOUNT.emailLabel)} error={error}>
+        {(aria) => (
+          <Input
+            {...aria}
+            type="email"
+            autoComplete="email"
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setError("") }}
+          />
+        )}
+      </FormField>
+      <div className="flex gap-2">
+        <Button type="submit" disabled={save.isPending || value.trim() === (email ?? "")}>
+          {save.isPending && <Loader2 className="size-4 animate-spin" />}
+          {t(ACCOUNT.save)}
+        </Button>
+        {secondary}
+      </div>
+    </form>
+  )
+}

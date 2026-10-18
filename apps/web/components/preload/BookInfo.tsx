@@ -1,5 +1,6 @@
 "use client"
 
+import { isHttpUrl } from "@/lib/safe-url"
 import { useEffect, useState } from "react"
 import { ExternalLink } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -68,7 +69,7 @@ export function BookInfo({ data, subjects }: { data: Omit<LibraryBookMetadata, "
     [t("Open Library"), links.open_library],
     [t("Standard Ebooks"), links.standard_ebooks],
     [t("archive.org"), links.archive_org],
-  ].filter((l): l is [string, string] => !!l[1])
+  ].filter((l): l is [string, string] => isHttpUrl(l[1]))
   return (
     <>
       <dl className="divide-y">

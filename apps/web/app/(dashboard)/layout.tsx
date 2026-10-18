@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
+import { EmailPrompt } from "@/components/email-prompt"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@workspace/ui/components/sidebar"
 
@@ -24,6 +25,7 @@ export default async function DashboardLayout({
       }
     >
       <AppSidebar variant="inset" />
+      <EmailPrompt />
       <SidebarInset className="min-w-0">
         <SiteHeader />
         <div className="flex flex-1 flex-col">

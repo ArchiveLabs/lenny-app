@@ -82,7 +82,7 @@ it("splits a selection larger than 200 into several requests", async () => {
   fireEvent.click(screen.getByRole("button", { name: /Add 450 books/ }))
   await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(3))
   expect(mutateAsync.mock.calls.map((c) => c[0].olids.length)).toEqual([200, 200, 50])
-}, 20_000) // 450 tiles: slow on a busy machine
+}, 60_000) // 450 tiles: ~8 s here, over 20 s on a CI runner
 
 it("keeps the selection and shows the reason when the server refuses (409)", async () => {
   mutateAsync.mockRejectedValue(new Error("A load is already running"))

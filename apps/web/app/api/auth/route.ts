@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server"
+import { isSameOrigin } from "@/lib/admin-guard"
+import { SESSION_COOKIE, USER_COOKIE, clearLegacySession, sessionCookieOptions, userCookieOptions } from "@/lib/admin-session"
 
-export async function POST(request: Request) {
+async function login(request: Request) {
+    // Another site must not be able to sign you in as someone it controls.
+    if (!isSameOrigin(request)) {
+        return NextResponse.json({ error: "Cross-origin request blocked" }, { status: 403 })
+    }
     let username: string | undefined
     let password: string | undefined
 
@@ -12,8 +18,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
 
-    if (!username || !password) {
+    // Only plain, bounded strings go upstream: no objects, and no huge password to hash.
+    if (typeof username !== "string" || typeof password !== "string" || !username || !password) {
         return NextResponse.json({ error: "Username and password are required" }, { status: 400 })
+    }
+    if (username.length > 254 || password.length > 1024) {
+        return NextResponse.json({ error: "Invalid email, username or password." }, { status: 400 })
     }
 
     // In production: call FastAPI internal endpoint
@@ -21,6 +31,7 @@ export async function POST(request: Request) {
     const internalSecret = process.env.ADMIN_INTERNAL_SECRET
 
     let token: string | null = null
+    let signedInAs = username
 
     if (internalApiUrl && internalSecret) {
         // Production: proxy to FastAPI on Docker internal network
@@ -35,16 +46,22 @@ export async function POST(request: Request) {
                 body: JSON.stringify({ username, password }),
             })
 
+            if (res.status === 429) {
+                return NextResponse.json({ error: "Too many attempts, try again in a few minutes." }, { status: 429 })
+            }
             if (!res.ok) {
                 const detail = await res.json().catch(() => ({}))
                 return NextResponse.json(
-                    { error: detail.detail || "Invalid credentials" },
+                    { error: typeof detail.detail === "string" && detail.detail ? detail.detail : "Invalid credentials" },
                     { status: res.status }
                 )
             }
 
             const data = await res.json()
             token = data.token
+            // The server's spelling of the name, so the avatar and header match what /admin/me says.
+            const shown = data.display_name || data.username
+            if (typeof shown === "string" && shown) signedInAs = shown
         } catch (error) {
             console.error("Failed to reach Lenny API for auth:", error)
             return NextResponse.json(
@@ -72,23 +89,19 @@ export async function POST(request: Request) {
 
     const response = NextResponse.json({ success: true })
 
-    // httpOnly auth token (not readable by JS)
-    response.cookies.set("admin_token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-        maxAge: 60 * 60 * 24,
-    })
+    response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions)
 
-    // Non-httpOnly username cookie (readable by client for display purposes only)
-    response.cookies.set("admin_user", username, {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-        maxAge: 60 * 60 * 24,
-    })
+    // Readable by the page, for display only.
+    response.cookies.set(USER_COOKIE, signedInAs, userCookieOptions)
+    // After the sets above: the cookie jar rewrites the Set-Cookie header, so it would drop this if added first.
+    clearLegacySession(response)
 
+    return response
+}
+
+// Every answer here is about one person's credentials or session: never cacheable.
+export async function POST(request: Request) {
+    const response = await login(request)
+    response.headers.set("Cache-Control", "no-store")
     return response
 }

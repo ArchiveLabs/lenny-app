@@ -7,6 +7,8 @@ import {
   IconBook,
   IconUpload,
   IconServer,
+  IconUser,
+  IconUsers,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -22,6 +24,8 @@ import {
   SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
 import { useTranslation } from "react-i18next"
+import { useMe } from "@/hooks/use-accounts"
+import { ACCOUNT, TEAM } from "@/lib/accounts"
 
 const data = {
   navMain: [
@@ -57,6 +61,14 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
+  const { data: me } = useMe()
+  // Hiding is only a courtesy: the server answers 403 to anyone but a super user.
+  const navSecondary = [
+    ...data.navSecondary.slice(0, 1),
+    { title: ACCOUNT.title, url: ACCOUNT.route, icon: IconUser },
+    ...(me?.is_super ? [{ title: TEAM.title, url: TEAM.route, icon: IconUsers }] : []),
+    ...data.navSecondary.slice(1),
+  ]
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader className="px-4 pt-4 pb-2">
@@ -75,7 +87,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter className="border-t px-3 py-2">
         <NavUser />
