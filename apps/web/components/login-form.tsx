@@ -77,15 +77,17 @@ export function LoginForm({
 
   return (
     <div className={cn("flex flex-col gap-8", className)} {...props}>
-      <header className="flex flex-col items-center gap-3 text-center">
-        <img src="/admin/lenny-transparent.png" alt="" className="size-14 object-contain" />
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{t(LOGIN.title)}</h1>
+      <header className="space-y-1.5 text-center lg:text-left">
+        {/* The brand panel shows the logo from lg up. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/admin/lenny-transparent.png" alt="" className="mx-auto mb-4 size-14 object-contain lg:hidden" />
+        <div className="space-y-1.5">
+          <h1 className="text-3xl font-semibold tracking-tight">{t(LOGIN.title)}</h1>
           <p className="text-sm text-muted-foreground">{t(LOGIN.description)}</p>
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} noValidate className="space-y-4 rounded-xl border bg-card p-6 shadow-sm">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <FormField id="username" label={t(LOGIN.username)} required={false} error={errors.username && t(errors.username)}>
           {(aria) => (
             <Input
@@ -118,7 +120,7 @@ export function LoginForm({
         </Button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">{t(LOGIN.noAccount)}</p>
+      <p className="text-center text-sm text-muted-foreground lg:text-left">{t(LOGIN.noAccount)}</p>
     </div>
   )
 }
