@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from "react"
 import { IconLogout } from "@tabler/icons-react"
-import {
-  Avatar,
-  AvatarFallback,
-} from "@workspace/ui/components/avatar"
+import Link from "next/link"
 import {
   SidebarMenu,
   SidebarMenuItem,
 } from "@workspace/ui/components/sidebar"
 import { useTranslation } from "react-i18next"
+import { UserAvatar } from "@/components/user-avatar"
+import { useMe } from "@/hooks/use-accounts"
+import { ACCOUNT } from "@/lib/accounts"
 
 function getCookieValue(name: string): string {
   if (typeof document === "undefined") return ""
@@ -19,13 +19,11 @@ function getCookieValue(name: string): string {
   return match ? decodeURIComponent(match[1]!) : ""
 }
 
-function initials(username: string): string {
-  return username.slice(0, 2).toUpperCase() || "??"
-}
-
 export function NavUser() {
   const [username, setUsername] = useState("")
   const { t } = useTranslation()
+  const { data: me } = useMe()
+  const name = me?.username || username
 
   useEffect(() => {
     setUsername(getCookieValue("admin_user"))
@@ -46,13 +44,15 @@ export function NavUser() {
       <SidebarMenuItem>
         {/* One row: who you are, and a quiet way out. */}
         <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-          <Avatar className="size-9 rounded-lg">
-            <AvatarFallback className="rounded-lg text-xs font-semibold">{initials(username)}</AvatarFallback>
-          </Avatar>
-          <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-medium">{username || "Admin"}</span>
-            <span className="truncate text-xs text-muted-foreground">{t("Administrator")}</span>
-          </div>
+          <Link href={ACCOUNT.route} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg" aria-label={t(ACCOUNT.title)}>
+            <UserAvatar username={name} />
+            <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-medium">{name || "Admin"}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {me?.is_super ? t(ACCOUNT.roleSuper) : me ? t(ACCOUNT.roleLibrarian) : t("Administrator")}
+              </span>
+            </div>
+          </Link>
           <button
             type="button"
             onClick={handleLogout}

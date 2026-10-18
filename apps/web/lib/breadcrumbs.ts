@@ -1,3 +1,4 @@
+import { ACCOUNT, TEAM } from "@/lib/accounts"
 import { APP_ACCESS, SIGN_IN_PROVIDER } from "@/lib/app-access"
 
 export interface Crumb {
@@ -15,6 +16,8 @@ const TITLES: Record<string, string> = {
   "/library": "Lenny Library",
   "/loans": "Active Loans",
   "/settings": "Settings",
+  [ACCOUNT.route]: ACCOUNT.title,
+  [TEAM.route]: TEAM.title,
   [APP_ACCESS.route]: APP_ACCESS.title,
   [SIGN_IN_PROVIDER.route]: SIGN_IN_PROVIDER.title,
   "/settings/lending-mode": "Lending Mode Configuration",

@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     const internalSecret = process.env.ADMIN_INTERNAL_SECRET
 
     let token: string | null = null
+    let signedInAs = username
 
     if (internalApiUrl && internalSecret) {
         // Production: proxy to FastAPI on Docker internal network
@@ -45,6 +46,8 @@ export async function POST(request: Request) {
 
             const data = await res.json()
             token = data.token
+            // The server's spelling of the name, so the avatar and header match what /admin/me says.
+            if (typeof data.username === "string" && data.username) signedInAs = data.username
         } catch (error) {
             console.error("Failed to reach Lenny API for auth:", error)
             return NextResponse.json(
@@ -82,7 +85,7 @@ export async function POST(request: Request) {
     })
 
     // Non-httpOnly username cookie (readable by client for display purposes only)
-    response.cookies.set("admin_user", username, {
+    response.cookies.set("admin_user", signedInAs, {
         httpOnly: false,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",

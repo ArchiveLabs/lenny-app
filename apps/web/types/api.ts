@@ -241,3 +241,17 @@ export const OAuth2SecretRotatedSchema = z.object({
   client_id: z.string(),
   client_secret: z.string()
 })
+
+// GET /admin/me and the rows of GET /admin/librarians.
+export const LibrarianSchema = z.object({
+  id: z.number(),
+  username: z.string(),
+  email: z.string().nullable(),
+  is_super: z.boolean(),
+  disabled: z.boolean(),
+  created_at: z.string()
+})
+export type Librarian = z.infer<typeof LibrarianSchema>
+
+export const LibrarianListSchema = z.object({ librarians: z.array(LibrarianSchema) })
+export type LibrarianList = z.infer<typeof LibrarianListSchema>

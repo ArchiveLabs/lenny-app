@@ -4,19 +4,30 @@ import { SidebarProvider } from "@workspace/ui/components/sidebar"
 import { NavUser } from "./nav-user"
 
 jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s }) }))
+jest.mock("@blobatar/react", () => ({ Blobatar: () => <svg data-testid="blobatar" /> }))
+let me
+jest.mock("@/hooks/use-accounts", () => ({ useMe: () => ({ data: me }) }))
 
 const show = () => render(<SidebarProvider><NavUser /></SidebarProvider>)
 
 beforeEach(() => {
+  me = undefined
   document.cookie = "admin_user=admin; path=/"
   global.fetch = jest.fn().mockResolvedValue({ ok: true })
 })
 
-it("shows who is signed in, with initials and the role", async () => {
+it("shows who is signed in, with an avatar and the role", async () => {
   show()
   expect(await screen.findByText("admin")).toBeInTheDocument()
-  expect(screen.getByText("AD")).toBeInTheDocument()
+  expect(screen.getByTestId("blobatar")).toBeInTheDocument()
   expect(screen.getByText("Administrator")).toBeInTheDocument()
+})
+
+it("shows the server's name and role once /admin/me answers", () => {
+  me = { username: "Ann", is_super: true }
+  show()
+  expect(screen.getByText("Ann")).toBeInTheDocument()
+  expect(screen.getByText("Super user")).toBeInTheDocument()
 })
 
 it("falls back to Admin when the name is not known", () => {
