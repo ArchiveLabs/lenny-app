@@ -4,18 +4,32 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useRouter } from "next/navigation"
 import { z } from "zod"
+import { Loader2, ShieldAlert } from "lucide-react"
 import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
-import { Label } from "@workspace/ui/components/label"
-import { Loader2, User, KeyRound, ShieldAlert } from "lucide-react"
+import { FormField } from "@/components/form-field"
+import { PasswordInput } from "@/components/password-input"
+import { fieldErrors } from "@/lib/accounts"
+
+const LOGIN = {
+  title: "Sign in to Lenny",
+  description: "Manage your library.",
+  username: "Email or username",
+  password: "Password",
+  submit: "Sign in",
+  submitting: "Signing in…",
+  noAccount: "New here? Ask a super user on your team to add you.",
+  usernameMissing: "Enter your email or username.",
+  passwordMissing: "Enter your password.",
+  failed: "Couldn't sign in. Try again.",
+  unreachable: "Couldn't reach the server. Check your connection and try again.",
+} as const
+
+const LoginSchema = z.object({
+  username: z.string().trim().min(1, LOGIN.usernameMissing),
+  password: z.string().min(1, LOGIN.passwordMissing),
+})
 
 export function LoginForm({
   className,
@@ -23,130 +37,88 @@ export function LoginForm({
   ...props
 }: React.ComponentProps<"div"> & { redirectTo?: string }) {
   const router = useRouter()
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
   const { t } = useTranslation()
+  const [values, setValues] = useState({ username: "", password: "" })
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
+  const change = (key: keyof typeof values) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setValues({ ...values, [key]: e.target.value })
+    setErrors({ ...errors, [key]: "" })
+    setError("")
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const parsed = LoginSchema.safeParse(values)
+    if (!parsed.success) return setErrors(fieldErrors(parsed.error))
+    setErrors({})
     setError("")
     setIsLoading(true)
-
     try {
-      const parsed = z.object({
-        username: z.string().min(1, "Enter your email or username"),
-        password: z.string().min(1, "Password is required")
-      }).safeParse({ username, password })
-
-      if (!parsed.success) {
-        setError(parsed.error.issues[0]?.message || "Invalid input")
-        setIsLoading(false)
-        return
-      }
-
       const res = await fetch("/admin/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(parsed.data),
       })
-
       if (res.ok) {
         router.push(redirectTo)
         router.refresh()
-      } else {
-        const data = await res.json().catch(() => ({}))
-        setError(data.error || "Invalid credentials. Please try again.")
+        return // keep the button busy until the next page loads
       }
+      const data = await res.json().catch(() => ({}))
+      setError(data.error || LOGIN.failed)
     } catch {
-      setError("Unable to reach authentication service.")
-    } finally {
-      setIsLoading(false)
+      setError(LOGIN.unreachable)
     }
+    setIsLoading(false)
   }
 
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card className="shadow-lg border-border/60">
-        <CardHeader className="text-center pb-2">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-card p-2.5 shadow-sm ring-1 ring-border">
-            <img
-              src="/admin/lenny-transparent.png"
-              alt="Lenny"
-              className="h-full w-full object-contain"
+    <div className={cn("flex flex-col gap-8", className)} {...props}>
+      <header className="flex flex-col items-center gap-3 text-center">
+        <img src="/admin/lenny-transparent.png" alt="" className="size-14 object-contain" />
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{t(LOGIN.title)}</h1>
+          <p className="text-sm text-muted-foreground">{t(LOGIN.description)}</p>
+        </div>
+      </header>
+
+      <form onSubmit={handleSubmit} noValidate className="space-y-4 rounded-xl border bg-card p-6 shadow-sm">
+        <FormField id="username" label={t(LOGIN.username)} required={false} error={errors.username && t(errors.username)}>
+          {(aria) => (
+            <Input
+              {...aria}
+              value={values.username}
+              onChange={change("username")}
+              autoFocus
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
             />
+          )}
+        </FormField>
+        <FormField id="password" label={t(LOGIN.password)} required={false} error={errors.password && t(errors.password)}>
+          {(aria) => (
+            <PasswordInput {...aria} value={values.password} onChange={change("password")} autoComplete="current-password" />
+          )}
+        </FormField>
+
+        {error && (
+          <div role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+            <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            {t(error)}
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">{t("Lenny Admin")}</CardTitle>
-          <CardDescription className="text-muted-foreground">{t("Sign in with your admin credentials")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit}>
-            <div className="flex flex-col gap-5">
-              <div className="space-y-2.5">
-                <Label htmlFor="username" className="text-sm font-semibold flex items-center gap-2">
-                  <User className="w-3.5 h-3.5 text-muted-foreground" />
-                  Email or username
-                </Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="you@example.com"
-                  value={username}
-                  onChange={(e) => { setUsername(e.target.value); setError("") }}
-                  required
-                  autoFocus
-                  autoComplete="username"
-                  className="h-12 text-base rounded-xl bg-muted/30 border-muted-foreground/20 focus-visible:ring-primary/30"
-                />
-              </div>
+        )}
 
-              <div className="space-y-2.5">
-                <Label htmlFor="password" className="text-sm font-semibold flex items-center gap-2">
-                  <KeyRound className="w-3.5 h-3.5 text-muted-foreground" />
-                  Password
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError("") }}
-                  required
-                  autoComplete="current-password"
-                  className="h-12 text-base rounded-xl bg-muted/30 border-muted-foreground/20 focus-visible:ring-primary/30"
-                />
-              </div>
+        <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+          {isLoading && <Loader2 className="size-4 animate-spin" />}
+          {t(isLoading ? LOGIN.submitting : LOGIN.submit)}
+        </Button>
+      </form>
 
-              {error && (
-                <div role="alert" className="flex items-center gap-2 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 rounded-lg px-3 py-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <ShieldAlert className="w-4 h-4 shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              <Button
-                type="submit"
-                disabled={isLoading || !username || !password}
-                className="w-full h-12 text-base font-bold rounded-xl shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Authenticating…
-                  </>
-                ) : (
-                  t("Sign In")
-                )}
-              </Button>
-
-              <p className="text-center text-xs text-muted-foreground pt-1">
-                {t("Contact your service provider or administrator for access credentials.")}
-              </p>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      <p className="text-center text-sm text-muted-foreground">{t(LOGIN.noAccount)}</p>
     </div>
   )
 }
