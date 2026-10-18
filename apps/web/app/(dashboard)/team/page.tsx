@@ -203,7 +203,7 @@ function Row({ person, isMe, onDisable, onRole }: { person: Librarian; isMe: boo
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate font-medium">{displayName(person)}</span>
           {isMe && <Badge variant="outline">{t(TEAM.you)}</Badge>}
-          {person.is_super && <Badge variant="secondary">{t(ACCOUNT.roleSuper)}</Badge>}
+          <Badge variant="secondary">{t(person.is_super ? ACCOUNT.roleSuper : ACCOUNT.roleLibrarian)}</Badge>
           {person.disabled && <Badge variant="destructive">{t(TEAM.disabledBadge)}</Badge>}
         </div>
         <p className="truncate text-sm text-muted-foreground">{person.username} · {person.email ?? t(TEAM.noEmail)}</p>
