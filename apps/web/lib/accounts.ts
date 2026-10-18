@@ -4,7 +4,7 @@ import { z } from "zod"
 export const MIN_PASSWORD = 12
 
 /** What to show for a person: their name, else their username. */
-export const displayName = (p: { username: string; name?: string | null; display_name?: string }) =>
+export const displayName = (p: { username: string; name?: string | null; display_name?: string | null }) =>
   p.display_name || p.name || p.username
 
 export const ACCOUNT = {

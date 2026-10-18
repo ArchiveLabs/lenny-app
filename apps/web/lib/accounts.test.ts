@@ -1,4 +1,4 @@
-import { ChangePasswordSchema, generatePassword, NewPasswordSchema, EmailSchema, NewPersonSchema, fieldErrors } from "./accounts"
+import { ChangePasswordSchema, displayName, generatePassword, NewPasswordSchema, EmailSchema, NewPersonSchema, fieldErrors } from "./accounts"
 
 const GOOD = "new-password-12!"
 const change = (v: object) => ChangePasswordSchema.safeParse({ current: "old-password-1", next: GOOD, again: GOOD, ...v })
@@ -40,4 +40,14 @@ describe("generatePassword", () => {
     }
   })
   it("differs every time", () => expect(new Set(Array.from({ length: 50 }, () => generatePassword())).size).toBe(50))
+})
+
+describe("a person whose display_name is null", () => {
+  it("still parses and falls back to name, then username", () => {
+    const { LibrarianSchema } = require("@/types/api")
+    const base = { id: 1, username: "ann", email: null, is_super: false, disabled: false, created_at: "" }
+    const p = LibrarianSchema.parse({ ...base, name: "Ann Lee", display_name: null })
+    expect(displayName(p)).toBe("Ann Lee")
+    expect(displayName(LibrarianSchema.parse({ ...base, name: null, display_name: null }))).toBe("ann")
+  })
 })

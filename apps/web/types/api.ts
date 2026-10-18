@@ -248,7 +248,7 @@ export const LibrarianSchema = z.object({
   username: z.string(),
   // The server is adding these; until it does, display falls back to the username.
   name: z.string().nullable().optional(),
-  display_name: z.string().optional(),
+  display_name: z.string().nullish(),
   email: z.string().nullable(),
   is_super: z.boolean(),
   disabled: z.boolean(),
