@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Eye, EyeOff } from "lucide-react"
+import { Check, Circle, Eye, EyeOff } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Input } from "@workspace/ui/components/input"
-import { ACCOUNT } from "@/lib/accounts"
+import { ACCOUNT, PASSWORD_RULES } from "@/lib/accounts"
 
 /** A password field with a show/hide toggle, for forms where a typo is costly. */
 export function PasswordInput(props: Omit<React.ComponentProps<typeof Input>, "type">) {
@@ -23,5 +23,24 @@ export function PasswordInput(props: Omit<React.ComponentProps<typeof Input>, "t
         {shown ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </button>
     </div>
+  )
+}
+
+/** What a new password needs, ticked off as it is typed. */
+export function PasswordRules({ value }: { value: string }) {
+  const { t } = useTranslation()
+  return (
+    <ul className="space-y-1">
+      {PASSWORD_RULES.map((r) => {
+        const ok = r.ok(value)
+        return (
+          <li key={r.key} className={ok ? "flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400" : "flex items-center gap-1.5"}>
+            {ok ? <Check className="size-4 shrink-0" aria-hidden /> : <Circle className="size-3 shrink-0 mx-0.5" aria-hidden />}
+            <span>{t(r.label)}</span>
+            <span className="sr-only">{ok ? t("done") : t("not yet")}</span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

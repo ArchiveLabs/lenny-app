@@ -15,11 +15,11 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@workspace/ui/components/alert-dialog"
-import { PasswordInput } from "@/components/password-input"
+import { PasswordInput, PasswordRules } from "@/components/password-input"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
 import { LIBRARIANS_KEY, createLibrarian, setDisabled, updateLibrarian, useFailure, useLibrarians, useMe } from "@/hooks/use-accounts"
-import { ACCOUNT, MIN_PASSWORD, NewPersonSchema, TEAM, fieldErrors } from "@/lib/accounts"
+import { ACCOUNT, NewPersonSchema, TEAM, fieldErrors } from "@/lib/accounts"
 import { Librarian } from "@/types/api"
 
 function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -48,7 +48,7 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
     add.mutate(parsed.data)
   }
 
-  const field = (key: keyof typeof form, label: string, type: string, auto: string, extra: { hint?: string; ok?: string } = {}) => (
+  const field = (key: keyof typeof form, label: string, type: string, auto: string, extra: { hint?: React.ReactNode; ok?: string } = {}) => (
     <FormField id={`team-${key}`} label={t(label)} error={errors[key] && t(errors[key])} {...extra}>
       {(aria) => {
         const props = {
@@ -74,7 +74,7 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
             {field("username", TEAM.username, "text", "off", { hint: t(TEAM.usernameHint) })}
             {field("email", TEAM.email, "email", "off")}
             {field("password", TEAM.password, "password", "new-password",
-              form.password.length >= MIN_PASSWORD ? { ok: t(ACCOUNT.longEnough) } : { hint: t(ACCOUNT.lengthSoFar(form.password.length)) })}
+              { hint: <PasswordRules value={form.password} /> })}
           </div>
           <SheetFooter>
             <Button type="submit" disabled={add.isPending}>

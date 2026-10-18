@@ -8,14 +8,14 @@ import { Loader2 } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import Link from "next/link"
-import { PasswordInput } from "@/components/password-input"
+import { PasswordInput, PasswordRules } from "@/components/password-input"
 import { FormField } from "@/components/form-field"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { EmailForm } from "@/components/email-form"
 import { ErrorState } from "@/components/ErrorState"
 import { UserAvatar } from "@/components/user-avatar"
 import { updateLibrarian, useFailure, useMe } from "@/hooks/use-accounts"
-import { ACCOUNT, ChangePasswordSchema, MIN_PASSWORD, TEAM, fieldErrors } from "@/lib/accounts"
+import { ACCOUNT, ChangePasswordSchema, TEAM, fieldErrors } from "@/lib/accounts"
 
 function PasswordForm({ id }: { id: number }) {
   const { t } = useTranslation()
@@ -40,7 +40,7 @@ function PasswordForm({ id }: { id: number }) {
     save.mutate()
   }
 
-  const field = (key: keyof typeof values, label: string, auto: string, extra: { hint?: string; ok?: string } = {}) => (
+  const field = (key: keyof typeof values, label: string, auto: string, extra: { hint?: React.ReactNode; ok?: string } = {}) => (
     <FormField id={`password-${key}`} label={t(label)} error={errors[key] && t(errors[key])} {...extra}>
       {(aria) => (
         <PasswordInput
@@ -52,13 +52,12 @@ function PasswordForm({ id }: { id: number }) {
       )}
     </FormField>
   )
-  const longEnough = values.next.length >= MIN_PASSWORD
 
   return (
     <form onSubmit={submit} noValidate className="space-y-3">
       {field("current", ACCOUNT.currentPassword, "current-password")}
       {field("next", ACCOUNT.newPassword, "new-password",
-        longEnough ? { ok: t(ACCOUNT.longEnough) } : { hint: t(ACCOUNT.lengthSoFar(values.next.length)) })}
+        { hint: <PasswordRules value={values.next} /> })}
       {field("again", ACCOUNT.confirmPassword, "new-password",
         values.again && values.again === values.next ? { ok: t(ACCOUNT.matches) } : {})}
       <Button type="submit" disabled={save.isPending}>

@@ -1,6 +1,7 @@
 import { ChangePasswordSchema, EmailSchema, NewPersonSchema, fieldErrors } from "./accounts"
 
-const change = (v: object) => ChangePasswordSchema.safeParse({ current: "old-password-1", next: "new-password-12", again: "new-password-12", ...v })
+const GOOD = "new-password-12!"
+const change = (v: object) => ChangePasswordSchema.safeParse({ current: "old-password-1", next: GOOD, again: GOOD, ...v })
 
 describe("EmailSchema", () => {
   it("trims and accepts an address", () => expect(EmailSchema.parse("  a@b.test ")).toBe("a@b.test"))
@@ -14,8 +15,10 @@ describe("ChangePasswordSchema", () => {
   it("accepts a good change", () => expect(change({}).success).toBe(true))
   it("needs the current password", () => expect(fieldErrors((change({ current: "" }) as any).error)).toHaveProperty("current"))
   it("needs 12 characters", () => expect(fieldErrors((change({ next: "short", again: "short" }) as any).error)).toHaveProperty("next"))
-  it("needs the repeat to match", () => expect(fieldErrors((change({ again: "other-password-12" }) as any).error)).toHaveProperty("again"))
-  it("refuses the same password again", () => expect(fieldErrors((change({ next: "old-password-1x", current: "old-password-1x", again: "old-password-1x" }) as any).error)).toHaveProperty("next"))
+  it.each([["no letter", "123456789012!"], ["no number", "abcdefghijkl!"], ["no symbol", "abcdefghijkl1"]])("rejects a password with %s", (_, pw) =>
+    expect(fieldErrors((change({ next: pw, again: pw }) as any).error)).toHaveProperty("next"))
+  it("needs the repeat to match", () => expect(fieldErrors((change({ again: "other-password-12!" }) as any).error)).toHaveProperty("again"))
+  it("refuses the same password again", () => expect(fieldErrors((change({ next: "old-password-1!", current: "old-password-1!", again: "old-password-1!" }) as any).error)).toHaveProperty("next"))
 })
 
 describe("NewPersonSchema", () => {

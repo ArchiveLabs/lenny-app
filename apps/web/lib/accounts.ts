@@ -17,9 +17,7 @@ export const ACCOUNT = {
   emailLabel: "Email",
   emailSaved: "Email saved.",
   passwordTitle: "Change password",
-  passwordHelp: `At least ${MIN_PASSWORD} characters.`,
-  lengthSoFar: (n: number) => `${n} of ${MIN_PASSWORD} characters`,
-  longEnough: "Long enough.",
+  passwordHelp: `At least ${MIN_PASSWORD} characters, with a letter, a number and a symbol.`,
   matches: "The passwords match.",
   show: "Show password",
   hide: "Hide password",
@@ -67,7 +65,18 @@ export const TEAM = {
 } as const
 
 export const EmailSchema = z.string().trim().min(1, "Enter an email address.").email("Enter a valid email address.")
-export const NewPasswordSchema = z.string().min(MIN_PASSWORD, ACCOUNT.passwordShort)
+// The server only checks the length; the rest is this app's rule for new passwords.
+export const PASSWORD_RULES = [
+  { key: "length", label: `At least ${MIN_PASSWORD} characters`, error: ACCOUNT.passwordShort, ok: (p: string) => p.length >= MIN_PASSWORD },
+  { key: "letter", label: "A letter", error: "Add a letter.", ok: (p: string) => /\p{L}/u.test(p) },
+  { key: "number", label: "A number", error: "Add a number.", ok: (p: string) => /\d/.test(p) },
+  { key: "symbol", label: "A symbol, like ! or #", error: "Add a symbol, like ! or #.", ok: (p: string) => /[^\p{L}\d\s]/u.test(p) },
+] as const
+
+export const NewPasswordSchema = z.string().superRefine((p, ctx) => {
+  const broken = PASSWORD_RULES.find((r) => !r.ok(p))
+  if (broken) ctx.addIssue({ code: "custom", message: broken.error })
+})
 
 export const ChangePasswordSchema = z
   .object({

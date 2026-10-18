@@ -30,7 +30,7 @@ export function FormField({ id, label, required = true, hint, ok, error, childre
           <CheckCircle2 className="size-4 shrink-0" aria-hidden />{ok}
         </p>
       ) : hint ? (
-        <p id={noteId} className="text-sm text-muted-foreground">{hint}</p>
+        <div id={noteId} className="text-sm text-muted-foreground">{hint}</div>
       ) : null}
     </div>
   )
