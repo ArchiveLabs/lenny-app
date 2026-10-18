@@ -20,20 +20,47 @@ const serve = (me, librarians = [me]) =>
   fetchAdmin.mockImplementation((path) => ok(path === "me" ? me : { librarians }))
 const renderPage = () => render(<QueryClientProvider client={new QueryClient()}><TeamPage /></QueryClientProvider>)
 
+const ann = () => person({ id: 2, username: "ann", name: "Ann Lee", display_name: "Ann Lee", is_super: false })
+const openMenu = (name) => fireEvent.keyDown(screen.getByLabelText(`Actions for ${name}`), { key: "Enter" })
+const refuse = (detail) => {
+  jest.requireMock("@/lib/api-client").handleApiResponse.mockImplementation(async (res) => {
+    if (!res.ok) throw new (require("@/types/api").ApiError)((await res.json()).detail, res.status)
+    return res.json()
+  })
+  return Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({ detail }) })
+}
+
 describe("TeamPage", () => {
   beforeEach(() => jest.clearAllMocks())
 
-  it("lists the team for a super user and asks before disabling", async () => {
+  it("keeps rows quiet: a menu only on other members, none on you or a super row", async () => {
     const me = person({})
-    serve(me, [me, person({ id: 2, username: "ann", is_super: false })])
+    serve(me, [me, person({ id: 3, username: "old", is_super: true }), ann()])
     renderPage()
-    expect(await screen.findByText("ann")).toBeTruthy()
-    expect(screen.getAllByText("Disable")).toHaveLength(1) // not on your own row
-    expect(screen.getAllByText("Make super user")).toHaveLength(1)
-    expect(screen.queryByText("Remove super access")).toBeNull()
-    expect(screen.queryByText("Step down")).toBeNull()
-    fireEvent.click(screen.getByText("Disable"))
-    expect(await screen.findByText("Disable ann?")).toBeTruthy()
+    expect(await screen.findByText("Ann Lee")).toBeTruthy()
+    expect(screen.getAllByLabelText(/^Actions for/)).toHaveLength(1)
+    expect(screen.queryByText("Make super user")).toBeNull()
+    expect(screen.getByText(/ann · a@a.test/)).toBeTruthy()
+  })
+
+  it("asks before disabling, from the menu", async () => {
+    const me = person({})
+    serve(me, [me, ann()])
+    renderPage()
+    await screen.findByText("Ann Lee")
+    openMenu("Ann Lee")
+    fireEvent.click(await screen.findByText("Disable"))
+    expect(await screen.findByText("Disable Ann Lee?")).toBeTruthy()
+  })
+
+  it("offers Enable, not Disable, for a disabled member", async () => {
+    const me = person({})
+    serve(me, [me, { ...ann(), disabled: true }])
+    renderPage()
+    await screen.findByText("Ann Lee")
+    openMenu("Ann Lee")
+    expect(await screen.findByText("Enable")).toBeTruthy()
+    expect(screen.queryByText("Disable")).toBeNull()
   })
 
   it("never asks for the team when the signed-in person is not a super user", async () => {
@@ -43,39 +70,92 @@ describe("TeamPage", () => {
     await waitFor(() => expect(fetchAdmin).not.toHaveBeenCalledWith("librarians"))
   })
 
-  it("asks for your own password before changing who is super, and sends it", async () => {
+  it("transfers only to a picked, enabled member, with your password, then leaves the page", async () => {
     const me = person({})
-    serve(me, [me, person({ id: 2, username: "ann", is_super: false })])
+    fetchAdmin.mockImplementation((path, init) =>
+      init?.method === "PUT"
+        ? ok({ ...ann(), is_super: true, transferred: true })
+        : ok(path === "me" ? me : { librarians: [me, ann(), person({ id: 4, username: "off", is_super: false, disabled: true })] }))
     renderPage()
-    await screen.findByText("ann")
-    fireEvent.click(screen.getByText("Make super user"))
-    expect(await screen.findByText("Make ann a super user?")).toBeTruthy()
+    await screen.findByText("Ann Lee")
+    fireEvent.click(screen.getByText("Transfer super user"))
+    const select = await screen.findByLabelText(/New super user/)
+    expect(Array.from(select.querySelectorAll("option")).map((o) => o.textContent)).toEqual(["Choose a person", "Ann Lee — a@a.test"])
+    const submit = () => screen.getByRole("button", { name: /^Transfer( to|$)/ })
+    expect(submit().disabled).toBe(true)
+    fireEvent.change(select, { target: { value: "2" } })
+    expect(screen.getByText(/Ann Lee becomes the only super user. You become a normal member/)).toBeTruthy()
+    expect(submit().disabled).toBe(true) // still no password
     fireEvent.change(screen.getByLabelText(/Confirm with your own password/), { target: { value: "my-password-1!" } })
-    fireEvent.click(screen.getByText("Confirm"))
+    expect(submit().textContent).toBe("Transfer to Ann Lee")
+    fireEvent.click(submit())
     await waitFor(() =>
       expect(fetchAdmin).toHaveBeenCalledWith("librarians/2", expect.objectContaining({
         method: "PUT",
         body: JSON.stringify({ is_super: true, current_password: "my-password-1!" }),
       })))
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/account"))
   })
 
-  it("keeps a wrong password in the form instead of closing", async () => {
+  it("keeps a wrong password in the transfer form", async () => {
     const me = person({})
     fetchAdmin.mockImplementation((path, init) =>
-      init?.method === "PUT"
-        ? Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({ detail: "The current password is wrong." }) })
-        : ok(path === "me" ? me : { librarians: [me, person({ id: 2, username: "ann", is_super: false })] }))
-    jest.requireMock("@/lib/api-client").handleApiResponse.mockImplementation(async (res) => {
-      if (!res.ok) throw new (require("@/types/api").ApiError)((await res.json()).detail, res.status)
-      return res.json()
-    })
+      init?.method === "PUT" ? refuse("The current password is wrong.") : ok(path === "me" ? me : { librarians: [me, ann()] }))
     renderPage()
-    await screen.findByText("ann")
-    fireEvent.click(screen.getByText("Make super user"))
-    fireEvent.change(await screen.findByLabelText(/Confirm with your own password/), { target: { value: "nope" } })
-    fireEvent.click(screen.getByText("Confirm"))
+    await screen.findByText("Ann Lee")
+    fireEvent.click(screen.getByText("Transfer super user"))
+    fireEvent.change(await screen.findByLabelText(/New super user/), { target: { value: "2" } })
+    fireEvent.change(screen.getByLabelText(/Confirm with your own password/), { target: { value: "nope" } })
+    fireEvent.click(screen.getByRole("button", { name: "Transfer to Ann Lee" }))
     expect(await screen.findByText("The current password is wrong.")).toBeTruthy()
-    expect(screen.getByText("Make ann a super user?")).toBeTruthy()
+    expect(replace).not.toHaveBeenCalled()
+  })
+
+  it("says to add a person first when nobody can take the role", async () => {
+    const me = person({})
+    serve(me, [me])
+    renderPage()
+    await screen.findByText("Team")
+    fireEvent.click(await screen.findByText("Transfer super user"))
+    expect(await screen.findByText(/Add a person first/)).toBeTruthy()
+    expect(screen.queryByLabelText(/New super user/)).toBeNull()
+    fireEvent.click(screen.getAllByText("Add a person").find((el) => el.closest("[role=dialog]")))
+    expect(await screen.findByLabelText(/^Name/)).toBeTruthy()
+  })
+
+  it("deletes only after your password", async () => {
+    const me = person({})
+    fetchAdmin.mockImplementation((path, init) =>
+      init?.method === "POST" ? ok({ deleted: true }) : ok(path === "me" ? me : { librarians: [me, ann()] }))
+    renderPage()
+    await screen.findByText("Ann Lee")
+    openMenu("Ann Lee")
+    fireEvent.click(await screen.findByText("Delete"))
+    expect(await screen.findByText("Delete Ann Lee?")).toBeTruthy()
+    expect(screen.getByText(/cannot be undone/)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Delete" })) // no password yet
+    expect(await screen.findByText("Enter your password.")).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(/Confirm with your own password/), { target: { value: "my-password-1!" } })
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    await waitFor(() =>
+      expect(fetchAdmin).toHaveBeenCalledWith("librarians/2/delete", expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ current_password: "my-password-1!" }),
+      })))
+  })
+
+  it("keeps a refused delete in the form", async () => {
+    const me = person({})
+    fetchAdmin.mockImplementation((path, init) =>
+      init?.method === "POST" ? refuse("Invalid password.") : ok(path === "me" ? me : { librarians: [me, ann()] }))
+    renderPage()
+    await screen.findByText("Ann Lee")
+    openMenu("Ann Lee")
+    fireEvent.click(await screen.findByText("Delete"))
+    fireEvent.change(await screen.findByLabelText(/Confirm with your own password/), { target: { value: "nope" } })
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    expect(await screen.findByText("Invalid password.")).toBeTruthy()
+    expect(screen.getByText("Delete Ann Lee?")).toBeTruthy()
   })
 
   it("shows the new person's password once after adding, and not again", async () => {
@@ -93,79 +173,5 @@ describe("TeamPage", () => {
     expect(screen.getByText("correct-horse-9!")).toBeTruthy()
     fireEvent.click(screen.getByText("Done"))
     await waitFor(() => expect(screen.queryByText("correct-horse-9!")).toBeNull())
-  })
-
-  it("shows the name, with the username beside the email", async () => {
-    const me = person({})
-    serve(me, [me, person({ id: 2, username: "ann", name: "Ann Lee", display_name: "Ann Lee", is_super: false })])
-    renderPage()
-    expect(await screen.findByText("Ann Lee")).toBeTruthy()
-    expect(screen.getByText(/ann · a@a.test/)).toBeTruthy()
-  })
-
-  it("has no actions on any super row, and no promote on a disabled account", async () => {
-    const me = person({})
-    serve(me, [me, person({ id: 2, username: "old", is_super: true }), person({ id: 3, username: "off", is_super: false, disabled: true })])
-    renderPage()
-    await screen.findByText("off")
-    expect(screen.queryByText("Remove super access")).toBeNull()
-    expect(screen.queryByText("Make super user")).toBeNull()
-    expect(screen.getAllByText("Enable")).toHaveLength(1)
-    expect(screen.queryByText("Disable")).toBeNull()
-  })
-
-  it("leaves the team page after handing the role over", async () => {
-    const me = person({})
-    fetchAdmin.mockImplementation((path, init) =>
-      init?.method === "PUT"
-        ? ok(person({ id: 2, username: "ann", is_super: true, transferred: true }))
-        : ok(path === "me" ? me : { librarians: [me, person({ id: 2, username: "ann", is_super: false })] }))
-    renderPage()
-    await screen.findByText("ann")
-    fireEvent.click(screen.getByText("Make super user"))
-    expect(await screen.findByText(/You will become a normal member/)).toBeTruthy()
-    fireEvent.change(screen.getByLabelText(/Confirm with your own password/), { target: { value: "my-password-1!" } })
-    fireEvent.click(screen.getByText("Confirm"))
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/account"))
-  })
-
-  it("deletes only after your password, and not on super or your own row", async () => {
-    const me = person({})
-    fetchAdmin.mockImplementation((path, init) =>
-      init?.method === "POST" ? ok({ deleted: true }) : ok(path === "me" ? me : { librarians: [me, person({ id: 2, username: "ann", is_super: false })] }))
-    renderPage()
-    await screen.findByText("ann")
-    expect(screen.getAllByText("Delete")).toHaveLength(1) // ann only
-    fireEvent.click(screen.getByText("Delete"))
-    expect(await screen.findByText("Delete ann?")).toBeTruthy()
-    expect(screen.getByText(/cannot be undone/)).toBeTruthy()
-    fireEvent.click(screen.getAllByText("Delete")[1]) // submit with no password
-    expect(await screen.findByText("Enter your password.")).toBeTruthy()
-    fireEvent.change(screen.getByLabelText(/Confirm with your own password/), { target: { value: "my-password-1!" } })
-    fireEvent.click(screen.getAllByText("Delete")[1])
-    await waitFor(() =>
-      expect(fetchAdmin).toHaveBeenCalledWith("librarians/2/delete", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ current_password: "my-password-1!" }),
-      })))
-  })
-
-  it("keeps a refused delete in the form", async () => {
-    const me = person({})
-    fetchAdmin.mockImplementation((path, init) =>
-      init?.method === "POST"
-        ? Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve({ detail: "Invalid password." }) })
-        : ok(path === "me" ? me : { librarians: [me, person({ id: 2, username: "ann", is_super: false })] }))
-    jest.requireMock("@/lib/api-client").handleApiResponse.mockImplementation(async (res) => {
-      if (!res.ok) throw new (require("@/types/api").ApiError)((await res.json()).detail, res.status)
-      return res.json()
-    })
-    renderPage()
-    await screen.findByText("ann")
-    fireEvent.click(screen.getByText("Delete"))
-    fireEvent.change(await screen.findByLabelText(/Confirm with your own password/), { target: { value: "nope" } })
-    fireEvent.click(screen.getAllByText("Delete")[1])
-    expect(await screen.findByText("Invalid password.")).toBeTruthy()
-    expect(screen.getByText("Delete ann?")).toBeTruthy()
   })
 })

@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, MoreHorizontal, Plus } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@workspace/ui/components/dropdown-menu"
+import { NativeSelect } from "@/components/NativeSelect"
 import { FormField } from "@/components/form-field"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@workspace/ui/components/sheet"
@@ -127,15 +129,17 @@ function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boo
   )
 }
 
-function RoleSheet({ person, onClose }: { person: Librarian | null; onClose: () => void }) {
+function TransferSheet({ open, candidates, onClose, onAdd }: { open: boolean; candidates: Librarian[]; onClose: () => void; onAdd: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const fail = useFailure()
   const router = useRouter()
+  const [pickedId, setPickedId] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const person = candidates.find((c) => String(c.id) === pickedId) ?? null
 
-  const change = useMutation({
+  const transfer = useMutation({
     mutationFn: (p: Librarian) => updateLibrarian(p.id, { is_super: true, current_password: password }),
     // The hand-over makes you a normal member: the team list is now forbidden, so leave this page.
     onSuccess: (_, p) => {
@@ -149,37 +153,55 @@ function RoleSheet({ person, onClose }: { person: Librarian | null; onClose: () 
     onError: (e) => (e instanceof ApiError && e.status === 400 ? setError(e.message) : fail(e)),
   })
 
-  const close = () => { setPassword(""); setError(""); onClose() }
+  const close = () => { setPickedId(""); setPassword(""); setError(""); onClose() }
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!person) return
-    if (!password) return setError(t("Enter your password."))
-    setError("")
-    change.mutate(person)
+    if (person && password) transfer.mutate(person)
   }
-  const title = person ? TEAM.promoteTitle(displayName(person)) : ""
 
   return (
-    <Sheet open={!!person} onOpenChange={(o) => !o && close()}>
+    <Sheet open={open} onOpenChange={(o) => !o && close()}>
       <SheetContent className="sm:max-w-md">
         <form onSubmit={submit} noValidate className="flex h-full flex-col">
           <SheetHeader>
-            <SheetTitle>{t(title)}</SheetTitle>
-            <SheetDescription>{t(TEAM.promoteBody)}</SheetDescription>
+            <SheetTitle>{t(TEAM.transfer)}</SheetTitle>
+            <SheetDescription>{t(TEAM.transferHelp)}</SheetDescription>
           </SheetHeader>
-          <div className="flex-1 px-4">
-            <FormField id="role-password" label={t(TEAM.confirmPassword)} hint={t(TEAM.confirmPasswordHelp)} error={error}>
-              {(aria) => (
-                <PasswordInput {...aria} autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); setError("") }} />
-              )}
-            </FormField>
+          <div className="flex-1 space-y-4 px-4">
+            {candidates.length === 0 ? (
+              <div className="space-y-3">
+                <p className="text-sm">{t(TEAM.transferNobody)}</p>
+                <Button type="button" variant="outline" onClick={() => { close(); onAdd() }}>{t(TEAM.add)}</Button>
+              </div>
+            ) : (
+              <>
+                <FormField id="transfer-to" label={t(TEAM.transferTo)}>
+                  {(aria) => (
+                    <NativeSelect {...aria} value={pickedId} onChange={(e) => { setPickedId(e.target.value); setError("") }} className="w-full">
+                      <option value="">{t(TEAM.transferPick)}</option>
+                      {candidates.map((c) => (
+                        <option key={c.id} value={c.id}>{displayName(c)}{c.email ? ` — ${c.email}` : ""}</option>
+                      ))}
+                    </NativeSelect>
+                  )}
+                </FormField>
+                {person && <p className="text-sm text-muted-foreground">{t(TEAM.transferConsequence(displayName(person)))}</p>}
+                <FormField id="transfer-password" label={t(TEAM.confirmPassword)} hint={t(TEAM.confirmPasswordHelp)} error={error}>
+                  {(aria) => (
+                    <PasswordInput {...aria} autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); setError("") }} />
+                  )}
+                </FormField>
+              </>
+            )}
           </div>
-          <SheetFooter>
-            <Button type="submit" disabled={change.isPending}>
-              {change.isPending && <Loader2 className="size-4 animate-spin" />}
-              {t(TEAM.confirm)}
-            </Button>
-          </SheetFooter>
+          {candidates.length > 0 && (
+            <SheetFooter>
+              <Button type="submit" disabled={!person || !password || transfer.isPending}>
+                {transfer.isPending && <Loader2 className="size-4 animate-spin" />}
+                {t(TEAM.transferTo2(person ? displayName(person) : ""))}
+              </Button>
+            </SheetFooter>
+          )}
         </form>
       </SheetContent>
     </Sheet>
@@ -240,21 +262,22 @@ function DeleteSheet({ person, onClose }: { person: Librarian | null; onClose: (
   )
 }
 
-function Row({ person, isMe, onDisable, onRole, onDelete }: { person: Librarian; isMe: boolean; onDisable: (p: Librarian) => void; onRole: (p: Librarian) => void; onDelete: (p: Librarian) => void }) {
+function Row({ person, isMe, onDisable, onDelete }: { person: Librarian; isMe: boolean; onDisable: (p: Librarian) => void; onDelete: (p: Librarian) => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const fail = useFailure()
-  const done = (message: string) => { toast.success(message); void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY }) }
 
   const enable = useMutation({
     mutationFn: () => setDisabled(person.id, false),
-    onSuccess: () => done(t(TEAM.enabled(displayName(person)))),
+    onSuccess: () => {
+      toast.success(t(TEAM.enabled(displayName(person))))
+      void qc.invalidateQueries({ queryKey: LIBRARIANS_KEY })
+    },
     onError: fail,
   })
-  const busy = enable.isPending
 
   return (
-    <li className="flex flex-wrap items-center gap-3 p-4">
+    <li className="flex items-center gap-3 p-4">
       <UserAvatar seed={String(person.id)} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -265,20 +288,23 @@ function Row({ person, isMe, onDisable, onRole, onDelete }: { person: Librarian;
         </div>
         <p className="truncate text-sm text-muted-foreground">{person.username} · {person.email ?? t(TEAM.noEmail)}</p>
       </div>
-      <div className="flex gap-2">
-        {/* The server refuses to disable or demote the super user, so a super row (yours included) has no actions. */}
-        {person.is_super ? null : (
-          <>
-            {!person.disabled && <Button variant="outline" size="sm" disabled={busy} onClick={() => onRole(person)}>{t(TEAM.promote)}</Button>}
+      {/* The server refuses to disable, demote or delete the super user, so a super row (yours included) has no menu. */}
+      {!person.is_super && !isMe && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label={t(TEAM.actionsFor(displayName(person)))}><MoreHorizontal className="size-4" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
             {person.disabled ? (
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => enable.mutate()}>{t(TEAM.enable)}</Button>
+              <DropdownMenuItem disabled={enable.isPending} onSelect={() => enable.mutate()}>{t(TEAM.enable)}</DropdownMenuItem>
             ) : (
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => onDisable(person)}>{t(TEAM.disable)}</Button>
+              <DropdownMenuItem onSelect={() => onDisable(person)}>{t(TEAM.disable)}</DropdownMenuItem>
             )}
-            <Button variant="outline" size="sm" disabled={busy} className="text-destructive hover:text-destructive" onClick={() => onDelete(person)}>{t(TEAM.delete)}</Button>
-          </>
-        )}
-      </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => onDelete(person)}>{t(TEAM.delete)}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </li>
   )
 }
@@ -291,7 +317,7 @@ export default function TeamPage() {
   const { data, error, refetch } = useLibrarians(!!me?.is_super)
   const [adding, setAdding] = useState(false)
   const [target, setTarget] = useState<Librarian | null>(null)
-  const [roleTarget, setRoleTarget] = useState<Librarian | null>(null)
+  const [transferring, setTransferring] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Librarian | null>(null)
 
   const disable = useMutation({
@@ -308,6 +334,8 @@ export default function TeamPage() {
   // Only a courtesy: the server answers 403 to anyone but a super user.
   if (!me.is_super) return <ErrorState message={t("Only a super user can manage the team.")} />
 
+  const candidates = (data?.librarians ?? []).filter((p) => !p.is_super && !p.disabled)
+
   return (
     <div className="w-full min-w-0 max-w-2xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -315,7 +343,10 @@ export default function TeamPage() {
           <h1 className="text-2xl font-semibold tracking-tight">{t(TEAM.title)}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{t(TEAM.description)}</p>
         </div>
-        <Button onClick={() => setAdding(true)}><Plus className="size-4" />{t(TEAM.add)}</Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setTransferring(true)} disabled={!data}>{t(TEAM.transfer)}</Button>
+          <Button onClick={() => setAdding(true)}><Plus className="size-4" />{t(TEAM.add)}</Button>
+        </div>
       </div>
 
       {!data ? (
@@ -324,12 +355,12 @@ export default function TeamPage() {
         <p className="text-sm text-muted-foreground">{t(TEAM.empty)}</p>
       ) : (
         <ul className="divide-y overflow-hidden rounded-xl border bg-card">
-          {data.librarians.map((p) => <Row key={p.id} person={p} isMe={p.id === me.id} onDisable={setTarget} onRole={setRoleTarget} onDelete={setDeleteTarget} />)}
+          {data.librarians.map((p) => <Row key={p.id} person={p} isMe={p.id === me.id} onDisable={setTarget} onDelete={setDeleteTarget} />)}
         </ul>
       )}
 
       <AddSheet open={adding} onOpenChange={setAdding} />
-      <RoleSheet person={roleTarget} onClose={() => setRoleTarget(null)} />
+      <TransferSheet open={transferring} candidates={candidates} onClose={() => setTransferring(false)} onAdd={() => setAdding(true)} />
       <DeleteSheet person={deleteTarget} onClose={() => setDeleteTarget(null)} />
 
       <AlertDialog open={!!target} onOpenChange={(o) => !o && setTarget(null)}>
