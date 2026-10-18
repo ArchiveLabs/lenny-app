@@ -26,7 +26,8 @@ describe("TeamPage", () => {
     serve(me, [me, person({ id: 2, username: "ann", is_super: false })])
     renderPage()
     expect(await screen.findByText("ann")).toBeTruthy()
-    fireEvent.click(screen.getAllByText("Disable")[1])
+    expect(screen.getAllByText("Disable")).toHaveLength(1) // not on your own row
+    fireEvent.click(screen.getByText("Disable"))
     expect(await screen.findByText("Disable ann?")).toBeTruthy()
   })
 

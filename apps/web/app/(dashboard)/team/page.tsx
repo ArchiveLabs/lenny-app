@@ -175,7 +175,8 @@ function Row({ person, isMe, onDisable, onRole }: { person: Librarian; isMe: boo
         <Button variant="outline" size="sm" disabled={busy} onClick={() => onRole(person)}>
           {t(person.is_super ? (isMe ? TEAM.stepDown : TEAM.demote) : TEAM.promote)}
         </Button>
-        {person.disabled ? (
+        {/* The server refuses to disable your own account, so don't offer it. */}
+        {isMe ? null : person.disabled ? (
           <Button variant="outline" size="sm" disabled={busy} onClick={() => enable.mutate()}>{t(TEAM.enable)}</Button>
         ) : (
           <Button variant="outline" size="sm" disabled={busy} onClick={() => onDisable(person)}>{t(TEAM.disable)}</Button>
