@@ -5,20 +5,22 @@ import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/admin-session"
 
 const internalApiUrl = process.env.LENNY_INTERNAL_API_URL // e.g. http://127.0.0.1:1337/v1/api
 const internalSecret = process.env.ADMIN_INTERNAL_SECRET
+const UPSTREAM_TIMEOUT_MS = 120_000
+const NO_STORE = { "Cache-Control": "no-store" }
 
 async function proxyRequest(request: Request, context: { params: Promise<{ path: string[] }> }) {
     const { path: pathArray } = await context.params
 
     if (!internalApiUrl) {
-        return NextResponse.json({ detail: "Admin API is not configured" }, { status: 500 })
+        return NextResponse.json({ detail: "Admin API is not configured" }, { status: 500, headers: NO_STORE })
     }
     // Segments arrive decoded: reject ".." / "%2e%2e" / encoded slashes before they can
     // walk out of /admin/ with the secret and token attached.
     if (hasUnsafeSegment(pathArray)) {
-        return NextResponse.json({ detail: "Invalid path" }, { status: 400 })
+        return NextResponse.json({ detail: "Invalid path" }, { status: 400, headers: NO_STORE })
     }
     if (request.method !== "GET" && request.method !== "HEAD" && !isSameOrigin(request)) {
-        return NextResponse.json({ detail: "Cross-origin request blocked" }, { status: 403 })
+        return NextResponse.json({ detail: "Cross-origin request blocked" }, { status: 403, headers: NO_STORE })
     }
     const joinedPath = pathArray.map(encodeURIComponent).join("/")
 
@@ -30,7 +32,7 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
     const token = cookieStore.get("admin_token")?.value
     // Never attach the internal secret to an anonymous request.
     if (!token) {
-        return NextResponse.json({ detail: "Unauthorized" }, { status: 401 })
+        return NextResponse.json({ detail: "Unauthorized" }, { status: 401, headers: NO_STORE })
     }
 
     const headers: Record<string, string> = {
@@ -60,18 +62,27 @@ async function proxyRequest(request: Request, context: { params: Promise<{ path:
         }
     }
 
-    const upstream = await fetch(targetUrl, {
-        method: request.method,
-        headers,
-        body,
-        // The secret header would follow a redirect to another host; never follow.
-        redirect: "manual",
-        // @ts-ignore - Required for Node.js fetch with stream body
-        duplex: "half",
-    })
+    let upstream: Response
+    try {
+        upstream = await fetch(targetUrl, {
+            method: request.method,
+            headers,
+            body,
+            // The secret header would follow a redirect to another host; never follow.
+            redirect: "manual",
+            // A hung Lenny must not hold this request (and its memory) open forever.
+            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+            // @ts-ignore - Required for Node.js fetch with stream body
+            duplex: "half",
+        })
+    } catch (error) {
+        // The reason (a host name, a port) stays in the server log, not in the answer.
+        console.error("Admin proxy could not reach Lenny:", error instanceof Error ? error.name : "error")
+        return NextResponse.json({ detail: "Lenny is unreachable" }, { status: 502, headers: { "Cache-Control": "no-store" } })
+    }
 
     if (upstream.status >= 300 && upstream.status < 400) {
-        return NextResponse.json({ detail: "Unexpected upstream redirect" }, { status: 502 })
+        return NextResponse.json({ detail: "Unexpected upstream redirect" }, { status: 502, headers: NO_STORE })
     }
 
     const responseBody = await upstream.text()

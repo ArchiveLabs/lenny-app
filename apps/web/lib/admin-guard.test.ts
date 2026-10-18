@@ -37,3 +37,19 @@ describe("pinned host", () => {
     expect(isSameOrigin(req({ origin: "https://admin.example", host: "internal:3000" }))).toBe(true)
   })
 })
+
+describe("unpinned host in production", () => {
+  const env = process.env as Record<string, string | undefined>
+  afterEach(() => { env.NODE_ENV = "test"; jest.restoreAllMocks(); jest.resetModules() })
+  it("warns once that X-Forwarded-Host is being trusted", () => {
+    jest.isolateModules(() => {
+      env.NODE_ENV = "production"
+      const warn = jest.spyOn(console, "warn").mockImplementation(() => {})
+      const { isSameOrigin: check } = require("./admin-guard")
+      check(req({ origin: "http://a.test", host: "a.test" }))
+      check(req({ origin: "http://a.test", host: "a.test" }))
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(warn.mock.calls[0]![0]).toContain("ADMIN_PUBLIC_HOST")
+    })
+  })
+})

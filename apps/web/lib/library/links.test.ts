@@ -52,3 +52,10 @@ it("takes the reader link as sent, and the source Lenny names", () => {
   expect(l.reader_url).toBe("https://reader.archive.org/?opds=http://localhost:8080/v1/api/opds")
   expect(l.source).toBe("host_and_port")
 })
+
+describe("links that become hrefs", () => {
+  it.each(["opds_feed", "opds_book_template", "reader_url"])("rejects a javascript: or data: %s", (key) => {
+    expect(LibraryLinksSchema.safeParse(links({ [key]: "javascript:alert(1)" })).success).toBe(false)
+    expect(LibraryLinksSchema.safeParse(links({ [key]: "data:text/html,<script>1</script>" })).success).toBe(false)
+  })
+})

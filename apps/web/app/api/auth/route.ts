@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server"
-import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/admin-session"
+import { isSameOrigin } from "@/lib/admin-guard"
+import { SESSION_COOKIE, USER_COOKIE, sessionCookieOptions, userCookieOptions } from "@/lib/admin-session"
 
-export async function POST(request: Request) {
+async function login(request: Request) {
+    // Another site must not be able to sign you in as someone it controls.
+    if (!isSameOrigin(request)) {
+        return NextResponse.json({ error: "Cross-origin request blocked" }, { status: 403 })
+    }
     let username: string | undefined
     let password: string | undefined
 
@@ -82,14 +87,15 @@ export async function POST(request: Request) {
 
     response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions)
 
-    // Non-httpOnly username cookie (readable by client for display purposes only)
-    response.cookies.set("admin_user", signedInAs, {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/",
-        maxAge: 60 * 60 * 24,
-    })
+    // Readable by the page, for display only.
+    response.cookies.set(USER_COOKIE, signedInAs, userCookieOptions)
 
+    return response
+}
+
+// Every answer here is about one person's credentials or session: never cacheable.
+export async function POST(request: Request) {
+    const response = await login(request)
+    response.headers.set("Cache-Control", "no-store")
     return response
 }

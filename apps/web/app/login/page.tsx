@@ -1,6 +1,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { LoginForm } from "@/components/login-form"
+import { safeNextPath } from "@/lib/safe-url"
 
 export default async function LoginPage({
   searchParams,
@@ -14,15 +15,7 @@ export default async function LoginPage({
   }
 
   const { next } = await searchParams
-  const nextPath =
-    next &&
-    next.startsWith("/") &&
-    !next.startsWith("//") &&
-    !next.includes("\\") &&
-    // browsers strip tabs/newlines inside URLs, so "/\t/evil.com" would become "//evil.com"
-    !/[\u0000-\u001f]/.test(next)
-      ? next
-      : "/"
+  const nextPath = safeNextPath(next)
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center bg-gradient-to-b from-background to-muted/30 p-6 md:p-10">

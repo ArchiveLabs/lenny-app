@@ -26,3 +26,30 @@ it("leaves the cookie alone when no token comes back", async () => {
   const res = await put("librarians/2")
   expect(res.cookies.get("admin_token")).toBeUndefined()
 })
+
+const call = (path: string, init: RequestInit & { headers?: Record<string, string> } = {}) =>
+  PUT(new Request(`http://admin.test/admin/api/admin/${path}`, { method: "PUT", body: "{}", ...init }), { params: Promise.resolve({ path: path.split("/") }) })
+
+it("builds the upstream headers itself: nothing the page sends is forwarded", async () => {
+  const spy = upstream({ ok: true })
+  await call("librarians/2", { headers: { Cookie: "admin_token=stolen; other=1", "X-Admin-Internal-Secret": "forged", Authorization: "Bearer forged", "X-Forwarded-For": "1.2.3.4" } })
+  const sent = (spy.mock.calls[0]![1] as any).headers as Record<string, string>
+  expect(Object.keys(sent).map((k) => k.toLowerCase()).sort()).toEqual(["authorization", "content-type", "x-admin-internal-secret"].filter((k) => k in lower(sent)).sort())
+  expect(sent.Authorization).toBe("Bearer old-token")
+  expect(sent["X-Admin-Internal-Secret"]).not.toBe("forged")
+})
+const lower = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k.toLowerCase(), v]))
+
+it("answers 502 with a generic message and no detail when Lenny can't be reached", async () => {
+  jest.spyOn(console, "error").mockImplementation(() => {})
+  jest.spyOn(global, "fetch").mockRejectedValue(new Error("connect ECONNREFUSED 10.0.0.5:1337"))
+  const res = await call("librarians/2")
+  expect(res.status).toBe(502)
+  expect(res.headers.get("Cache-Control")).toBe("no-store")
+  expect(JSON.stringify(await res.json())).not.toMatch(/10\.0\.0\.5|ECONNREFUSED/)
+})
+
+it("refuses a state-changing call from another site and a path that climbs out of /admin", async () => {
+  expect((await call("librarians/2", { headers: { origin: "http://evil.test", host: "admin.test" } })).status).toBe(403)
+  expect((await call("..")).status).toBe(400)
+})

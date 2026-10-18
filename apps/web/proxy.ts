@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { clearSession } from "@/lib/admin-session"
 
 // A cookie that merely exists proves nothing: ask Lenny whether the token is still good, so a
 // forged or ended session never gets the page shells. Only a 401 counts as "not signed in":
@@ -78,7 +79,7 @@ export async function proxy(request: NextRequest) {
         loginUrl.search = ""
         loginUrl.searchParams.set("next", pathname + request.nextUrl.search)
         const redirect = NextResponse.redirect(loginUrl)
-        redirect.cookies.delete("admin_token")
+        clearSession(redirect)
         return redirect
     }
 
