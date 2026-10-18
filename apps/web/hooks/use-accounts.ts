@@ -1,3 +1,4 @@
+import { z } from "zod"
 import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { fetchAdmin, handleApiResponse, redirectToLogin } from "@/lib/api-client"
@@ -36,7 +37,10 @@ export const updateLibrarian = (id: number, body: { name?: string; email?: strin
 export const createLibrarian = (body: { name: string; email: string; password: string }) =>
     send("librarians", "POST", body)
 
-export const deleteLibrarian = (id: number, current_password: string) => send(`librarians/${id}/delete`, "POST", { current_password })
+// Lenny answers a delete with {"deleted": true}, not a person.
+export const deleteLibrarian = (id: number, current_password: string) =>
+    fetchAdmin(`librarians/${id}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current_password }) })
+        .then((res) => handleApiResponse(res, z.object({ deleted: z.boolean() })))
 
 export const setDisabled = (id: number, disabled: boolean) => send(`librarians/${id}/disable`, "POST", { disabled })
 
