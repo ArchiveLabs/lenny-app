@@ -8,7 +8,7 @@ import { useLibraryLinks } from "@/hooks/use-library-links"
 import { copyText } from "@/lib/library/share"
 import { COPIED_TOAST_MS } from "./ShareButton"
 
-/** The catalog feed and the Internet Archive reader, for the top of the Library. Hidden when the links are unavailable. */
+/** The catalog feed and this node's built-in reader, for the top of the Library. Hidden when the links are unavailable. */
 export function LibraryLinksBar() {
   const { t } = useTranslation()
   const { data: links } = useLibraryLinks()
@@ -48,12 +48,12 @@ export function LibraryLinksBar() {
         asChild
         variant="outline"
         className="h-auto min-h-8 text-xs font-semibold shadow-sm sm:min-h-9 sm:text-sm"
-        title={t("Browse this library in Internet Archive's reader")}
+        title={t("Browse this library in Lenny's built-in reader")}
       >
-        <a href={links.reader_url} target="_blank" rel="noopener noreferrer" aria-label={t("Open in Internet Archive reader")}>
+        <a href={links.reader_url} target="_blank" rel="noopener noreferrer" aria-label={t("Open in Lenny reader")}>
           <BookOpenText className="mr-2 h-4 w-4" aria-hidden />
-          <span className="hidden sm:inline">{t("Open in Internet Archive reader")}</span>
-          <span className="sm:hidden">{t("Archive reader")}</span>
+          <span className="hidden sm:inline">{t("Open in Lenny reader")}</span>
+          <span className="sm:hidden">{t("Reader")}</span>
         </a>
       </Button>
     </div>

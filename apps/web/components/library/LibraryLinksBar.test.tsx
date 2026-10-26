@@ -10,7 +10,7 @@ jest.mock("react-i18next", () => ({ useTranslation: () => ({ t: (s: string) => s
 
 const links = (over = {}) => ({
   opds_feed: "https://lenny.example/v1/api/opds", opds_book_template: "https://lenny.example/v1/api/opds/{olid}",
-  reader_url: "https://reader.archive.org/?opds=https://lenny.example/v1/api/opds", is_public: true, ...over,
+  reader_url: "https://lenny.example/", is_public: true, ...over,
 })
 const setNavigator = (props) => Object.defineProperty(window, "navigator", { value: props, configurable: true })
 const original = window.navigator
@@ -35,13 +35,13 @@ it("opens the OPDS feed in a new tab, with a hover text", () => {
   expect(feed).toHaveAttribute("title", "Lenny's catalog feed for reading apps")
 })
 
-it("opens Internet Archive's reader in a new tab, with a hover text", () => {
+it("opens the built-in reader in a new tab, with a hover text", () => {
   render(<LibraryLinksBar />)
-  const reader = screen.getByRole("link", { name: "Open in Internet Archive reader" })
-  expect(reader).toHaveAttribute("href", "https://reader.archive.org/?opds=https://lenny.example/v1/api/opds")
+  const reader = screen.getByRole("link", { name: "Open in Lenny reader" })
+  expect(reader).toHaveAttribute("href", "https://lenny.example/")
   expect(reader).toHaveAttribute("target", "_blank")
   expect(reader).toHaveAttribute("rel", "noopener noreferrer")
-  expect(reader).toHaveAttribute("title", "Browse this library in Internet Archive's reader")
+  expect(reader).toHaveAttribute("title", "Browse this library in Lenny's built-in reader")
 })
 
 it("copies the feed link from the small copy button next to it", async () => {
@@ -69,27 +69,27 @@ describe("a link that is not public", () => {
     expect(screen.queryByText(/only work on your own network/)).not.toBeInTheDocument()
     expect(screen.queryByText(/LENNY_PROXY/)).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "OPDS feed" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Open in Internet Archive reader" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open in Lenny reader" })).toBeInTheDocument()
   })
 })
 
 it("uses the reader link exactly as Lenny returns it, without building its own", () => {
-  useLibraryLinks.mockReturnValue({ data: links({ opds_feed: "https://other.example/v1/api/opds", reader_url: "https://reader.archive.org/?opds=https://lender.briet.app/v1/api/opds" }) })
+  useLibraryLinks.mockReturnValue({ data: links({ opds_feed: "https://other.example/v1/api/opds", reader_url: "https://lender.briet.app/" }) })
   render(<LibraryLinksBar />)
-  expect(screen.getByRole("link", { name: "Open in Internet Archive reader" })).toHaveAttribute("href", "https://reader.archive.org/?opds=https://lender.briet.app/v1/api/opds")
+  expect(screen.getByRole("link", { name: "Open in Lenny reader" })).toHaveAttribute("href", "https://lender.briet.app/")
 })
 
 describe("on a phone", () => {
   it("keeps the full name for the reader link even where the label is shortened", () => {
     render(<LibraryLinksBar />)
-    const reader = screen.getByRole("link", { name: "Open in Internet Archive reader" })
-    expect(reader).toHaveAttribute("aria-label", "Open in Internet Archive reader")
-    expect(reader).toHaveTextContent("Archive reader")
+    const reader = screen.getByRole("link", { name: "Open in Lenny reader" })
+    expect(reader).toHaveAttribute("aria-label", "Open in Lenny reader")
+    expect(reader).toHaveTextContent("Reader")
   })
 
   it("makes the buttons shorter below sm, and full size from sm up", () => {
     render(<LibraryLinksBar />)
-    for (const el of [screen.getByRole("link", { name: "OPDS feed" }), screen.getByRole("link", { name: "Open in Internet Archive reader" })]) {
+    for (const el of [screen.getByRole("link", { name: "OPDS feed" }), screen.getByRole("link", { name: "Open in Lenny reader" })]) {
       expect(el.className).toContain("min-h-8")
       expect(el.className).toContain("sm:min-h-9")
     }
@@ -105,7 +105,7 @@ describe("the buttons are one height", () => {
     expect(container.firstElementChild.className).toContain("items-stretch")
     const group = screen.getByRole("link", { name: "OPDS feed" }).parentElement
     expect(group.className).toContain("items-stretch")
-    for (const link of [screen.getByRole("link", { name: "OPDS feed" }), screen.getByRole("link", { name: "Open in Internet Archive reader" })]) {
+    for (const link of [screen.getByRole("link", { name: "OPDS feed" }), screen.getByRole("link", { name: "Open in Lenny reader" })]) {
       expect(link.className).toContain("h-auto") // not a fixed height, which would ignore the 36px minimum buttons get on touch screens
     }
   })
