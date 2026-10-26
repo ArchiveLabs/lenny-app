@@ -10,7 +10,7 @@ jest.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])) }),
 }))
 
-const links = { opds_book_template: "https://lenny.example/v1/api/opds/{olid}", opds_feed: "https://lenny.example/v1/api/opds", reader_url: "x", is_public: true }
+const links = { opds_book_template: "https://lenny.example/v1/api/opds/{olid}", opds_feed: "https://lenny.example/v1/api/opds", reader_url: "https://lenny.example/", is_public: true }
 const setNavigator = (props) => Object.defineProperty(window, "navigator", { value: props, configurable: true })
 const original = window.navigator
 
@@ -34,7 +34,7 @@ it("copies the book's link, with the edition number put in, and says so for two 
   render(<ShareButton olid="OL123M" title="Dune" />)
   press()
   await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Link copied", { duration: 2000 }))
-  expect(writeText).toHaveBeenCalledWith("https://lenny.example/v1/api/opds/123")
+  expect(writeText).toHaveBeenCalledWith("https://lenny.example/?opds=https%3A%2F%2Flenny.example%2Fv1%2Fapi%2Fopds%2F123")
 })
 
 it("uses the system share sheet where there is one, with the title and link, and does not also copy", async () => {
@@ -43,7 +43,7 @@ it("uses the system share sheet where there is one, with the title and link, and
   setNavigator({ share, clipboard: { writeText } })
   render(<ShareButton olid="OL123M" title="Dune" />)
   press()
-  await waitFor(() => expect(share).toHaveBeenCalledWith({ title: "Dune", url: "https://lenny.example/v1/api/opds/123" }))
+  await waitFor(() => expect(share).toHaveBeenCalledWith({ title: "Dune", url: "https://lenny.example/?opds=https%3A%2F%2Flenny.example%2Fv1%2Fapi%2Fopds%2F123" }))
   expect(writeText).not.toHaveBeenCalled()
   expect(toast.success).not.toHaveBeenCalled()
 })
@@ -64,7 +64,7 @@ describe("when the clipboard is blocked", () => {
     render(<ShareButton olid="OL123M" title="Dune" />)
     press()
     const field = await screen.findByLabelText("Link to share")
-    expect(field).toHaveValue("https://lenny.example/v1/api/opds/123")
+    expect(field).toHaveValue("https://lenny.example/?opds=https%3A%2F%2Flenny.example%2Fv1%2Fapi%2Fopds%2F123")
     expect(field).toHaveAttribute("readonly")
     expect(toast.success).not.toHaveBeenCalled()
     expect(screen.getByText("Your browser did not allow copying. Select the link and copy it.")).toBeInTheDocument()
@@ -99,7 +99,7 @@ it("does not let the click reach the card around it, which would open the book s
 
 it("has a label that names the book and a short hover text", () => {
   render(<ShareButton olid="OL1M" title="Dune" />)
-  expect(screen.getByRole("button", { name: "Share Dune" })).toHaveAttribute("title", "Share this book's OPDS link")
+  expect(screen.getByRole("button", { name: "Share Dune" })).toHaveAttribute("title", "Share this book's link")
 })
 
 describe("size", () => {

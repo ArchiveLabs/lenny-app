@@ -1,6 +1,6 @@
 /** @jest-environment node */
 // @ts-nocheck
-import { bookLink, editionNumber, fetchLibraryLinks, LibraryLinksSchema } from "./links"
+import { bookLink, readerBookLink, editionNumber, fetchLibraryLinks, LibraryLinksSchema } from "./links"
 import { fetchAdmin } from "@/lib/api-client"
 
 jest.mock("@/lib/api-client", () => ({ ...jest.requireActual("@/lib/api-client"), fetchAdmin: jest.fn() }))
@@ -8,7 +8,7 @@ jest.mock("@/lib/api-client", () => ({ ...jest.requireActual("@/lib/api-client")
 const links = (over = {}) => ({
   base_url: "https://lenny.example", source: "configured", is_public: true, opds_feed: "https://lenny.example/v1/api/opds",
   opds_search: "https://lenny.example/v1/api/opds/search?query={query}", opds_book_template: "https://lenny.example/v1/api/opds/{olid}",
-  reader_url: "https://reader.archive.org/catalog?home=https%3A%2F%2Flenny.example%2Fv1%2Fapi%2Fopds", ...over,
+  reader_url: "https://lenny.example/", ...over,
 })
 
 describe("editionNumber", () => {
@@ -16,6 +16,12 @@ describe("editionNumber", () => {
     expect(editionNumber("OL123M")).toBe("123")
     expect(editionNumber("OL28933309M")).toBe("28933309")
     expect(editionNumber(456)).toBe("456")
+  })
+})
+
+describe("readerBookLink", () => {
+  it("opens the book in the node's own reader", () => {
+    expect(readerBookLink(links(), "OL123M")).toBe("https://lenny.example/?opds=https%3A%2F%2Flenny.example%2Fv1%2Fapi%2Fopds%2F123")
   })
 })
 
@@ -48,8 +54,8 @@ describe("the response", () => {
 })
 
 it("takes the reader link as sent, and the source Lenny names", () => {
-  const l = LibraryLinksSchema.parse(links({ source: "host_and_port", reader_url: "https://reader.archive.org/?opds=http://localhost:8080/v1/api/opds" }))
-  expect(l.reader_url).toBe("https://reader.archive.org/?opds=http://localhost:8080/v1/api/opds")
+  const l = LibraryLinksSchema.parse(links({ source: "host_and_port", reader_url: "http://localhost:8080/" }))
+  expect(l.reader_url).toBe("http://localhost:8080/")
   expect(l.source).toBe("host_and_port")
 })
 

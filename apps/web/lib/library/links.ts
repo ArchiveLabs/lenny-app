@@ -22,5 +22,9 @@ export const fetchLibraryLinks = () => fetchAdmin("library/links").then((r) => h
 /** The number in an edition key: OL123M becomes 123. */
 export const editionNumber = (olid: string | number) => String(olid).replace(/\D/g, "")
 
-/** The OPDS link to share for one book. */
+/** The link to share for one book: opens it in this node's built-in reader (`<reader>/?opds=<book feed>`). */
+export const readerBookLink = (links: LibraryLinks, olid: string | number) =>
+  `${links.reader_url.replace(/\/+$/, "")}/?opds=${encodeURIComponent(bookLink(links, olid))}`
+
+/** The raw OPDS feed address of one book, for reading apps. */
 export const bookLink = (links: LibraryLinks, olid: string | number) => links.opds_book_template.replace("{olid}", editionNumber(olid))
