@@ -9,7 +9,7 @@ import {
   IconServer,
   IconUser,
   IconUsers,
-  IconChartBar,
+  IconLayoutDashboard,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -27,11 +27,15 @@ import {
 import { useTranslation } from "react-i18next"
 import { useMe } from "@/hooks/use-accounts"
 import { ACCOUNT, TEAM } from "@/lib/accounts"
-import { STATS } from "@/lib/subscriptions"
-import { useGhostSettings } from "@/hooks/use-ghost-settings"
+import { DASHBOARD } from "@/lib/subscriptions"
 
 const data = {
   navMain: [
+    {
+      title: DASHBOARD.title,
+      url: DASHBOARD.route,
+      icon: IconLayoutDashboard,
+    },
     {
       title: "Import & Redeem",
       url: "/import",
@@ -65,9 +69,6 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const { data: me } = useMe()
-  const { data: ghost } = useGhostSettings()
-  // Subscription stats only mean something once a Ghost site is connected.
-  const navMain = ghost?.site_url ? [...data.navMain, { title: STATS.title, url: STATS.route, icon: IconChartBar }] : data.navMain
   // Hiding is only a courtesy: the server answers 403 to anyone but a super user.
   const navSecondary = [
     ...data.navSecondary.slice(0, 1),
@@ -92,7 +93,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navMain} />
+        <NavMain items={data.navMain} />
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter className="border-t px-3 py-2">

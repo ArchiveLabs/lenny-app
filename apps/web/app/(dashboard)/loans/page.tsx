@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useTransition, Suspense } from "react"
+import { useState, useEffect, useCallback, useTransition, Suspense, type ReactNode } from "react"
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query"
 import { z } from "zod"
 import { toast } from "sonner"
@@ -10,6 +10,9 @@ import { LIBRARY_QUERY_KEY } from "@/lib/query-client"
 import { AdminItemSearchResult, AdminLoan, ApiError, CreateLoanResponse, CreateLoanResponseSchema, LennyBook, PaginatedAdminLoans, PaginatedAdminLoansSchema } from "@/types/api"
 import { Loader2, Search, Calendar, User, BookOpen, RefreshCw, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Undo2, Plus, Copy, CheckCircle2, Clock, AlertTriangle } from "lucide-react"
 import { ErrorState } from "@/components/ErrorState"
+import { MemberPasses } from "@/components/loans/MemberPasses"
+import { useGhostSettings } from "@/hooks/use-ghost-settings"
+import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { BookEditSheet } from "@/components/BookEditSheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@workspace/ui/components/table"
 import { Input } from "@workspace/ui/components/input"
@@ -304,7 +307,7 @@ function LoanBookTitle({ loan, book, className }: { loan: AdminLoan; book?: Lenn
     )
 }
 
-function LoansPageContent() {
+function LoansPageContent({ switcher }: { switcher?: ReactNode }) {
     const { t } = useTranslation()
     const router = useRouter()
     const pathname = usePathname()
@@ -485,6 +488,7 @@ function LoansPageContent() {
                 </div>
                 <CreateLoanSheet />
             </div>
+            {switcher}
 
             <div className="flex flex-wrap items-center gap-4 bg-card p-4 rounded-xl border shadow-sm">
                 <div className="flex-1 min-w-[240px] relative">
@@ -764,10 +768,42 @@ function LoansPageContent() {
     )
 }
 
+/** Loans, plus a Ghost members tab once a Ghost site is connected: members read on passes, not loans. */
+function LoansOrMembers() {
+    const { t } = useTranslation()
+    const { data: ghost } = useGhostSettings()
+    const [view, setView] = useState<"loans" | "members">("loans")
+    if (!ghost?.site_url) return <LoansPageContent />
+
+    const switcher = (
+        <Tabs value={view} onValueChange={(v) => setView(v as "loans" | "members")}>
+            <TabsList className="w-full sm:w-fit">
+                <TabsTrigger value="loans" className="flex-1 sm:flex-none sm:px-6">{t("Loans")}</TabsTrigger>
+                <TabsTrigger value="members" className="flex-1 sm:flex-none sm:px-6">{t("Ghost members")}</TabsTrigger>
+            </TabsList>
+        </Tabs>
+    )
+    if (view === "loans") return <LoansPageContent switcher={switcher} />
+    return (
+        <MemberPasses
+            leaseHours={ghost.lease_hours}
+            header={
+                <>
+                    <div className="space-y-1">
+                        <h2 className="text-xl font-bold tracking-tight sm:text-3xl">{t("Active Loans")}</h2>
+                        <p className="text-muted-foreground">{t("Members of your Ghost site reading on a pass.")}</p>
+                    </div>
+                    {switcher}
+                </>
+            }
+        />
+    )
+}
+
 export default function LoansPage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
-            <LoansPageContent />
+            <LoansOrMembers />
         </Suspense>
     )
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { CircleCheck, CircleDashed, Info, Loader2, RefreshCw, Unplug } from "lucide-react"
+import { ArrowRight, CircleCheck, CircleDashed, Info, Loader2, RefreshCw, Unplug } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
@@ -28,7 +28,8 @@ import { ErrorState } from "@/components/ErrorState"
 import { NativeSelect } from "@/components/NativeSelect"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
-import { ACCESS_MODES, GHOST, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptions"
+import { ACCESS_MODES, GHOST, STATS, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptions"
+import Link from "next/link"
 import { AccessMode, ApiError, GhostSettings, GhostSettingsSchema } from "@/types/api"
 import { GHOST_SETTINGS_KEY as KEY, useGhostSettings } from "@/hooks/use-ghost-settings"
 
@@ -127,6 +128,12 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
             {t("Learn more about members-only books")}
           </a>
         </p>
+        {settings.site_url && (
+          <Link href={STATS.route} className="mt-2 inline-flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline">
+            {t("See subscription stats")}
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          </Link>
+        )}
       </div>
 
       <form

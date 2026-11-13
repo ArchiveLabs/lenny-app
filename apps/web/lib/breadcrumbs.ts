@@ -1,6 +1,6 @@
 import { ACCOUNT, TEAM } from "@/lib/accounts"
 import { APP_ACCESS, SIGN_IN_PROVIDER } from "@/lib/app-access"
-import { GHOST, STATS } from "@/lib/subscriptions"
+import { DASHBOARD, GHOST, STATS } from "@/lib/subscriptions"
 
 export interface Crumb {
   label: string
@@ -26,6 +26,7 @@ const TITLES: Record<string, string> = {
   "/settings/openlibrary": "OpenLibrary",
   [GHOST.route]: GHOST.title,
   [STATS.route]: STATS.title,
+  [DASHBOARD.route]: DASHBOARD.title,
 }
 
 const titleCase = (segment: string) => segment.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase())

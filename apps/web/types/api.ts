@@ -297,3 +297,28 @@ export const SubscriptionBookStatsSchema = z.object({
   total: z.number(),
 })
 export type SubscriptionBookStats = z.infer<typeof SubscriptionBookStatsSchema>
+
+// GET /admin/dashboard: one summary for the home page. A part the server couldn't read comes back null.
+const ServiceStatusSchema = z.enum(["ok", "down"])
+export const DashboardSchema = z.object({
+  books: z.object({ total: z.number(), open: z.number(), borrowable: z.number(), subscription: z.number() }).nullable(),
+  loans: z.object({ active: z.number(), overdue: z.number(), started_30d: z.number() }).nullable(),
+  imports: z.object({ pending: z.number(), failed: z.number() }).nullable(),
+  health: z
+    .object({ database: ServiceStatusSchema, storage: ServiceStatusSchema, reader: ServiceStatusSchema, version: z.string() })
+    .nullable(),
+})
+export type Dashboard = z.infer<typeof DashboardSchema>
+
+// GET /admin/subscriptions: active Ghost passes. `member` is a short id from the email hash, never the email.
+export const SubscriptionPassSchema = z.object({
+  id: z.number(),
+  member: z.string(),
+  provider: z.string(),
+  tier_ids: z.array(z.string()),
+  expires_at: z.string(),
+  renewed_at: z.string().nullable(),
+})
+export type SubscriptionPass = z.infer<typeof SubscriptionPassSchema>
+export const SubscriptionPassListSchema = z.object({ items: z.array(SubscriptionPassSchema), total: z.number() })
+export type SubscriptionPassList = z.infer<typeof SubscriptionPassListSchema>

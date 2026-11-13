@@ -17,6 +17,11 @@ export const GHOST = {
   description: "Let paid members of your Ghost site read subscription books.",
 } as const
 
+export const DASHBOARD = {
+  route: "/dashboard",
+  title: "Dashboard",
+} as const
+
 export const STATS = {
   route: "/stats",
   title: "Subscription stats",
@@ -47,3 +52,11 @@ export function fillDays(days: Day[], from: string, to: string): Day[] {
 /** "Nov 13" for a YYYY-MM-DD day, read as UTC like the server writes it. */
 export const dayLabel = (date: string) =>
   new Date(`${date}T00:00:00Z`).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" })
+
+/** "in 5 h", "in 40 min", "now" until an ISO time; for a pass that ends soon. */
+export function timeLeft(iso: string, now: number = Date.now()): string {
+  const ms = Date.parse(iso) - now
+  if (!Number.isFinite(ms) || ms <= 60_000) return "now"
+  const minutes = Math.floor(ms / 60_000)
+  return minutes < 60 ? `in ${minutes} min` : `in ${Math.floor(minutes / 60)} h`
+}
