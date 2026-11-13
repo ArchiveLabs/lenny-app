@@ -1,0 +1,110 @@
+// @ts-nocheck
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import GhostSettingsPage from "./page"
+import { fetchAdmin } from "@/lib/api-client"
+import { ApiError } from "@/types/api"
+import { toast } from "sonner"
+
+jest.mock("@/lib/api-client", () => ({
+  fetchAdmin: jest.fn(),
+  handleApiResponse: jest.fn((res) => res.json()),
+}))
+jest.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (s: string, o?: Record<string, unknown>) => s.replace(/{{(\w+)}}/g, (_, k) => String(o?.[k])) }),
+}))
+jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }))
+
+const settings = {
+  site_url: "https://hydra.test",
+  allowed_tier_ids: ["tier-a", "tier-z"],
+  seen_tiers: [{ id: "tier-a", members: 12 }, { id: "tier-b", members: 1 }],
+  snippet: "<script src=\"lenny.js\"></script>",
+  webhook_url: "https://lenny.test/v1/api/subscriptions/ghost/webhook",
+  webhook_secret: "s3cret",
+  last_webhook_at: null,
+  default_access_mode: "open",
+}
+const ok = (body) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
+const renderPage = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><GhostSettingsPage /></QueryClientProvider>)
+
+beforeEach(() => jest.clearAllMocks())
+
+it("shows the saved site, tiers seen at launches, and other tier IDs as text", async () => {
+  fetchAdmin.mockReturnValue(ok(settings))
+  renderPage()
+  expect(await screen.findByLabelText("Ghost site URL")).toHaveValue("https://hydra.test")
+  expect(screen.getByText("12 members")).toBeInTheDocument()
+  expect(screen.getByText("1 member")).toBeInTheDocument()
+  const boxes = screen.getAllByRole("checkbox")
+  expect(boxes[0]).toHaveAttribute("aria-checked", "true")
+  expect(boxes[1]).toHaveAttribute("aria-checked", "false")
+  expect(screen.getByLabelText("Other tier IDs, separated by commas")).toHaveValue("tier-z")
+})
+
+it("saves the site, the ticked and typed tiers, and the default for new books", async () => {
+  fetchAdmin.mockReturnValue(ok(settings))
+  renderPage()
+  await screen.findByLabelText("Ghost site URL")
+  fireEvent.click(screen.getAllByRole("checkbox")[1])
+  fireEvent.change(screen.getByLabelText("Other tier IDs, separated by commas"), { target: { value: "tier-z, tier-y tier-a" } })
+  fireEvent.change(screen.getByLabelText("Access for new books"), { target: { value: "subscription" } })
+  fireEvent.click(screen.getByRole("button", { name: "Save" }))
+  await waitFor(() => expect(fetchAdmin).toHaveBeenCalledWith("settings/ghost", expect.objectContaining({ method: "PUT" })))
+  const body = JSON.parse(fetchAdmin.mock.calls.find(([, o]) => o?.method === "PUT")[1].body)
+  expect(body).toEqual({
+    site_url: "https://hydra.test",
+    allowed_tier_ids: ["tier-a", "tier-b", "tier-z", "tier-y"],
+    default_access_mode: "subscription",
+  })
+  await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Saved."))
+})
+
+it("shows the server's reason when the site can't be checked", async () => {
+  fetchAdmin.mockReturnValueOnce(ok(settings))
+  renderPage()
+  await screen.findByLabelText("Ghost site URL")
+  const { handleApiResponse } = jest.requireMock("@/lib/api-client")
+  handleApiResponse.mockImplementationOnce(() => Promise.reject(new ApiError("Couldn't reach hydra.test.", 422)))
+  fetchAdmin.mockReturnValueOnce(ok({}))
+  fireEvent.click(screen.getByRole("button", { name: "Save" }))
+  await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Couldn't reach hydra.test."))
+})
+
+it("gives the snippet, webhook URL and secret with copy buttons, and the Starter note", async () => {
+  fetchAdmin.mockReturnValue(ok(settings))
+  renderPage()
+  expect(await screen.findByLabelText("Code injection snippet")).toHaveValue(settings.snippet)
+  expect(screen.getByLabelText("Webhook URL")).toHaveValue(settings.webhook_url)
+  expect(screen.getByLabelText("Webhook secret")).toHaveValue("s3cret")
+  expect(screen.getByLabelText("Webhook secret")).toHaveAttribute("type", "password")
+  expect(screen.getByRole("button", { name: "Copy code" })).toBeInTheDocument()
+  expect(screen.getByText("No webhook received yet.")).toBeInTheDocument()
+  expect(screen.getByText(/Ghost\(Pro\) Starter doesn't send custom webhooks/)).toBeInTheDocument()
+})
+
+it("makes a new secret only after confirming, and shows it", async () => {
+  fetchAdmin.mockReturnValueOnce(ok(settings)).mockReturnValueOnce(ok({ webhook_secret: "fresh" }))
+  renderPage()
+  await screen.findByLabelText("Webhook secret")
+  fireEvent.click(screen.getByRole("button", { name: "Make a new secret" }))
+  expect(fetchAdmin).toHaveBeenCalledTimes(1)
+  fireEvent.click(screen.getAllByRole("button", { name: "Make a new secret" }).at(-1))
+  await waitFor(() => expect(screen.getByLabelText("Webhook secret")).toHaveValue("fresh"))
+  expect(fetchAdmin).toHaveBeenLastCalledWith("settings/ghost/webhook-secret", { method: "POST" })
+})
+
+it("says Ghost is not connected until a site URL is saved", async () => {
+  fetchAdmin.mockReturnValue(ok({ ...settings, site_url: null, snippet: null, allowed_tier_ids: [], seen_tiers: [] }))
+  renderPage()
+  expect(await screen.findByText(/Not connected/)).toBeInTheDocument()
+  expect(screen.queryByLabelText("Webhook secret")).not.toBeInTheDocument()
+})
+
+it("asks to update Lenny when the server has no Ghost settings", async () => {
+  fetchAdmin.mockReturnValue(ok(null))
+  const { handleApiResponse } = jest.requireMock("@/lib/api-client")
+  handleApiResponse.mockImplementationOnce(() => Promise.reject(new ApiError("Not found.", 404)))
+  renderPage()
+  expect(await screen.findByText(/doesn't support Ghost yet/)).toBeInTheDocument()
+})

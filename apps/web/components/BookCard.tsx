@@ -1,9 +1,9 @@
 "use client"
 
-import { Lock } from "lucide-react"
+import { Lock, Ticket } from "lucide-react"
 import { Badge } from "@workspace/ui/components/badge"
 import { Checkbox } from "@workspace/ui/components/checkbox"
-import { LennyBook } from "@/types/api"
+import { accessModeOf, LennyBook } from "@/types/api"
 import { BookEditSheet } from "@/components/BookEditSheet"
 import { CoverCard, CoverCardSkeleton } from "@/components/CoverCard"
 import { ShareButton } from "@/components/library/ShareButton"
@@ -14,7 +14,7 @@ export const BookCardSkeleton = CoverCardSkeleton
 
 /**
  * A Library book as a cover card. What an admin needs at a glance: the cover, title and author, whether it is
- * locked (login required). Everything else, including the copies, is in the book sheet.
+ * locked (login or membership required). Everything else, including the copies, is in the book sheet.
  */
 export function BookCard({
   book,
@@ -47,13 +47,22 @@ export function BookCard({
             />
           </div>
         ) : (
-          // Only the exception is flagged: a book that needs a login to read. Open books are the norm.
-          book.lenny.encrypted && (
-            <Badge variant="secondary" className="gap-1 bg-amber-100 text-amber-800">
-              <Lock className="h-3 w-3" aria-hidden />
-              DRM
-            </Badge>
-          )
+          // Only the exceptions are flagged: a login or a membership to read. Open books are the norm.
+          {
+            open: null,
+            borrowable: (
+              <Badge variant="secondary" className="gap-1 bg-amber-100 text-amber-800">
+                <Lock className="h-3 w-3" aria-hidden />
+                DRM
+              </Badge>
+            ),
+            subscription: (
+              <Badge variant="secondary" className="gap-1 bg-sky-100 text-sky-800">
+                <Ticket className="h-3 w-3" aria-hidden />
+                {t("Members")}
+              </Badge>
+            ),
+          }[accessModeOf(book.lenny)]
         )
       }
       hoverAction={

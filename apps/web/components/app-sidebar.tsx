@@ -9,6 +9,7 @@ import {
   IconServer,
   IconUser,
   IconUsers,
+  IconChartBar,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -26,6 +27,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { useMe } from "@/hooks/use-accounts"
 import { ACCOUNT, TEAM } from "@/lib/accounts"
+import { STATS } from "@/lib/subscriptions"
 
 const data = {
   navMain: [
@@ -43,6 +45,11 @@ const data = {
       title: "Active Loans",
       url: "/loans",
       icon: IconServer, // Actually maybe replace this icon, but IconServer or IconBook is fine. I'll use IconBook or import a better one.
+    },
+    {
+      title: STATS.title,
+      url: STATS.route,
+      icon: IconChartBar,
     },
   ],
   navSecondary: [

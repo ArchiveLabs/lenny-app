@@ -1,5 +1,6 @@
 import { ACCOUNT, TEAM } from "@/lib/accounts"
 import { APP_ACCESS, SIGN_IN_PROVIDER } from "@/lib/app-access"
+import { GHOST, STATS } from "@/lib/subscriptions"
 
 export interface Crumb {
   label: string
@@ -23,6 +24,8 @@ const TITLES: Record<string, string> = {
   "/settings/lending-mode": "Lending Mode Configuration",
   "/settings/loan-limits": "Loan Limits",
   "/settings/openlibrary": "OpenLibrary",
+  [GHOST.route]: GHOST.title,
+  [STATS.route]: STATS.title,
 }
 
 const titleCase = (segment: string) => segment.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase())

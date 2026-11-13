@@ -49,12 +49,18 @@ it("selects the link for copying by hand when the clipboard is blocked", async (
   expect(toast.success).not.toHaveBeenCalled()
 })
 
-it("says an encrypted book needs a login to read", () => {
-  render(<LinkField olid="OL123M" encrypted />)
+it("says a borrowable book needs a login to read", () => {
+  render(<LinkField olid="OL123M" mode="borrowable" />)
   expect(screen.getByText("This book requires a login to read.")).toBeInTheDocument()
 })
 
 it("says nothing about a login for an open book", () => {
-  render(<LinkField olid="OL123M" encrypted={false} />)
+  render(<LinkField olid="OL123M" mode="open" />)
+  expect(screen.queryByText(/requires a login/)).not.toBeInTheDocument()
+})
+
+it("gives a subscription book the Read button to paste into a Ghost post", () => {
+  render(<LinkField olid="OL123M" mode="subscription" />)
+  expect(screen.getByLabelText("Read button for a Ghost post")).toHaveValue('<button data-lenny-book="OL123M">Read</button>')
   expect(screen.queryByText(/requires a login/)).not.toBeInTheDocument()
 })

@@ -27,11 +27,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@workspace/ui/components/alert-dialog"
-import { EncryptionToggle } from "@/components/UploadComponents"
+import { NativeSelect } from "@/components/NativeSelect"
 import { BookInfoLoader } from "@/components/preload/BookInfo"
 import { LinkField } from "@/components/library/LinkField"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
-import { ApiError, LennyBook, LoanLimitsConfig, LoanLimitsConfigSchema } from "@/types/api"
+import { AccessMode, accessModeOf, ApiError, LennyBook, LoanLimitsConfig, LoanLimitsConfigSchema } from "@/types/api"
+import { ACCESS_MODES } from "@/lib/subscriptions"
 import { LIBRARY_QUERY_KEY, removeBooksFromLibraryCache } from "@/lib/query-client"
 import { useTranslation } from "react-i18next"
 
@@ -43,7 +44,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
   // The book left the library behind our back (a 404): bring the list in step.
   const refetchLibrary = useCallback(() => queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY }), [queryClient])
   const editionNumber = Number(book.olid.replace(/\D/g, "")) || null
-  const [encrypted, setEncrypted] = useState(book.lenny.encrypted)
+  const [mode, setMode] = useState<AccessMode>(accessModeOf(book.lenny))
   const [loanDuration, setLoanDuration] = useState(
     book.lenny.loan_duration_days != null ? String(book.lenny.loan_duration_days) : ""
   )
@@ -69,7 +70,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
     !!maxLoanDays && loanDurationValue !== null && loanDurationValue > maxLoanDays
   const loanDurationInvalid = loanDurationIsNegative || loanDurationExceedsMax
 
-  // One button, one mutation: settings (encrypted/loan duration) always
+  // One button, one mutation: settings (access mode/loan duration) always
   // apply; edition key and file reupload are optional add-ons layered onto
   // the same PATCH + (if a file was chosen) reupload call. Edition change
   // must land first so a reupload targets the item's final key.
@@ -78,7 +79,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
       const trimmed = loanDuration.trim()
       const digits = newEdition.replace(/\D/g, "")
       const body: Record<string, unknown> = {
-        encrypted,
+        access_mode: mode,
         loan_duration_days: trimmed === "" ? null : Number(trimmed),
       }
       if (digits) body.openlibrary_edition = Number(digits)
@@ -93,7 +94,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
       if (reuploadFile) {
         const formData = new FormData()
         formData.append("file", reuploadFile)
-        formData.append("encrypted", encrypted ? "true" : "false")
+        formData.append("access_mode", mode)
         const uploadRes = await fetchAdmin(`items/${updated.openlibrary_edition}/reupload`, {
           method: "POST",
           body: formData,
@@ -143,7 +144,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
       onOpenChange={(next) => {
         if (next) {
           // Reset to the book's current values each time the sheet opens
-          setEncrypted(book.lenny.encrypted)
+          setMode(accessModeOf(book.lenny))
           setLoanDuration(book.lenny.loan_duration_days != null ? String(book.lenny.loan_duration_days) : "")
           setNewEdition("")
           setReuploadFile(null)
@@ -196,11 +197,13 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
         <div className="flex-1 overflow-y-auto px-4 space-y-4">
           <div className="space-y-4 rounded-lg border border-border/60 p-4">
             <div className="space-y-2">
-              <Label>{t("Access")}</Label>
-              <EncryptionToggle isEncrypted={encrypted} onToggle={() => setEncrypted((v) => !v)} />
-              <p className="text-xs text-muted-foreground">
-                {t("Controls which stored file variant gets served when this book is borrowed.")}
-              </p>
+              <Label htmlFor="access-mode">{t("Access")}</Label>
+              <NativeSelect id="access-mode" className="w-full" value={mode} onChange={(e) => setMode(e.target.value as AccessMode)}>
+                {(Object.keys(ACCESS_MODES) as AccessMode[]).map((m) => (
+                  <option key={m} value={m}>{t(ACCESS_MODES[m].label)}</option>
+                ))}
+              </NativeSelect>
+              <p className="text-xs text-muted-foreground">{t(ACCESS_MODES[mode].help)}</p>
             </div>
 
             <div className="space-y-2 border-t border-border/50 pt-4">
@@ -232,7 +235,8 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
             </div>
           </div>
 
-          <LinkField olid={book.olid} encrypted={encrypted} />
+          {/* The saved mode, not the picker: the note must not promise what is not saved yet. */}
+          <LinkField olid={book.olid} mode={accessModeOf(book.lenny)} />
 
           <details
             className="group rounded-lg border border-border/60"

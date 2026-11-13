@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fetchAdmin } from "@/lib/api-client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { BookEditSheet } from "./BookEditSheet"
 
@@ -11,7 +12,6 @@ jest.mock("@/lib/api-client", () => ({
   ...jest.requireActual("@/lib/api-client"),
   fetchAdmin: jest.fn(() => new Promise(() => {})), // the loan limits are not what this tests
 }))
-jest.mock("@/components/UploadComponents", () => ({ EncryptionToggle: () => <div /> }))
 const linkField = jest.fn()
 jest.mock("@/components/library/LinkField", () => ({ LinkField: (p) => (linkField(p), <div>share link for {p.olid}</div>) }))
 const loader = jest.fn()
@@ -65,10 +65,31 @@ it("brings the Library list up to date when the book turns out to be gone", () =
   expect(typeof props.onGone).toBe("function")
 })
 
-it("shows the share link, and tells it whether the book is encrypted", () => {
+it("shows the share link, and tells it the book's access mode", () => {
   open()
   expect(screen.getByText("share link for OL28933309M")).toBeInTheDocument()
-  expect(linkField).toHaveBeenLastCalledWith(expect.objectContaining({ olid: "OL28933309M", encrypted: false }))
+  expect(linkField).toHaveBeenLastCalledWith(expect.objectContaining({ olid: "OL28933309M", mode: "open" }))
+})
+
+it("reads an older server's encrypted flag as borrowable", () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <BookEditSheet book={{ ...book, lenny: { ...book.lenny, encrypted: true } }}><button>open</button></BookEditSheet>
+    </QueryClientProvider>,
+  )
+  fireEvent.click(screen.getByText("open"))
+  expect(screen.getByLabelText("Access")).toHaveValue("borrowable")
+})
+
+it("saves the chosen access mode", async () => {
+  open()
+  fireEvent.change(screen.getByLabelText("Access"), { target: { value: "subscription" } })
+  expect(screen.getByText("Only paid members of your Ghost site can read it.")).toBeInTheDocument()
+  expect(linkField).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "open" })) // not saved yet
+  fireEvent.click(screen.getByText("Save Changes"))
+  await waitFor(() => expect(fetchAdmin).toHaveBeenCalledWith("items/OL28933309M", expect.objectContaining({ method: "PATCH" })))
+  const call = fetchAdmin.mock.calls.find(([path]) => path === "items/OL28933309M")
+  expect(JSON.parse(call[1].body)).toEqual({ access_mode: "subscription", loan_duration_days: null })
 })
 
 describe("copies in the sheet", () => {

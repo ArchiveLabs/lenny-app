@@ -22,7 +22,7 @@ import {
 } from "@workspace/ui/components/alert-dialog"
 import { queryClient, LIBRARY_QUERY_KEY, removeBooksFromLibraryCache } from "@/lib/query-client"
 
-import { AdminItemSearchResponse, AdminItemSearchResponseSchema, ApiError, BulkDeleteResponse, BulkDeleteResponseSchema, LennyBook } from "@/types/api"
+import { AccessMode, AdminItemSearchResponse, AdminItemSearchResponseSchema, ApiError, BulkDeleteResponse, BulkDeleteResponseSchema, LennyBook } from "@/types/api"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { fetchAllLibraryItems, parseItems, sameEdition } from "@/lib/library-utils"
 import { BOOK_GRID, BookCard, BookCardSkeleton } from "@/components/BookCard"
@@ -42,14 +42,13 @@ function chunk<T>(arr: T[], size: number): T[][] {
 
 const PAGE_SIZE = 20
 
-type AccessFilter = "all" | "open" | "encrypted"
+type AccessFilter = "all" | AccessMode
 
 async function fetchPage(page: number, accessFilter: AccessFilter): Promise<LennyBook[]> {
   const offset = (page - 1) * PAGE_SIZE
   // Fetch one extra item to detect if there's a next page (avoids empty last-page navigation)
   const params = new URLSearchParams({ limit: String(PAGE_SIZE + 1), offset: String(offset) })
-  if (accessFilter === "encrypted") params.set("encrypted", "true")
-  if (accessFilter === "open") params.set("encrypted", "false")
+  if (accessFilter !== "all") params.set("access_mode", accessFilter)
   const res = await fetchAdmin(`items?${params}`)
   return handleApiResponse<Record<string, any>>(res).then(parseItems)
 }
@@ -58,8 +57,7 @@ const SEARCH_LIMIT = 40
 
 async function fetchSearchResults(q: string, accessFilter: AccessFilter): Promise<AdminItemSearchResponse> {
   const params = new URLSearchParams({ q, limit: String(SEARCH_LIMIT) })
-  if (accessFilter === "encrypted") params.set("encrypted", "true")
-  if (accessFilter === "open") params.set("encrypted", "false")
+  if (accessFilter !== "all") params.set("access_mode", accessFilter)
   const res = await fetchAdmin(`items/search?${params}`)
   return handleApiResponse<AdminItemSearchResponse>(res, AdminItemSearchResponseSchema)
 }
@@ -240,7 +238,8 @@ export default function LibraryPage() {
             <SelectContent>
               <SelectItem value="all">{t("All Books")}</SelectItem>
               <SelectItem value="open">{t("Open Access")}</SelectItem>
-              <SelectItem value="encrypted">{t("Encrypted")}</SelectItem>
+              <SelectItem value="borrowable">{t("Borrowable")}</SelectItem>
+              <SelectItem value="subscription">{t("Subscription")}</SelectItem>
             </SelectContent>
           </Select>
           <div className="ml-auto flex items-center gap-2">
