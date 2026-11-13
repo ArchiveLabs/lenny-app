@@ -79,7 +79,8 @@ it("gives the snippet, webhook URL and secret with copy buttons, and the Starter
   expect(screen.getByLabelText("Webhook secret")).toHaveValue("s3cret")
   expect(screen.getByLabelText("Webhook secret")).toHaveAttribute("type", "password")
   expect(screen.getByRole("button", { name: "Copy code" })).toBeInTheDocument()
-  expect(screen.getByText("No webhook received yet.")).toBeInTheDocument()
+  expect(screen.getByText("No webhook received yet")).toBeInTheDocument()
+  expect(screen.getByText("Connected")).toBeInTheDocument()
   expect(screen.getByText(/Ghost\(Pro\) Starter doesn't send custom webhooks/)).toBeInTheDocument()
 })
 
@@ -97,7 +98,8 @@ it("makes a new secret only after confirming, and shows it", async () => {
 it("says Ghost is not connected until a site URL is saved", async () => {
   fetchAdmin.mockReturnValue(ok({ ...settings, site_url: null, snippet: null, allowed_tier_ids: [], seen_tiers: [] }))
   renderPage()
-  expect(await screen.findByText(/Not connected/)).toBeInTheDocument()
+  expect(await screen.findByText("Not connected")).toBeInTheDocument()
+  expect(screen.getByRole("status")).toHaveTextContent("Ghost isn't connected yet")
   expect(screen.queryByLabelText("Webhook secret")).not.toBeInTheDocument()
 })
 

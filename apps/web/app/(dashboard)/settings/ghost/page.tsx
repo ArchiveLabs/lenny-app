@@ -2,9 +2,11 @@
 
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Loader2, RefreshCw } from "lucide-react"
+import { CircleCheck, CircleDashed, Info, Loader2, RefreshCw, Unplug } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
+import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
+import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
@@ -109,7 +111,20 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
   return (
     <div className="max-w-2xl space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t(GHOST.title)}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">{t(GHOST.title)}</h1>
+          {settings.site_url ? (
+            <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-800">
+              <CircleCheck aria-hidden />
+              {t("Connected")}
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="gap-1">
+              <CircleDashed aria-hidden />
+              {t("Not connected")}
+            </Badge>
+          )}
+        </div>
         <p className="mt-1 text-sm text-muted-foreground">{t(GHOST.description)}</p>
       </div>
 
@@ -179,9 +194,11 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
       </form>
 
       {!settings.site_url ? (
-        <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-          {t("Not connected. Save your Ghost site URL to get the code to paste into Ghost.")}
-        </p>
+        <Alert role="status">
+          <Unplug aria-hidden />
+          <AlertTitle>{t("Ghost isn't connected yet")}</AlertTitle>
+          <AlertDescription>{t("Save your Ghost site URL to get the code to paste into Ghost.")}</AlertDescription>
+        </Alert>
       ) : (
         <>
           <section className="space-y-3 rounded-xl border bg-card p-6 shadow-sm">
@@ -237,12 +254,24 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
               </AlertDialog>
             </div>
 
-            <p className="text-sm">
-              {lastWebhook ? t("Last webhook received {{when}}.", { when: lastWebhook }) : t("No webhook received yet.")}
-            </p>
-            <p className="rounded-md bg-muted/60 p-3 text-xs text-muted-foreground">
-              {t("Ghost(Pro) Starter doesn't send custom webhooks. On that plan, a member who cancels keeps access until their {{hours}}-hour pass runs out.", { hours: settings.lease_hours })}
-            </p>
+            {lastWebhook ? (
+              <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-800">
+                <CircleCheck aria-hidden />
+                {t("Last webhook received {{when}}", { when: lastWebhook })}
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="gap-1">
+                <CircleDashed aria-hidden />
+                {t("No webhook received yet")}
+              </Badge>
+            )}
+            <Alert>
+              <Info aria-hidden />
+              <AlertTitle>{t("On Ghost(Pro) Starter?")}</AlertTitle>
+              <AlertDescription>
+                {t("Ghost(Pro) Starter doesn't send custom webhooks. On that plan, a member who cancels keeps access until their {{hours}}-hour pass runs out.", { hours: settings.lease_hours })}
+              </AlertDescription>
+            </Alert>
           </section>
         </>
       )}

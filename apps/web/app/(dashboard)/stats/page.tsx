@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { Loader2 } from "lucide-react"
+import { BookOpen, CircleAlert, Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@workspace/ui/components/table"
 import { ErrorState } from "@/components/ErrorState"
 import { NativeSelect } from "@/components/NativeSelect"
@@ -102,9 +103,11 @@ export default function StatsPage() {
       </dl>
 
       {totals.opens === 0 ? (
-        <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-          {t("No reads in this period. Reads show up here once members open subscription books from your Ghost site.")}
-        </p>
+        <Alert role="status">
+          <BookOpen aria-hidden />
+          <AlertTitle>{t("No reads in this period")}</AlertTitle>
+          <AlertDescription>{t("Reads show up here once members open subscription books from your Ghost site.")}</AlertDescription>
+        </Alert>
       ) : (
         <>
           <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -177,7 +180,11 @@ export default function StatsPage() {
               </NativeSelect>
             </div>
             {books.error && !books.data ? (
-              <p className="text-sm text-destructive">{books.error.message || t("Couldn't load the books.")}</p>
+              <Alert variant="destructive">
+                <CircleAlert aria-hidden />
+                <AlertTitle>{t("Couldn't load the books")}</AlertTitle>
+                <AlertDescription>{books.error.message}</AlertDescription>
+              </Alert>
             ) : (
               <>
                 <Table>
