@@ -3,18 +3,18 @@
 import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { CircleAlert } from "lucide-react"
+import { BookOpen, CircleAlert, Clock, Hourglass, Library, LineChart, Ticket, Upload } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { cn } from "@workspace/ui/lib/utils"
 import { ErrorState } from "@/components/ErrorState"
 import { AreaChartCard } from "@/components/stats/AreaChartCard"
-import { LiveDot, SplitBar, Stat, StatStrip } from "@/components/stats/StatStrip"
+import { CoverThumb, KpiTile, LiveDot, Panel, PanelLink, Row, SplitBar, Trend } from "@/components/stats/ui"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
-import { ACCESS_MODES, DASHBOARD, fillDays, rangeFor, STATS } from "@/lib/subscriptions"
+import { ACCESS_MODES, byWeek, DASHBOARD, dayLabel, fillDays, rangeFor, STATS } from "@/lib/subscriptions"
 import {
   AccessMode,
   AdminLoan,
@@ -34,6 +34,10 @@ const SERVICES = { database: "Database", storage: "File storage", reader: "Reade
 type Service = keyof typeof SERVICES
 // Theme chart-1/3/4: checked for colour-blind separation and contrast on white (the admin is light-only).
 const MODE_COLOR: Record<AccessMode, string> = { open: "var(--chart-1)", borrowable: "var(--chart-3)", subscription: "var(--chart-4)" }
+const LOAN_SERIES = [
+  { key: "started", label: "Started", color: "var(--chart-1)" },
+  { key: "returned", label: "Returned", color: "var(--chart-3)", dashed: true },
+]
 const LINK = "font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
 
 export default function DashboardPage() {
@@ -48,9 +52,11 @@ export default function DashboardPage() {
   if (summary.isLoading) {
     return (
       <Page>
-        <div className="space-y-6" aria-busy="true" aria-label={t("Loading")}>
-          <Skeleton className="h-36 rounded-xl" />
-          <Skeleton className="h-96 rounded-xl" />
+        <div className="space-y-4" aria-busy="true" aria-label={t("Loading")}>
+          <div className="grid gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}
+          </div>
+          <Skeleton className="h-[420px] rounded-2xl" />
         </div>
       </Page>
     )
@@ -68,9 +74,10 @@ export default function DashboardPage() {
 
   const { books, loans, imports, health } = summary.data
   const down = health ? (Object.keys(SERVICES) as Service[]).filter((s) => health[s] !== "ok") : []
+  const connected = !!ghost.data?.site_url
 
   return (
-    <Page status={<StatusLine health={health} down={down} imports={imports} />}>
+    <Page status={health && <StatusPill down={down.length} />}>
       {down.length > 0 && (
         <Alert variant="destructive">
           <CircleAlert aria-hidden />
@@ -78,46 +85,60 @@ export default function DashboardPage() {
           <AlertDescription>{t("Patrons may not be able to open books until it is back. Check the Lenny containers on your server.")}</AlertDescription>
         </Alert>
       )}
-      {!!imports?.failed && (
-        <Alert>
-          <CircleAlert aria-hidden />
-          <AlertTitle>{t(imports.failed === 1 ? "1 import failed" : "{{count}} imports failed", { count: imports.failed })}</AlertTitle>
-          <AlertDescription>
-            <Link href="/import" className={LINK}>{t("Review failed imports")}</Link>
-          </AlertDescription>
-        </Alert>
-      )}
 
-      <StatStrip label={t("Library")}>
-        <Stat label={t("Books")} value={books ? books.total.toLocaleString() : UNREAD} href="/library">
-          {books && (
-            <SplitBar
-              label={t("{{open}} open, {{borrowable}} borrowable, {{subscription}} subscription", books)}
-              parts={(Object.keys(MODE_COLOR) as AccessMode[]).map((m) => ({ label: t(ACCESS_MODES[m].label), value: books[m], color: MODE_COLOR[m] }))}
-            />
-          )}
-        </Stat>
-        <Stat
+      <div className="grid gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+        <KpiTile
+          icon={BookOpen}
+          label={t("Books")}
+          value={books ? books.total.toLocaleString() : UNREAD}
+          href="/library"
+          footer={books && <span className="text-muted-foreground">{t("{{count}} borrowable", { count: books.borrowable })}</span>}
+          aside={books && t("{{count}} open", { count: books.open })}
+        />
+        <KpiTile
+          icon={Clock}
           label={t("On loan now")}
           value={loans ? loans.active.toLocaleString() : UNREAD}
           href="/loans"
-          note={loans && t(loans.started_30d === 1 ? "1 loan started in the last 30 days" : "{{count}} loans started in the last 30 days", { count: loans.started_30d })}
+          footer={week && <Trend diff={week.now - week.before} label={t("loans started, against the week before")} />}
+          aside={week && t("vs last week")}
         />
-        <Stat
+        <KpiTile
+          icon={Hourglass}
           label={t("Overdue")}
           value={loans ? loans.overdue.toLocaleString() : UNREAD}
           tone={loans?.overdue ? "warn" : undefined}
           href="/loans?status=overdue"
-          note={loans && (loans.overdue ? t("Past their due date and not returned") : t("Every loan is within its time"))}
+          footer={loans && (loans.overdue ? <span className="font-medium text-amber-700">{t("Needs a look")}</span> : <span className="font-medium text-green-700">{t("All on time")}</span>)}
+          aside={t("past due date")}
         />
-        <Stat label={t("Started this week")} value={week ? week.now.toLocaleString() : UNREAD} note={week && weekNote(t, week.now - week.before)} />
-      </StatStrip>
+        <KpiTile
+          icon={Upload}
+          label={t("Imports in progress")}
+          value={imports ? imports.pending.toLocaleString() : UNREAD}
+          tone={imports?.failed ? "bad" : undefined}
+          href="/import"
+          footer={
+            imports &&
+            (imports.failed ? (
+              <span className="font-medium text-destructive">{t(imports.failed === 1 ? "1 failed" : "{{count}} failed", { count: imports.failed })}</span>
+            ) : (
+              <span className="text-muted-foreground">{t("Nothing failed")}</span>
+            ))
+          }
+          aside={t("Import & Redeem")}
+        />
+      </div>
 
-      <LoansChart />
-      <RecentLoans />
+      <div className="grid gap-4 @5xl/main:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <LoansChart stillOut={loans?.active} />
+        <LibraryPanel books={books} health={health} down={down} />
+      </div>
 
-      {/* Only libraries that connected a Ghost site see anything about Ghost. */}
-      {ghost.data?.site_url && <GhostStrip />}
+      <div className={cn("grid gap-4", connected && "@5xl/main:grid-cols-2")}>
+        <RecentLoans />
+        {connected && <GhostPanel />}
+      </div>
     </Page>
   )
 }
@@ -125,8 +146,8 @@ export default function DashboardPage() {
 function Page({ status, children }: { status?: ReactNode; children: ReactNode }) {
   const { t } = useTranslation()
   return (
-    <div className="@container/main mx-auto w-full max-w-6xl space-y-6">
-      <header className="space-y-1.5">
+    <div className="@container/main mx-auto w-full max-w-7xl space-y-4">
+      <header className="flex flex-wrap items-center justify-between gap-3 pb-2">
         <h1 className="text-2xl font-semibold tracking-tight">{t(DASHBOARD.title)}</h1>
         {status}
       </header>
@@ -135,28 +156,14 @@ function Page({ status, children }: { status?: ReactNode; children: ReactNode })
   )
 }
 
-/** One quiet line under the title: whether Lenny is healthy and busy. Problems also get an alert. */
-function StatusLine({ health, down, imports }: { health: Dashboard["health"]; down: Service[]; imports: Dashboard["imports"] }) {
+function StatusPill({ down }: { down: number }) {
   const { t } = useTranslation()
-  if (!health) return <p className="text-sm text-muted-foreground">{t("Lenny couldn't check its services right now.")}</p>
   return (
-    <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
-      <span className={cn("size-2 rounded-full", down.length ? "bg-destructive" : "bg-green-500")} aria-hidden />
-      <span>{`${down.length ? t("Some services are down") : t("All services running")}, ${t("Lenny {{version}}", { version: health.version })}.`}</span>
-      {imports && imports.pending > 0 && (
-        <Link href="/import" className={LINK}>
-          {t(imports.pending === 1 ? "1 import in progress" : "{{count}} imports in progress", { count: imports.pending })}
-        </Link>
-      )}
-    </p>
+    <span className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-sm shadow-xs">
+      <span className={cn("size-2 rounded-full", down ? "bg-destructive" : "bg-green-500")} aria-hidden />
+      {down ? t("Some services are down") : t("All services running")}
+    </span>
   )
-}
-
-function weekNote(t: (s: string, o?: Record<string, unknown>) => string, diff: number) {
-  if (diff === 0) return t("Same as the week before")
-  return diff > 0
-    ? t(diff === 1 ? "1 more than the week before" : "{{count}} more than the week before", { count: diff })
-    : t(-diff === 1 ? "1 fewer than the week before" : "{{count}} fewer than the week before", { count: -diff })
 }
 
 /** Loans started in the last 7 days and the 7 before. Null until known (an older Lenny has no loan stats). */
@@ -173,8 +180,8 @@ function useLoanWeeks() {
   return { before: sum(days.slice(0, 7)), now: sum(days.slice(7)) }
 }
 
-/** Loans started per day. Hidden until the server can answer. */
-function LoansChart() {
+/** Loans started and returned over time. Hidden until the server can answer. */
+function LoansChart({ stillOut }: { stillOut?: number }) {
   const { t } = useTranslation()
   const [days, setDays] = useState(90)
   const { from, to } = rangeFor(days)
@@ -185,17 +192,76 @@ function LoansChart() {
     retry: false,
   })
   if (!data) return null
-  const perDay = fillDays(data.by_day, from, to, { started: 0, returned: 0 }).map((d) => ({ date: d.date, value: d.started }))
-  return <AreaChartCard title={t("Loans started")} label="Loans" data={perDay} days={days} onDays={setDays} />
+  const perDay = fillDays(data.by_day, from, to, { started: 0, returned: 0 })
+  const weekly = days > 31
+  const buckets = weekly ? byWeek(perDay) : perDay
+  const busiest = buckets.reduce((a, b) => (b.started > a.started ? b : a), buckets[0]!)
+  const started = perDay.reduce((n, d) => n + d.started, 0)
+  return (
+    <AreaChartCard
+      icon={LineChart}
+      title={t("Loans")}
+      series={LOAN_SERIES}
+      data={perDay}
+      days={days}
+      onDays={setDays}
+      summary={[
+        { label: t(weekly ? "Busiest week" : "Busiest day"), value: busiest.started ? `${dayLabel(busiest.date)}, ${busiest.started}` : UNREAD },
+        { label: t(weekly ? "Average per week" : "Average per day"), value: (started / buckets.length).toFixed(1) },
+        { label: t("Returned"), value: perDay.reduce((n, d) => n + d.returned, 0).toLocaleString() },
+        { label: t("Still out"), value: stillOut ?? UNREAD },
+      ]}
+    />
+  )
+}
+
+/** What the library holds, by access mode, and whether its services answer. */
+function LibraryPanel({ books, health, down }: { books: Dashboard["books"]; health: Dashboard["health"]; down: Service[] }) {
+  const { t } = useTranslation()
+  return (
+    <Panel icon={Library} title={t("Library")} description={t("Books by access mode")}>
+      <div className="flex flex-1 flex-col gap-5 p-5">
+        {books ? (
+          <SplitBar
+            label={t("{{open}} open, {{borrowable}} borrowable, {{subscription}} subscription", books)}
+            parts={(Object.keys(MODE_COLOR) as AccessMode[]).map((m) => ({ label: t(ACCESS_MODES[m].label), value: books[m], color: MODE_COLOR[m] }))}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("Lenny couldn't count the books right now.")}</p>
+        )}
+        <div className="divide-y rounded-xl border bg-secondary/40 px-4">
+          {health ? (
+            <>
+              {(Object.keys(SERVICES) as Service[]).map((s) => (
+                <Row key={s} label={t(SERVICES[s])}>
+                  <span className={cn("inline-flex items-center gap-1.5", down.includes(s) ? "text-destructive" : "text-green-700")}>
+                    <span className={cn("size-1.5 rounded-full", down.includes(s) ? "bg-destructive" : "bg-green-500")} aria-hidden />
+                    {t(down.includes(s) ? "Down" : "Running")}
+                  </span>
+                </Row>
+              ))}
+              <Row label={t("Version")}>{health.version}</Row>
+            </>
+          ) : (
+            <Row label={t("Services")}>{t("Couldn't check")}</Row>
+          )}
+        </div>
+        <div className="mt-auto grid grid-cols-2 gap-2">
+          <PanelLink href="/library">{t("Open library")}</PanelLink>
+          <PanelLink href="/import">{t("Add books")}</PanelLink>
+        </div>
+      </div>
+    </Panel>
+  )
 }
 
 const STATUS_NOTE: Record<AdminLoan["status"], { label: string; className: string }> = {
-  active: { label: "On loan", className: "text-muted-foreground" },
+  active: { label: "On loan", className: "text-foreground" },
   overdue: { label: "Overdue", className: "text-amber-700" },
   returned: { label: "Returned", className: "text-muted-foreground" },
 }
 
-/** The five latest loans, newest first. */
+/** The five latest loans, newest first, each with its book cover. */
 function RecentLoans() {
   const { t } = useTranslation()
   const { data } = useQuery({
@@ -208,35 +274,35 @@ function RecentLoans() {
   })
   if (!data) return null
   return (
-    <section className="rounded-xl border bg-card" aria-labelledby="recent-loans">
-      <div className="flex items-baseline justify-between gap-4 px-5 pt-5 sm:px-6">
-        <h2 id="recent-loans" className="font-medium">{t("Recent loans")}</h2>
-        <Link href="/loans" className={cn(LINK, "text-sm")}>{t("All loans")}</Link>
-      </div>
+    <Panel icon={Clock} title={t("Recent loans")} action={<PanelLink href="/loans">{t("View all")}</PanelLink>}>
       {data.items.length === 0 ? (
-        <p className="px-5 pt-2 pb-6 text-sm text-muted-foreground sm:px-6">{t("No loans yet. They appear here when a patron borrows a book.")}</p>
+        <p className="px-5 py-8 text-sm text-muted-foreground">{t("No loans yet. They appear here when a patron borrows a book.")}</p>
       ) : (
-        <ul className="mt-3 divide-y border-t">
-          {data.items.map((loan) => (
-            <li key={loan.id} className="flex items-center gap-4 px-5 py-3 sm:px-6">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{loan.book_title || loan.edition_key || "—"}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {t("Patron {{id}}", { id: loan.user_identifier ? loan.user_identifier.slice(0, 12) : "—" })}
-                  {loan.borrowed_at && `, ${relativeTime(loan.borrowed_at)}`}
-                </p>
-              </div>
-              <span className={cn("shrink-0 text-sm", STATUS_NOTE[loan.status].className)}>{t(STATUS_NOTE[loan.status].label)}</span>
-            </li>
-          ))}
+        <ul className="mx-5 mt-3 mb-2 divide-y">
+          {data.items.map((loan) => {
+            const title = loan.book_title || loan.edition_key || "—"
+            return (
+              <li key={loan.id} className="flex items-center gap-3 py-3">
+                <CoverThumb editionKey={loan.edition_key} title={title} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{title}</p>
+                  <p className="truncate text-xs text-muted-foreground">{t("Patron {{id}}", { id: loan.user_identifier ? loan.user_identifier.slice(0, 12) : "—" })}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className={cn("text-sm font-medium", STATUS_NOTE[loan.status].className)}>{t(STATUS_NOTE[loan.status].label)}</p>
+                  <p className="text-xs text-muted-foreground">{relativeTime(loan.borrowed_at) || "—"}</p>
+                </div>
+              </li>
+            )
+          })}
         </ul>
       )}
-    </section>
+    </Panel>
   )
 }
 
 /** Ghost members over the last 30 days, from the same query (and cache) as the Subscription stats page. */
-function GhostStrip() {
+function GhostPanel() {
   const { t } = useTranslation()
   const { from, to } = rangeFor(30)
   const { data } = useQuery({
@@ -246,26 +312,22 @@ function GhostStrip() {
   })
   const totals = data?.totals
   return (
-    <div className="space-y-3">
-      <div className="flex items-baseline justify-between gap-4">
-        <h2 className="font-medium">{t("Ghost members")}</h2>
-        <Link href={STATS.route} className={cn(LINK, "text-sm")}>{t("Subscription stats")}</Link>
+    <Panel icon={Ticket} title={t("Ghost members")} description={t("Last 30 days")} action={<PanelLink href={STATS.route}>{t("Subscription stats")}</PanelLink>}>
+      <div className="m-5 mt-4 divide-y rounded-xl border bg-secondary/40 px-4">
+        <Row label={t("Reading now")}>
+          <span className="inline-flex items-center gap-2">
+            {!!totals?.active_now && <LiveDot />}
+            {totals ? totals.active_now.toLocaleString() : UNREAD}
+          </span>
+        </Row>
+        <Row label={t("Opens")}>{totals ? totals.opens.toLocaleString() : UNREAD}</Row>
+        <Row label={t("Patrons")}>{totals ? totals.patrons.toLocaleString() : UNREAD}</Row>
+        <Row label={t("Books read")}>{totals ? totals.books_read.toLocaleString() : UNREAD}</Row>
       </div>
-      <StatStrip label={t("Ghost members")}>
-        <Stat
-          label={t("Reading now")}
-          value={
-            <span className="inline-flex items-center gap-3">
-              {totals ? totals.active_now.toLocaleString() : UNREAD}
-              {!!totals?.active_now && <LiveDot />}
-            </span>
-          }
-          note={t("Opened a book in the last 15 minutes")}
-        />
-        <Stat label={t("Opens")} value={totals ? totals.opens.toLocaleString() : UNREAD} note={t("In the last 30 days")} />
-        <Stat label={t("Patrons")} value={totals ? totals.patrons.toLocaleString() : UNREAD} note={t("Different members, last 30 days")} />
-        <Stat label={t("Books read")} value={totals ? totals.books_read.toLocaleString() : UNREAD} note={t("Subscription books opened")} />
-      </StatStrip>
-    </div>
+      <p className="px-5 pb-5 text-xs text-muted-foreground">
+        {t("Members read on passes, not loans.")}{" "}
+        <Link href="/loans" className={LINK}>{t("See passes")}</Link>
+      </p>
+    </Panel>
   )
 }

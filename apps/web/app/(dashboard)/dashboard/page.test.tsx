@@ -29,20 +29,21 @@ const route = ({ s = summary, g = ghost, l = loanStats } = {}) =>
     ok(path === "dashboard" ? s : path === "settings/ghost" ? g : path.startsWith("stats/loans") ? l : path.startsWith("loans?") ? noLoans : stats),
   )
 const renderPage = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><DashboardPage /></QueryClientProvider>)
-// A number's cell is found by its label (the first line in the cell).
-const card = (label) => screen.getAllByText(label, { selector: "p" })[0].parentElement
+// A number's tile is found by its label.
+const card = (label) => screen.getAllByText(label, { selector: "p" })[0].closest(".rounded-2xl")
 
 beforeEach(() => jest.clearAllMocks())
 
-it("shows the books with a bar split by access mode, and links to the library", async () => {
+it("shows the books and their access modes, and links to the library", async () => {
   route()
   renderPage()
   await screen.findByText("Books")
   const c = card("Books")
   expect(c).toHaveTextContent("120")
-  expect(within(c).getByRole("img", { name: "80 open, 30 borrowable, 10 subscription" })).toBeInTheDocument()
-  expect(within(c).getByText("Subscription")).toHaveTextContent("Subscription 10")
-  expect(c.closest("a")).toHaveAttribute("href", "/library")
+  expect(c).toHaveTextContent("30 borrowable")
+  expect(c.querySelector("a")).toHaveAttribute("href", "/library")
+  expect(screen.getByRole("img", { name: "80 open, 30 borrowable, 10 subscription" })).toBeInTheDocument()
+  expect(screen.getByText("Subscription").closest("li")).toHaveTextContent("10")
 })
 
 it("shows loans on loan now and overdue, each linking to the loans behind it", async () => {
@@ -50,33 +51,35 @@ it("shows loans on loan now and overdue, each linking to the loans behind it", a
   renderPage()
   await screen.findByText("On loan now")
   expect(card("On loan now")).toHaveTextContent("7")
-  expect(card("On loan now")).toHaveTextContent("19 loans started in the last 30 days")
-  expect(card("Overdue")).toHaveTextContent("2Past their due date and not returned")
-  expect(card("Overdue").closest("a")).toHaveAttribute("href", "/loans?status=overdue")
+  expect(card("Overdue")).toHaveTextContent("2")
+  expect(card("Overdue")).toHaveTextContent("Needs a look")
+  expect(card("Overdue").querySelector("a")).toHaveAttribute("href", "/loans?status=overdue")
+  expect(card("Imports in progress")).toHaveTextContent("1 failed")
 })
 
 it("compares this week's loans with the week before", async () => {
   const today = new Date().toISOString().slice(0, 10)
   route({ l: { by_day: [{ date: today, started: 3, returned: 0 }] } })
   renderPage()
-  await screen.findByText("Started this week")
-  await waitFor(() => expect(card("Started this week")).toHaveTextContent("33 more than the week before"))
+  await screen.findByText("On loan now")
+  await waitFor(() => expect(card("On loan now")).toHaveTextContent("+3"))
 })
 
-it("says in one line that Lenny is running, and raises an alert for a service that is down or a failed import", async () => {
+it("says which services run, and raises an alert for one that is down", async () => {
   route()
   renderPage()
-  expect(await screen.findByText("Some services are down, Lenny 0.10.0.")).toBeInTheDocument()
+  expect(await screen.findByText("Some services are down")).toBeInTheDocument()
   expect(screen.getByText("Reader not responding")).toBeInTheDocument()
-  expect(screen.getByText("1 import failed")).toBeInTheDocument()
-  expect(screen.getByRole("link", { name: "3 imports in progress" })).toHaveAttribute("href", "/import")
+  expect(screen.getByText("Reader").closest("div")).toHaveTextContent("ReaderDown")
+  expect(screen.getByText("Version").closest("div")).toHaveTextContent("0.10.0")
 })
 
 it("stays quiet when everything is fine", async () => {
   route({ s: { ...summary, imports: { pending: 0, failed: 0 }, health: { ...summary.health, reader: "ok" } } })
   renderPage()
-  expect(await screen.findByText("All services running, Lenny 0.10.0.")).toBeInTheDocument()
+  expect(await screen.findByText("All services running")).toBeInTheDocument()
   expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  expect(card("Imports in progress")).toHaveTextContent("Nothing failed")
 })
 
 it("shows a dash, not zero, for a part the server couldn't read", async () => {
@@ -89,10 +92,10 @@ it("shows a dash, not zero, for a part the server couldn't read", async () => {
 it("charts loans started per day, and asks again for another period", async () => {
   route()
   renderPage()
-  expect(await screen.findByText("Loans started")).toBeInTheDocument()
-  expect(screen.getByText("Each point is one week.")).toBeInTheDocument()
+  expect(await screen.findByText("Busiest week")).toBeInTheDocument()
+  expect(screen.getByText("Per week")).toBeInTheDocument()
   const lastLoans = () => new URLSearchParams(fetchAdmin.mock.calls.map(([p]) => p).filter((p) => p.startsWith("stats/loans")).at(-1).split("?")[1])
-  fireEvent.click(screen.getByRole("radio", { name: "7 days" }))
+  fireEvent.click(screen.getByRole("radio", { name: "1W" }))
   await waitFor(() => expect(Date.parse(lastLoans().get("to")) - Date.parse(lastLoans().get("from"))).toBe(6 * 86_400_000))
 })
 
@@ -107,7 +110,7 @@ it("hides the loans chart on a server without loan stats", async () => {
   renderPage()
   await screen.findByText("Books")
   await waitFor(() => expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("stats/loans"))).toBe(true))
-  expect(screen.queryByText("Loans started")).not.toBeInTheDocument()
+  expect(screen.queryByText("Busiest week")).not.toBeInTheDocument()
   handleApiResponse.mockImplementation((res) => res.json())
 })
 
@@ -115,7 +118,7 @@ it("shows Ghost members only when a Ghost site is connected", async () => {
   route()
   const { unmount } = renderPage()
   expect(await screen.findByText("Ghost members")).toBeInTheDocument()
-  await waitFor(() => expect(card("Opens")).toHaveTextContent("55"))
+  await waitFor(() => expect(screen.getByText("Opens").closest("div")).toHaveTextContent("55"))
   expect(screen.getByRole("link", { name: "Subscription stats" })).toHaveAttribute("href", "/stats")
   unmount()
 

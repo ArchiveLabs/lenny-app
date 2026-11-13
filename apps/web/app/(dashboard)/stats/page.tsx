@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { BookOpen, CircleAlert, Monitor, Smartphone, Tablet, Ticket } from "lucide-react"
+import { BookCopy, BookOpen, CircleAlert, Eye, LineChart, Monitor, Radio, Smartphone, Tablet, Ticket, Users } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
 import { Badge } from "@workspace/ui/components/badge"
@@ -14,7 +14,7 @@ import { ErrorState } from "@/components/ErrorState"
 import { NativeSelect } from "@/components/NativeSelect"
 import { Pager } from "@/components/import/Pager"
 import { AreaChartCard } from "@/components/stats/AreaChartCard"
-import { LiveDot, Stat, StatStrip } from "@/components/stats/StatStrip"
+import { KpiTile, LiveDot, Panel } from "@/components/stats/ui"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
@@ -97,28 +97,44 @@ export default function StatsPage() {
     )
   } else {
     const { totals, by_day, devices } = stats.data
-    const opensPerDay = fillDays(by_day, from, to, { books_read: 0, patrons: 0, opens: 0 }).map((d) => ({ date: d.date, value: d.opens }))
+    const perDay = fillDays(by_day, from, to, { books_read: 0, patrons: 0, opens: 0 })
     const deviceOpens = devices.reduce((n, d) => n + d.opens, 0) || 1
 
     body = (
-      <div className="space-y-4 md:space-y-6">
-        <StatStrip label={t("Totals")}>
-          <Stat label={t("Opens")} value={totals.opens.toLocaleString()} note={t("Books opened by members, {{period}}", { period: period.toLowerCase() })} />
-          <Stat label={t("Patrons")} value={totals.patrons.toLocaleString()} note={t("Different members who read")} />
-          <Stat label={t("Books read")} value={totals.books_read.toLocaleString()} note={t("Subscription books opened")} />
-          <Stat
+      <div className="space-y-4">
+        <div className="grid gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+          <KpiTile icon={Eye} label={t("Opens")} value={totals.opens.toLocaleString()} footer={<span className="text-muted-foreground">{t("Books opened by members")}</span>} aside={period} />
+          <KpiTile icon={Users} label={t("Patrons")} value={totals.patrons.toLocaleString()} footer={<span className="text-muted-foreground">{t("Different members")}</span>} aside={period} />
+          <KpiTile icon={BookCopy} label={t("Books read")} value={totals.books_read.toLocaleString()} footer={<span className="text-muted-foreground">{t("Subscription books")}</span>} aside={period} />
+          <KpiTile
+            icon={Radio}
             label={t("Reading now")}
-            value={
-              <span className="inline-flex items-center gap-3">
-                {totals.active_now.toLocaleString()}
-                {totals.active_now > 0 && <LiveDot />}
-              </span>
+            value={totals.active_now.toLocaleString()}
+            footer={
+              totals.active_now > 0 ? (
+                <span className="inline-flex items-center gap-2 font-medium text-green-700">
+                  <LiveDot />
+                  {t("Live")}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">{t("Nobody right now")}</span>
+              )
             }
-            note={t("Opened a book in the last 15 minutes")}
+            aside={t("last 15 min")}
           />
-        </StatStrip>
+        </div>
 
-        <AreaChartCard title={t("Opens")} label="Opens" data={opensPerDay} days={days} onDays={changeDays}>
+        <AreaChartCard
+          icon={LineChart}
+          title={t("Reading")}
+          series={[
+            { key: "opens", label: "Opens", color: "var(--chart-1)" },
+            { key: "patrons", label: "Patrons", color: "var(--chart-3)", dashed: true },
+          ]}
+          data={perDay}
+          days={days}
+          onDays={changeDays}
+        >
           {totals.opens > 0 && (
             <details className="mt-4 text-sm">
               <summary className="cursor-pointer text-muted-foreground hover:text-foreground">{t("Show as a table")}</summary>
@@ -158,11 +174,9 @@ export default function StatsPage() {
             </AlertDescription>
           </Alert>
         ) : (
-          <div className="grid gap-4 md:gap-6 @5xl/main:grid-cols-[1fr_2fr]">
-            <section className="rounded-xl border bg-card p-5 sm:p-6" aria-labelledby="devices">
-              <h2 id="devices" className="font-medium">{t("Devices")}</h2>
-              <p className="text-sm text-muted-foreground">{t("Share of opens")}</p>
-              <div className="mt-5">
+          <div className="grid gap-4 @5xl/main:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <Panel icon={Monitor} title={t("Devices")} description={t("Share of opens")}>
+              <div className="p-5">
                 <ul className="space-y-4">
                   {devices.map((d) => {
                     const { label, icon: Icon } = DEVICES[d.device_class] ?? { label: d.device_class, icon: Monitor }
@@ -187,14 +201,13 @@ export default function StatsPage() {
                   })}
                 </ul>
               </div>
-            </section>
+            </Panel>
 
-            <section className="min-w-0 rounded-xl border bg-card" aria-labelledby="books">
-              <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
-                <div>
-                  <h2 id="books" className="font-medium">{t("Books")}</h2>
-                  <p className="text-sm text-muted-foreground">{t("Subscription books members opened")}</p>
-                </div>
+            <Panel
+              icon={BookOpen}
+              title={t("Books")}
+              description={t("Subscription books members opened")}
+              action={
                   <NativeSelect
                     aria-label={t("Sort books by")}
                     className="h-8 text-sm"
@@ -208,8 +221,9 @@ export default function StatsPage() {
                     <option value="patrons">{t("Most patrons")}</option>
                     <option value="last_read">{t("Last read")}</option>
                   </NativeSelect>
-              </div>
-              <div className="space-y-4 p-5 pt-4 sm:px-6">
+              }
+            >
+              <div className="space-y-4 p-5 pt-4">
                 {books.error && !books.data ? (
                   <Alert variant="destructive">
                     <CircleAlert aria-hidden />
@@ -218,11 +232,11 @@ export default function StatsPage() {
                   </Alert>
                 ) : (
                   <>
-                    <div className="-mx-5 border-t sm:-mx-6">
+                    <div className="-mx-5 border-t">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-10 pl-5 sm:pl-6">#</TableHead>
+                            <TableHead className="w-10 pl-5">#</TableHead>
                             <TableHead>{t("Title")}</TableHead>
                             <TableHead className="text-right">{t("Patrons")}</TableHead>
                             <TableHead className="text-right">{t("Opens")}</TableHead>
@@ -246,7 +260,7 @@ export default function StatsPage() {
                   </>
                 )}
               </div>
-            </section>
+            </Panel>
           </div>
         )}
       </div>
@@ -254,7 +268,7 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="@container/main mx-auto w-full max-w-6xl space-y-6">
+    <div className="@container/main mx-auto w-full max-w-7xl space-y-6">
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{t(STATS.title)}</h1>

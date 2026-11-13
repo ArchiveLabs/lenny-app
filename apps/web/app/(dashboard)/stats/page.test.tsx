@@ -58,7 +58,7 @@ it("says the page is for Ghost and asks to connect a site when none is", async (
   expect(screen.getByText("Ghost")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Set up Ghost" })).toHaveAttribute("href", "/settings/ghost")
   expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("stats/"))).toBe(false)
-  expect(screen.queryByText("Opens", { selector: "h2" })).not.toBeInTheDocument()
+  expect(screen.queryByText("Reading", { selector: "h2" })).not.toBeInTheDocument()
 })
 
 it("treats a server without Ghost settings like an unconnected one", async () => {
@@ -72,11 +72,11 @@ it("treats a server without Ghost settings like an unconnected one", async () =>
 it("shows the totals, the opens chart, the devices and the books", async () => {
   route()
   renderPage()
-  const card = (label) => screen.getAllByText(label, { selector: "p" })[0].parentElement
-  expect(await screen.findByText("Opens", { selector: "h2" })).toBeInTheDocument()
+  const card = (label) => screen.getAllByText(label, { selector: "p" })[0].closest(".rounded-2xl")
+  expect(await screen.findByText("Reading", { selector: "h2" })).toBeInTheDocument()
   expect(card("Books read")).toHaveTextContent("3")
   expect(card("Patrons")).toHaveTextContent("5")
-  expect(card("Reading now")).toHaveTextContent("2")
+  expect(card("Reading now")).toHaveTextContent("2Live")
   expect(screen.getByText(/How members of hydra.test read/)).toBeInTheDocument()
   expect(screen.getByText("Nov 13")).toBeInTheDocument()
   expect(screen.getByText("Phone")).toBeInTheDocument()
@@ -96,7 +96,7 @@ it("asks the server again for a new period, sort or page", async () => {
   fireEvent.change(screen.getByLabelText("Sort books by"), { target: { value: "patrons" } })
   await waitFor(() => expect(lastBooksCall().get("sort")).toBe("patrons"))
   expect(lastBooksCall().get("page")).toBe("1")
-  fireEvent.click(screen.getByRole("radio", { name: "7 days" }))
+  fireEvent.click(screen.getByRole("radio", { name: "1W" }))
   await waitFor(() => expect(lastBooksCall().get("from")).toBe(rangeFor(7).from))
 })
 
@@ -105,7 +105,7 @@ it("says so when nothing was read in the period, and skips the books", async () 
   renderPage()
   expect(await screen.findByText("No reads in this period")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Learn how to add Read buttons to your Ghost posts" })).toHaveAttribute("target", "_blank")
-  expect(screen.getByText("Opens", { selector: "h2" })).toBeInTheDocument() // kept, so the period can still change
+  expect(screen.getByText("Reading", { selector: "h2" })).toBeInTheDocument() // kept, so the period can still change
   expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("stats/subscriptions/books"))).toBe(false)
 })
 

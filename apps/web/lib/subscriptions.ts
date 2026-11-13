@@ -59,12 +59,14 @@ export function timeLeft(iso: string, now: number = Date.now()): string {
   return minutes < 60 ? `in ${minutes} min` : `in ${Math.floor(minutes / 60)} h`
 }
 
-/** A daily series summed into weeks that end on its last day, each labelled by its first day. */
-export function byWeek(days: { date: string; value: number }[]): { date: string; value: number }[] {
-  const out: { date: string; value: number }[] = []
+/** A daily series summed into weeks that end on its last day, each labelled by its first day. Every numeric field is summed. */
+export function byWeek<T extends { date: string }>(days: T[]): T[] {
+  const out: T[] = []
   for (let end = days.length; end > 0; end -= 7) {
     const week = days.slice(Math.max(0, end - 7), end)
-    out.unshift({ date: week[0]!.date, value: week.reduce((n, d) => n + d.value, 0) })
+    const sum = { ...week[0]! } as Record<string, unknown>
+    for (const d of week.slice(1)) for (const [k, v] of Object.entries(d)) if (typeof v === "number") sum[k] = (sum[k] as number) + v
+    out.unshift(sum as T)
   }
   return out
 }
