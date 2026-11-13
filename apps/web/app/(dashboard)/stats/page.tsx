@@ -4,11 +4,13 @@ import { useState } from "react"
 import Link from "next/link"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
-import { BookOpen, CircleAlert, Eye, Loader2, Monitor, Radio, Smartphone, Tablet, Ticket, Users } from "lucide-react"
+import { BookOpen, CircleAlert, Eye, Monitor, Radio, Smartphone, Tablet, Ticket, Users } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
+import { Skeleton } from "@workspace/ui/components/skeleton"
+import { ToggleGroup, ToggleGroupItem } from "@workspace/ui/components/toggle-group"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card"
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@workspace/ui/components/chart"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@workspace/ui/components/table"
@@ -18,7 +20,7 @@ import { Pager } from "@/components/import/Pager"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
-import { dayLabel, fillDays, GHOST, rangeFor, STATS } from "@/lib/subscriptions"
+import { dayLabel, fillDays, GHOST, rangeFor, STATS, SUBSCRIPTIONS_DOC } from "@/lib/subscriptions"
 import { ApiError, SubscriptionBookStats, SubscriptionBookStatsSchema, SubscriptionStats, SubscriptionStatsSchema } from "@/types/api"
 
 const RANGES = [7, 30, 90] as const
@@ -69,29 +71,39 @@ export default function StatsPage() {
           </Badge>
         </div>
         <p className="max-w-xl text-sm text-muted-foreground">
-          {t("How members of your Ghost site read your subscription books. Only books set to Subscription are counted, and no names or emails are kept.")}
+          {connected
+            ? t("How members of {{site}} read your subscription books. Only books set to Subscription are counted, and no names or emails are kept.", { site: siteHost(ghost.data!.site_url!) })
+            : t("How members of your Ghost site read your subscription books. Only books set to Subscription are counted, and no names or emails are kept.")}
         </p>
       </div>
       {connected && (
-        <NativeSelect
+        <ToggleGroup
+          type="single"
+          variant="outline"
           aria-label={t("Period")}
-          value={days}
-          onChange={(e) => {
-            setDays(Number(e.target.value))
+          value={String(days)}
+          onValueChange={(v) => {
+            if (!v) return // keep one period picked
+            setDays(Number(v))
             setPage(0)
           }}
         >
           {RANGES.map((d) => (
-            <option key={d} value={d}>{t("Last {{count}} days", { count: d })}</option>
+            <ToggleGroupItem key={d} value={String(d)} aria-label={t("Last {{count}} days", { count: d })} className="px-3 tabular-nums">
+              {t("{{count}}d", { count: d })}
+            </ToggleGroupItem>
           ))}
-        </NativeSelect>
+        </ToggleGroup>
       )}
     </div>
   )
 
   const spinner = (
-    <div className="flex min-h-[40vh] items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" aria-label={t("Loading")} />
+    <div className="space-y-6" aria-busy="true" aria-label={t("Loading")}>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[104px] rounded-xl" />)}
+      </div>
+      <Skeleton className="h-80 rounded-xl" />
     </div>
   )
 
@@ -125,24 +137,32 @@ export default function StatsPage() {
       { label: "Books read", value: totals.books_read, icon: BookOpen },
       { label: "Patrons", value: totals.patrons, icon: Users },
       { label: "Opens", value: totals.opens, icon: Eye },
-      { label: "Opened in the last 15 min", value: totals.active_now, icon: Radio },
+      { label: "Reading now", hint: "Opened in the last 15 min", value: totals.active_now, icon: Radio },
     ]
     const perDay = fillDays(by_day, from, to)
-    const maxDeviceOpens = Math.max(1, ...devices.map((d) => d.opens))
+    const deviceOpens = devices.reduce((n, d) => n + d.opens, 0) || 1
 
     body = (
       <div className="space-y-6">
         <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {tiles.map(({ label, value, icon: Icon }) => (
+          {tiles.map(({ label, hint, value, icon: Icon }) => (
             <Card key={label} className="gap-2 py-4">
               <CardHeader className="px-4">
-                <dt className="text-sm text-muted-foreground">{t(label)}</dt>
+                <dt className="text-sm text-muted-foreground" title={hint && t(hint)}>{t(label)}</dt>
                 <CardAction>
-                  <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
+                  {hint && value > 0 ? (
+                    <span className="relative flex size-2.5" aria-hidden>
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-60 motion-reduce:animate-none" />
+                      <span className="relative inline-flex size-2.5 rounded-full bg-green-500" />
+                    </span>
+                  ) : (
+                    <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
+                  )}
                 </CardAction>
               </CardHeader>
               <CardContent className="px-4">
                 <dd className="text-3xl font-semibold tabular-nums">{value.toLocaleString()}</dd>
+                {hint && <p className="mt-1 text-xs text-muted-foreground">{t(hint)}</p>}
               </CardContent>
             </Card>
           ))}
@@ -152,7 +172,12 @@ export default function StatsPage() {
           <Alert role="status">
             <BookOpen aria-hidden />
             <AlertTitle>{t("No reads in this period")}</AlertTitle>
-            <AlertDescription>{t("Reads show up here once members open subscription books from your Ghost site.")}</AlertDescription>
+            <AlertDescription>
+              <p>{t("Reads show up here once members open subscription books from your Ghost site.")}</p>
+              <a href={SUBSCRIPTIONS_DOC} target="_blank" rel="noopener noreferrer" className="font-medium text-foreground underline underline-offset-4">
+                {t("Learn how to add Read buttons to your Ghost posts")}
+              </a>
+            </AlertDescription>
           </Alert>
         ) : (
           <>
@@ -161,6 +186,10 @@ export default function StatsPage() {
                 <CardHeader>
                   <CardTitle>{t("Opens per day")}</CardTitle>
                   <CardDescription>{`${dayLabel(from)} – ${dayLabel(to)}`}</CardDescription>
+                  <CardAction className="text-right">
+                    <p className="text-2xl font-semibold tabular-nums">{totals.opens.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">{t("opens in total")}</p>
+                  </CardAction>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <ChartContainer config={CHART} className="aspect-auto h-56 w-full">
@@ -201,7 +230,7 @@ export default function StatsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>{t("Devices")}</CardTitle>
-                  <CardDescription>{t("Where members read")}</CardDescription>
+                  <CardDescription>{t("Share of opens")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-4">
@@ -214,13 +243,14 @@ export default function StatsPage() {
                               <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
                               {t(label)}
                             </span>
-                            <span className="tabular-nums text-muted-foreground">
-                              {t("{{opens}} opens · {{patrons}} patrons", { opens: d.opens, patrons: d.patrons })}
-                            </span>
+                            <span className="font-medium tabular-nums">{Math.round((d.opens / deviceOpens) * 100)}%</span>
                           </div>
                           <div className="h-2 rounded-full bg-muted" aria-hidden>
-                            <div className="h-2 rounded-full bg-[var(--chart-1)]" style={{ width: `${(d.opens / maxDeviceOpens) * 100}%` }} />
+                            <div className="h-2 rounded-full bg-[var(--chart-1)]" style={{ width: `${(d.opens / deviceOpens) * 100}%` }} />
                           </div>
+                          <p className="text-xs text-muted-foreground tabular-nums">
+                            {t("{{opens}} opens · {{patrons}} patrons", { opens: d.opens, patrons: d.patrons })}
+                          </p>
                         </li>
                       )
                     })}
@@ -260,6 +290,7 @@ export default function StatsPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-10">#</TableHead>
                           <TableHead>{t("Title")}</TableHead>
                           <TableHead className="text-right">{t("Patrons")}</TableHead>
                           <TableHead className="text-right">{t("Opens")}</TableHead>
@@ -267,12 +298,13 @@ export default function StatsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {books.data?.items.map((b) => (
+                        {books.data?.items.map((b, i) => (
                           <TableRow key={String(b.olid)}>
+                            <TableCell className="text-muted-foreground tabular-nums">{page * PAGE_SIZE + i + 1}</TableCell>
                             <TableCell className="max-w-64 truncate font-medium">{b.title || String(b.olid)}</TableCell>
                             <TableCell className="text-right tabular-nums">{b.patrons}</TableCell>
                             <TableCell className="text-right tabular-nums">{b.opens}</TableCell>
-                            <TableCell className="text-right text-muted-foreground">{relativeTime(b.last_read)}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">{relativeTime(b.last_read) || "—"}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -289,11 +321,20 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto w-full max-w-6xl space-y-8">
       {header}
       {body}
     </div>
   )
+}
+
+/** "flaminghydra.com" from the saved site URL, for the header. */
+const siteHost = (url: string) => {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
 }
 
 /** One day on hover: the bar's opens, plus the patrons and books behind them. */
