@@ -58,3 +58,13 @@ export function timeLeft(iso: string, now: number = Date.now()): string {
   const minutes = Math.floor(ms / 60_000)
   return minutes < 60 ? `in ${minutes} min` : `in ${Math.floor(minutes / 60)} h`
 }
+
+/** A daily series summed into weeks that end on its last day, each labelled by its first day. */
+export function byWeek(days: { date: string; value: number }[]): { date: string; value: number }[] {
+  const out: { date: string; value: number }[] = []
+  for (let end = days.length; end > 0; end -= 7) {
+    const week = days.slice(Math.max(0, end - 7), end)
+    out.unshift({ date: week[0]!.date, value: week.reduce((n, d) => n + d.value, 0) })
+  }
+  return out
+}

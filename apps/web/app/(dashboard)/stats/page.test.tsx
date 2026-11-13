@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import StatsPage from "./page"
 import { fetchAdmin } from "@/lib/api-client"
-import { dayLabel, fillDays, rangeFor } from "@/lib/subscriptions"
+import { byWeek, dayLabel, fillDays, rangeFor } from "@/lib/subscriptions"
 
 jest.mock("@/lib/api-client", () => ({
   fetchAdmin: jest.fn(),
@@ -41,6 +41,11 @@ describe("dates", () => {
     expect(days.map((d) => [d.date, d.opens])).toEqual([["2026-11-12", 0], ["2026-11-13", 5], ["2026-11-14", 0]])
   })
 
+  it("sums days into weeks ending on the last day", () => {
+    const days = Array.from({ length: 10 }, (_, i) => ({ date: `2026-11-${String(i + 1).padStart(2, "0")}`, value: 1 }))
+    expect(byWeek(days)).toEqual([{ date: "2026-11-01", value: 3 }, { date: "2026-11-04", value: 7 }])
+  })
+
   it("labels a day as the server wrote it, whatever the local time zone", () => {
     expect(dayLabel("2026-11-01")).toBe("Nov 1")
   })
@@ -53,7 +58,7 @@ it("says the page is for Ghost and asks to connect a site when none is", async (
   expect(screen.getByText("Ghost")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Set up Ghost" })).toHaveAttribute("href", "/settings/ghost")
   expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("stats/"))).toBe(false)
-  expect(screen.queryByText("Opens per day")).not.toBeInTheDocument()
+  expect(screen.queryByText("Opens", { selector: "h2" })).not.toBeInTheDocument()
 })
 
 it("treats a server without Ghost settings like an unconnected one", async () => {
@@ -67,11 +72,11 @@ it("treats a server without Ghost settings like an unconnected one", async () =>
 it("shows the totals, the opens chart, the devices and the books", async () => {
   route()
   renderPage()
-  const card = (label) => screen.getAllByText(label).map((el) => el.closest("[data-slot=card]")).find(Boolean)
-  expect(await screen.findByText("Opens per day")).toBeInTheDocument()
+  const card = (label) => screen.getAllByText(label, { selector: "p" })[0].parentElement
+  expect(await screen.findByText("Opens", { selector: "h2" })).toBeInTheDocument()
   expect(card("Books read")).toHaveTextContent("3")
-  expect(card("Different members who read")).toHaveTextContent("5")
-  expect(card("Reading now")).toHaveTextContent("Live")
+  expect(card("Patrons")).toHaveTextContent("5")
+  expect(card("Reading now")).toHaveTextContent("2")
   expect(screen.getByText(/How members of hydra.test read/)).toBeInTheDocument()
   expect(screen.getByText("Nov 13")).toBeInTheDocument()
   expect(screen.getByText("Phone")).toBeInTheDocument()
@@ -91,7 +96,7 @@ it("asks the server again for a new period, sort or page", async () => {
   fireEvent.change(screen.getByLabelText("Sort books by"), { target: { value: "patrons" } })
   await waitFor(() => expect(lastBooksCall().get("sort")).toBe("patrons"))
   expect(lastBooksCall().get("page")).toBe("1")
-  fireEvent.click(screen.getByRole("radio", { name: "Last 7 days" }))
+  fireEvent.click(screen.getByRole("radio", { name: "7 days" }))
   await waitFor(() => expect(lastBooksCall().get("from")).toBe(rangeFor(7).from))
 })
 
@@ -100,7 +105,7 @@ it("says so when nothing was read in the period, and skips the books", async () 
   renderPage()
   expect(await screen.findByText("No reads in this period")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Learn how to add Read buttons to your Ghost posts" })).toHaveAttribute("target", "_blank")
-  expect(screen.getByText("Opens per day")).toBeInTheDocument() // kept, so the period can still change
+  expect(screen.getByText("Opens", { selector: "h2" })).toBeInTheDocument() // kept, so the period can still change
   expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("stats/subscriptions/books"))).toBe(false)
 })
 

@@ -8,14 +8,13 @@ import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@workspace/ui/components/card"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@workspace/ui/components/table"
 import { ErrorState } from "@/components/ErrorState"
 import { NativeSelect } from "@/components/NativeSelect"
 import { Pager } from "@/components/import/Pager"
 import { AreaChartCard } from "@/components/stats/AreaChartCard"
-import { KPI_GRID, KpiCard, LiveDot } from "@/components/stats/KpiCard"
+import { LiveDot, Stat, StatStrip } from "@/components/stats/StatStrip"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
@@ -67,25 +66,27 @@ export default function StatsPage() {
   if (ghost.isLoading || (connected && stats.isLoading)) {
     body = (
       <div className="space-y-4" aria-busy="true" aria-label={t("Loading")}>
-        <div className={KPI_GRID}>
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-36 rounded-xl" />)}
-        </div>
-        <Skeleton className="h-80 rounded-xl" />
+        <Skeleton className="h-36 rounded-xl" />
+        <Skeleton className="h-96 rounded-xl" />
       </div>
     )
   } else if (!connected) {
     // No Ghost site (or a server without Ghost): say what this page is for instead of showing empty numbers.
     body = (
-      <Alert role="status">
-        <Ticket aria-hidden />
-        <AlertTitle>{t("Connect a Ghost site to see these stats")}</AlertTitle>
-        <AlertDescription>
-          <p>{t("Subscription stats count reads of members-only books opened from a Ghost site. This library has no Ghost site connected, so there is nothing to count yet.")}</p>
-          <Button asChild size="sm" className="mt-2">
-            <Link href={GHOST.route}>{t("Set up Ghost")}</Link>
-          </Button>
-        </AlertDescription>
-      </Alert>
+      <div role="status" className="flex flex-col items-center gap-4 rounded-xl border border-dashed px-6 py-16 text-center">
+        <div className="flex size-12 items-center justify-center rounded-full bg-muted">
+          <Ticket className="size-5 text-muted-foreground" aria-hidden />
+        </div>
+        <div className="max-w-md space-y-1.5">
+          <h2 className="font-semibold">{t("Connect a Ghost site to see these stats")}</h2>
+          <p className="text-sm text-muted-foreground">
+            {t("Subscription stats count reads of members-only books opened from a Ghost site. This library has no Ghost site connected, so there is nothing to count yet.")}
+          </p>
+        </div>
+        <Button asChild size="sm">
+          <Link href={GHOST.route}>{t("Set up Ghost")}</Link>
+        </Button>
+      </div>
     )
   } else if (!stats.data) {
     const unsupported = stats.error instanceof ApiError && stats.error.status === 404
@@ -101,27 +102,23 @@ export default function StatsPage() {
 
     body = (
       <div className="space-y-4 md:space-y-6">
-        <div className={KPI_GRID}>
-          <KpiCard label={t("Opens")} value={totals.opens.toLocaleString()} footer={t("Books opened by members")} hint={period} />
-          <KpiCard label={t("Patrons")} value={totals.patrons.toLocaleString()} footer={t("Different members who read")} hint={period} />
-          <KpiCard label={t("Books read")} value={totals.books_read.toLocaleString()} footer={t("Subscription books opened")} hint={period} />
-          <KpiCard
+        <StatStrip label={t("Totals")}>
+          <Stat label={t("Opens")} value={totals.opens.toLocaleString()} note={t("Books opened by members, {{period}}", { period: period.toLowerCase() })} />
+          <Stat label={t("Patrons")} value={totals.patrons.toLocaleString()} note={t("Different members who read")} />
+          <Stat label={t("Books read")} value={totals.books_read.toLocaleString()} note={t("Subscription books opened")} />
+          <Stat
             label={t("Reading now")}
-            value={totals.active_now.toLocaleString()}
-            badge={
-              totals.active_now > 0 && (
-                <Badge variant="outline" className="gap-1.5">
-                  <LiveDot />
-                  {t("Live")}
-                </Badge>
-              )
+            value={
+              <span className="inline-flex items-center gap-3">
+                {totals.active_now.toLocaleString()}
+                {totals.active_now > 0 && <LiveDot />}
+              </span>
             }
-            footer={t("Members reading right now")}
-            hint={t("Opened in the last 15 min")}
+            note={t("Opened a book in the last 15 minutes")}
           />
-        </div>
+        </StatStrip>
 
-        <AreaChartCard title={t("Opens per day")} label="Opens" data={opensPerDay} days={days} onDays={changeDays}>
+        <AreaChartCard title={t("Opens")} label="Opens" data={opensPerDay} days={days} onDays={changeDays}>
           {totals.opens > 0 && (
             <details className="mt-4 text-sm">
               <summary className="cursor-pointer text-muted-foreground hover:text-foreground">{t("Show as a table")}</summary>
@@ -162,12 +159,10 @@ export default function StatsPage() {
           </Alert>
         ) : (
           <div className="grid gap-4 md:gap-6 @5xl/main:grid-cols-[1fr_2fr]">
-            <Card className="@container/card">
-              <CardHeader>
-                <CardTitle>{t("Devices")}</CardTitle>
-                <CardDescription>{t("Share of opens")}</CardDescription>
-              </CardHeader>
-              <CardContent>
+            <section className="rounded-xl border bg-card p-5 sm:p-6" aria-labelledby="devices">
+              <h2 id="devices" className="font-medium">{t("Devices")}</h2>
+              <p className="text-sm text-muted-foreground">{t("Share of opens")}</p>
+              <div className="mt-5">
                 <ul className="space-y-4">
                   {devices.map((d) => {
                     const { label, icon: Icon } = DEVICES[d.device_class] ?? { label: d.device_class, icon: Monitor }
@@ -191,14 +186,15 @@ export default function StatsPage() {
                     )
                   })}
                 </ul>
-              </CardContent>
-            </Card>
+              </div>
+            </section>
 
-            <Card className="@container/card min-w-0">
-              <CardHeader>
-                <CardTitle>{t("Books")}</CardTitle>
-                <CardDescription>{t("Subscription books members opened · {{period}}", { period })}</CardDescription>
-                <CardAction>
+            <section className="min-w-0 rounded-xl border bg-card" aria-labelledby="books">
+              <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
+                <div>
+                  <h2 id="books" className="font-medium">{t("Books")}</h2>
+                  <p className="text-sm text-muted-foreground">{t("Subscription books members opened")}</p>
+                </div>
                   <NativeSelect
                     aria-label={t("Sort books by")}
                     className="h-8 text-sm"
@@ -212,9 +208,8 @@ export default function StatsPage() {
                     <option value="patrons">{t("Most patrons")}</option>
                     <option value="last_read">{t("Last read")}</option>
                   </NativeSelect>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              </div>
+              <div className="space-y-4 p-5 pt-4 sm:px-6">
                 {books.error && !books.data ? (
                   <Alert variant="destructive">
                     <CircleAlert aria-hidden />
@@ -223,25 +218,25 @@ export default function StatsPage() {
                   </Alert>
                 ) : (
                   <>
-                    <div className="overflow-hidden rounded-lg border">
+                    <div className="-mx-5 border-t sm:-mx-6">
                       <Table>
-                        <TableHeader className="bg-muted">
+                        <TableHeader>
                           <TableRow>
-                            <TableHead className="w-10">#</TableHead>
+                            <TableHead className="w-10 pl-5 sm:pl-6">#</TableHead>
                             <TableHead>{t("Title")}</TableHead>
                             <TableHead className="text-right">{t("Patrons")}</TableHead>
                             <TableHead className="text-right">{t("Opens")}</TableHead>
-                            <TableHead className="text-right">{t("Last read")}</TableHead>
+                            <TableHead className="pr-5 text-right sm:pr-6">{t("Last read")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {books.data?.items.map((b, i) => (
                             <TableRow key={String(b.olid)}>
-                              <TableCell className="text-muted-foreground tabular-nums">{page * PAGE_SIZE + i + 1}</TableCell>
+                              <TableCell className="pl-5 text-muted-foreground tabular-nums sm:pl-6">{page * PAGE_SIZE + i + 1}</TableCell>
                               <TableCell className="max-w-64 truncate font-medium">{b.title || String(b.olid)}</TableCell>
                               <TableCell className="text-right tabular-nums">{b.patrons}</TableCell>
                               <TableCell className="text-right tabular-nums">{b.opens}</TableCell>
-                              <TableCell className="text-right text-muted-foreground">{relativeTime(b.last_read) || "—"}</TableCell>
+                              <TableCell className="pr-5 text-right text-muted-foreground sm:pr-6">{relativeTime(b.last_read) || "—"}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -250,8 +245,8 @@ export default function StatsPage() {
                     <Pager page={page} total={books.data?.total ?? 0} pageSize={PAGE_SIZE} onPage={setPage} />
                   </>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </section>
           </div>
         )}
       </div>
@@ -259,11 +254,11 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="@container/main mx-auto w-full max-w-7xl space-y-6">
+    <div className="@container/main mx-auto w-full max-w-6xl space-y-6">
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{t(STATS.title)}</h1>
-          <Badge variant="outline" className="gap-1">
+          <Badge variant="secondary" className="gap-1 font-normal">
             <Ticket aria-hidden />
             {t("Ghost")}
           </Badge>
