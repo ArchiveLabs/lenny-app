@@ -108,3 +108,22 @@ it("asks to update Lenny when the server has no Ghost settings", async () => {
   renderPage()
   expect(await screen.findByText(/doesn't support Ghost yet/)).toBeInTheDocument()
 })
+
+it("asks before changing the site, since members of the old one lose access", async () => {
+  fetchAdmin.mockReturnValue(ok(settings))
+  renderPage()
+  fireEvent.change(await screen.findByLabelText("Ghost site URL"), { target: { value: "https://other.test" } })
+  fireEvent.click(screen.getByRole("button", { name: "Save" }))
+  expect(screen.getByText("Members of https://hydra.test lose access to subscription books right away.")).toBeInTheDocument()
+  expect(fetchAdmin).toHaveBeenCalledTimes(1)
+  fireEvent.click(screen.getByRole("button", { name: "Change site" }))
+  await waitFor(() => expect(fetchAdmin).toHaveBeenCalledWith("settings/ghost", expect.objectContaining({ method: "PUT" })))
+})
+
+it("asks before disconnecting", async () => {
+  fetchAdmin.mockReturnValue(ok(settings))
+  renderPage()
+  fireEvent.change(await screen.findByLabelText("Ghost site URL"), { target: { value: "" } })
+  fireEvent.click(screen.getByRole("button", { name: "Save" }))
+  expect(screen.getByText("Disconnect Ghost?")).toBeInTheDocument()
+})

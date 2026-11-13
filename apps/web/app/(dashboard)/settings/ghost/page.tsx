@@ -64,6 +64,9 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
   const [checked, setChecked] = useState(() => new Set(settings.allowed_tier_ids.filter((id) => seenIds.has(id))))
   const [otherTiers, setOtherTiers] = useState(settings.allowed_tier_ids.filter((id) => !seenIds.has(id)).join(", "))
   const [defaultMode, setDefaultMode] = useState<AccessMode>(settings.default_access_mode)
+  const [confirmSite, setConfirmSite] = useState(false)
+  // Saving a different site ends every member's access from the old one (the server drops their passes).
+  const siteChanges = !!settings.site_url && siteUrl.trim() !== settings.site_url
 
   const save = useMutation({
     mutationFn: async () => {
@@ -114,7 +117,8 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
         className="space-y-6 rounded-xl border bg-card p-6 shadow-sm"
         onSubmit={(e) => {
           e.preventDefault()
-          save.mutate()
+          if (siteChanges) setConfirmSite(true)
+          else save.mutate()
         }}
       >
         <div className="grid gap-2">
@@ -156,6 +160,22 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
           {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {t("Save")}
         </Button>
+        <AlertDialog open={confirmSite} onOpenChange={setConfirmSite}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t(siteUrl.trim() ? "Change the Ghost site?" : "Disconnect Ghost?")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("Members of {{site}} lose access to subscription books right away.", { site: settings.site_url })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={() => save.mutate()}>
+                {t(siteUrl.trim() ? "Change site" : "Disconnect")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </form>
 
       {!settings.site_url ? (
