@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import StatsPage from "./page"
 import { fetchAdmin } from "@/lib/api-client"
-import { rangeFor } from "@/lib/subscriptions"
+import { dayLabel, fillDays, rangeFor } from "@/lib/subscriptions"
 
 jest.mock("@/lib/api-client", () => ({
   fetchAdmin: jest.fn(),
@@ -18,26 +18,62 @@ const stats = {
   by_day: [{ date: "2026-11-13", books_read: 2, patrons: 4, opens: 30 }, { date: "2026-11-14", books_read: 1, patrons: 1, opens: 12 }],
   devices: [{ device_class: "mobile", patrons: 3, opens: 20 }],
 }
-const books = { items: [{ olid: 123, title: "Sea of Rust", patrons: 4, opens: 30, last_read: null }], total: 45 }
+const books = { items: [{ olid: "OL123M", title: "Sea of Rust", patrons: 4, opens: 30, last_read: null }], total: 45 }
+const ghost = { site_url: "https://hydra.test", allowed_tier_ids: [], seen_tiers: [], snippet: "", webhook_url: "", webhook_secret: null, default_access_mode: "open" }
 const ok = (body) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
-const route = (s = stats) => fetchAdmin.mockImplementation((path) => ok(path.startsWith("stats/subscriptions/books") ? books : s))
-const renderPage = () => render(<QueryClientProvider client={new QueryClient()}><StatsPage /></QueryClientProvider>)
+const route = ({ s = stats, g = ghost } = {}) =>
+  fetchAdmin.mockImplementation((path) =>
+    ok(path === "settings/ghost" ? g : path.startsWith("stats/subscriptions/books") ? books : s),
+  )
+const renderPage = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><StatsPage /></QueryClientProvider>)
 const lastBooksCall = () => new URLSearchParams(fetchAdmin.mock.calls.map(([p]) => p).filter((p) => p.startsWith("stats/subscriptions/books")).at(-1).split("?")[1])
 
 beforeEach(() => jest.clearAllMocks())
 
-it("counts back from today for the period", () => {
-  expect(rangeFor(7, new Date("2026-11-14T10:00:00Z"))).toEqual({ from: "2026-11-08", to: "2026-11-14" })
-  expect(rangeFor(1, new Date("2026-11-14T10:00:00Z"))).toEqual({ from: "2026-11-14", to: "2026-11-14" })
+describe("dates", () => {
+  it("counts back from today for the period", () => {
+    expect(rangeFor(7, new Date("2026-11-14T10:00:00Z"))).toEqual({ from: "2026-11-08", to: "2026-11-14" })
+    expect(rangeFor(1, new Date("2026-11-14T10:00:00Z"))).toEqual({ from: "2026-11-14", to: "2026-11-14" })
+  })
+
+  it("fills the days the server left out with zeros, so the chart has no gaps", () => {
+    const days = fillDays([{ date: "2026-11-13", books_read: 1, patrons: 1, opens: 5 }], "2026-11-12", "2026-11-14")
+    expect(days.map((d) => [d.date, d.opens])).toEqual([["2026-11-12", 0], ["2026-11-13", 5], ["2026-11-14", 0]])
+  })
+
+  it("labels a day as the server wrote it, whatever the local time zone", () => {
+    expect(dayLabel("2026-11-01")).toBe("Nov 1")
+  })
 })
 
-it("shows the totals, each day, the devices and the books", async () => {
+it("says the page is for Ghost and asks to connect a site when none is", async () => {
+  route({ g: { ...ghost, site_url: null } })
+  renderPage()
+  expect(await screen.findByText("Connect a Ghost site to see these stats")).toBeInTheDocument()
+  expect(screen.getByText("Ghost")).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Set up Ghost" })).toHaveAttribute("href", "/settings/ghost")
+  expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("stats/"))).toBe(false)
+  expect(screen.queryByLabelText("Period")).not.toBeInTheDocument()
+})
+
+it("treats a server without Ghost settings like an unconnected one", async () => {
+  const { handleApiResponse } = jest.requireMock("@/lib/api-client")
+  fetchAdmin.mockReturnValue(ok({}))
+  handleApiResponse.mockImplementationOnce(() => Promise.reject(Object.assign(new Error("Not found."), { status: 404 })))
+  renderPage()
+  expect(await screen.findByText("Connect a Ghost site to see these stats")).toBeInTheDocument()
+})
+
+it("shows the totals, the day table, the devices and the books", async () => {
   route()
   renderPage()
-  expect(await screen.findByText("42")).toBeInTheDocument()
-  expect(screen.getByText("Opened in the last 15 min").nextSibling).toHaveTextContent("2")
-  expect(screen.getByText("2026-11-13")).toBeInTheDocument()
-  expect(screen.getByText("mobile")).toBeInTheDocument()
+  expect((await screen.findByText("Books read")).closest("[data-slot=card]")).toHaveTextContent("3")
+  expect(screen.getByText("42")).toBeInTheDocument()
+  expect(screen.getByText("Opened in the last 15 min").closest("[data-slot=card]")).toHaveTextContent("2")
+  expect(screen.getByText("Opens per day")).toBeInTheDocument()
+  expect(screen.getByText("Nov 13")).toBeInTheDocument()
+  expect(screen.getByText("Phone")).toBeInTheDocument()
+  expect(screen.getByText("20 opens · 3 patrons")).toBeInTheDocument()
   expect(await screen.findByText("Sea of Rust")).toBeInTheDocument()
   expect(screen.getByText("Showing 1–20 of 45")).toBeInTheDocument()
 })
@@ -57,18 +93,23 @@ it("asks the server again for a new period, sort or page", async () => {
   await waitFor(() => expect(lastBooksCall().get("from")).toBe(rangeFor(7).from))
 })
 
-it("says so when nothing was read in the period", async () => {
-  route({ totals: { books_read: 0, patrons: 0, opens: 0, active_now: 0 }, by_day: [], devices: [] })
+it("says so when nothing was read in the period, and skips the books", async () => {
+  route({ s: { totals: { books_read: 0, patrons: 0, opens: 0, active_now: 0 }, by_day: [], devices: [] } })
   renderPage()
-  expect(await screen.findByText(/No reads in this period/)).toBeInTheDocument()
-  expect(screen.queryByText("Per day")).not.toBeInTheDocument()
+  expect(await screen.findByText("No reads in this period")).toBeInTheDocument()
+  expect(screen.queryByText("Opens per day")).not.toBeInTheDocument()
+  expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("stats/subscriptions/books"))).toBe(false)
 })
 
 it("keeps the period picker when the stats fail to load", async () => {
   const { handleApiResponse } = jest.requireMock("@/lib/api-client")
-  handleApiResponse.mockImplementation(() => Promise.reject(new Error("The range is too long.")))
-  fetchAdmin.mockReturnValue(ok({}))
-  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><StatsPage /></QueryClientProvider>)
+  route()
+  handleApiResponse.mockImplementation(async (res) => {
+    const body = await res.json()
+    if (body === ghost) return body
+    throw new Error("The range is too long.")
+  })
+  renderPage()
   expect(await screen.findByText("The range is too long.")).toBeInTheDocument()
   expect(screen.getByLabelText("Period")).toBeInTheDocument()
   handleApiResponse.mockImplementation((res) => res.json())

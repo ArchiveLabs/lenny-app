@@ -28,6 +28,7 @@ import { useTranslation } from "react-i18next"
 import { useMe } from "@/hooks/use-accounts"
 import { ACCOUNT, TEAM } from "@/lib/accounts"
 import { STATS } from "@/lib/subscriptions"
+import { useGhostSettings } from "@/hooks/use-ghost-settings"
 
 const data = {
   navMain: [
@@ -45,11 +46,6 @@ const data = {
       title: "Active Loans",
       url: "/loans",
       icon: IconServer, // Actually maybe replace this icon, but IconServer or IconBook is fine. I'll use IconBook or import a better one.
-    },
-    {
-      title: STATS.title,
-      url: STATS.route,
-      icon: IconChartBar,
     },
   ],
   navSecondary: [
@@ -69,6 +65,9 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const { data: me } = useMe()
+  const { data: ghost } = useGhostSettings()
+  // Subscription stats only mean something once a Ghost site is connected.
+  const navMain = ghost?.site_url ? [...data.navMain, { title: STATS.title, url: STATS.route, icon: IconChartBar }] : data.navMain
   // Hiding is only a courtesy: the server answers 403 to anyone but a super user.
   const navSecondary = [
     ...data.navSecondary.slice(0, 1),
@@ -93,7 +92,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={navMain} />
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter className="border-t px-3 py-2">

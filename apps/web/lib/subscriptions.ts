@@ -19,7 +19,7 @@ export const GHOST = {
 
 export const STATS = {
   route: "/stats",
-  title: "Reading stats",
+  title: "Subscription stats",
 } as const
 
 /** The Read button a publisher pastes into a Ghost post. The launch endpoint accepts the OL edition id as is. */
@@ -30,3 +30,20 @@ export function rangeFor(days: number, now = new Date()): { from: string; to: st
   const day = (d: Date) => d.toISOString().slice(0, 10)
   return { from: day(new Date(now.getTime() - (days - 1) * 86_400_000)), to: day(now) }
 }
+
+type Day = { date: string; books_read: number; patrons: number; opens: number }
+
+/** Every day from `from` to `to`, with zeros for days the server left out, so the time axis has no gaps. */
+export function fillDays(days: Day[], from: string, to: string): Day[] {
+  const byDate = new Map(days.map((d) => [d.date, d]))
+  const out: Day[] = []
+  for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) {
+    const date = new Date(t).toISOString().slice(0, 10)
+    out.push(byDate.get(date) ?? { date, books_read: 0, patrons: 0, opens: 0 })
+  }
+  return out
+}
+
+/** "Nov 13" for a YYYY-MM-DD day, read as UTC like the server writes it. */
+export const dayLabel = (date: string) =>
+  new Date(`${date}T00:00:00Z`).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" })

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { CircleCheck, CircleDashed, Info, Loader2, RefreshCw, Unplug } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
@@ -30,15 +30,11 @@ import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
 import { ACCESS_MODES, GHOST, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptions"
 import { AccessMode, ApiError, GhostSettings, GhostSettingsSchema } from "@/types/api"
-
-const KEY = ["ghost-settings"]
+import { GHOST_SETTINGS_KEY as KEY, useGhostSettings } from "@/hooks/use-ghost-settings"
 
 export default function GhostSettingsPage() {
   const { t } = useTranslation()
-  const { data, isLoading, error } = useQuery({
-    queryKey: KEY,
-    queryFn: async () => handleApiResponse<GhostSettings>(await fetchAdmin("settings/ghost"), GhostSettingsSchema),
-  })
+  const { data, isLoading, error } = useGhostSettings()
 
   if (isLoading) {
     return (
