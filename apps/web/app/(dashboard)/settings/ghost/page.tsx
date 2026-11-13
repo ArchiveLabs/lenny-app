@@ -28,7 +28,7 @@ import { ErrorState } from "@/components/ErrorState"
 import { NativeSelect } from "@/components/NativeSelect"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
-import { ACCESS_MODES, GHOST } from "@/lib/subscriptions"
+import { ACCESS_MODES, GHOST, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptions"
 import { AccessMode, ApiError, GhostSettings, GhostSettingsSchema } from "@/types/api"
 
 const KEY = ["ghost-settings"]
@@ -125,7 +125,12 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
             </Badge>
           )}
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">{t(GHOST.description)}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t(GHOST.description)}{" "}
+          <a href={SUBSCRIPTIONS_DOC} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4 hover:text-foreground">
+            {t("Learn more about members-only books")}
+          </a>
+        </p>
       </div>
 
       <form
@@ -217,6 +222,9 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
               <li>{t("Add a webhook for the event Member updated, with the URL and secret below.")}</li>
               <li>{t("Add a second webhook for the event Member deleted, with the same URL and secret.")}</li>
             </ol>
+            <a href={WEBHOOKS_DOC} target="_blank" rel="noopener noreferrer" className="text-sm underline underline-offset-4">
+              {t("Learn more about ending access with webhooks")}
+            </a>
 
             <div className="grid gap-2">
               <Label htmlFor="webhook-url">{t("Webhook URL")}</Label>

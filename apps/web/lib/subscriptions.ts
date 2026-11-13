@@ -7,6 +7,10 @@ export const ACCESS_MODES: Record<AccessMode, { label: string; help: string }> =
   subscription: { label: "Subscription", help: "Only paid members of your Ghost site can read it." },
 }
 
+// The operator manual (arrives with ArchiveLabs/lenny#284).
+export const SUBSCRIPTIONS_DOC = "https://github.com/ArchiveLabs/lenny/blob/main/docs/subscriptions.md"
+export const WEBHOOKS_DOC = `${SUBSCRIPTIONS_DOC}#webhooks-end-access-when-a-member-cancels`
+
 export const GHOST = {
   route: "/settings/ghost",
   title: "Ghost subscriptions",

@@ -82,6 +82,8 @@ it("gives the snippet, webhook URL and secret with copy buttons, and the Starter
   expect(screen.getByText("No webhook received yet")).toBeInTheDocument()
   expect(screen.getByText("Connected")).toBeInTheDocument()
   expect(screen.getByText(/Ghost\(Pro\) Starter doesn't send custom webhooks/)).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Learn more about members-only books" })).toHaveAttribute("rel", "noopener noreferrer")
+  expect(screen.getByRole("link", { name: "Learn more about ending access with webhooks" }).getAttribute("href")).toMatch(/subscriptions\.md#webhooks-end-access-when-a-member-cancels$/)
 })
 
 it("makes a new secret only after confirming, and shows it", async () => {

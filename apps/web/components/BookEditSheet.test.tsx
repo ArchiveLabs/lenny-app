@@ -71,6 +71,14 @@ it("shows the share link, and tells it the book's access mode", () => {
   expect(linkField).toHaveBeenLastCalledWith(expect.objectContaining({ olid: "OL28933309M", mode: "open" }))
 })
 
+it("links the access modes to the manual, in a new tab", () => {
+  open()
+  const link = screen.getByRole("link", { name: "Learn more about access modes" })
+  expect(link).toHaveAttribute("href", "https://github.com/ArchiveLabs/lenny/blob/main/docs/subscriptions.md")
+  expect(link).toHaveAttribute("target", "_blank")
+  expect(link).toHaveAttribute("rel", "noopener noreferrer")
+})
+
 it("reads an older server's encrypted flag as borrowable", () => {
   render(
     <QueryClientProvider client={new QueryClient()}>

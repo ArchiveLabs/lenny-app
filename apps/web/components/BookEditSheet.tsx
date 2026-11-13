@@ -32,7 +32,7 @@ import { BookInfoLoader } from "@/components/preload/BookInfo"
 import { LinkField } from "@/components/library/LinkField"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { AccessMode, accessModeOf, ApiError, LennyBook, LoanLimitsConfig, LoanLimitsConfigSchema } from "@/types/api"
-import { ACCESS_MODES } from "@/lib/subscriptions"
+import { ACCESS_MODES, SUBSCRIPTIONS_DOC } from "@/lib/subscriptions"
 import { LIBRARY_QUERY_KEY, removeBooksFromLibraryCache } from "@/lib/query-client"
 import { useTranslation } from "react-i18next"
 
@@ -203,7 +203,12 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
                   <option key={m} value={m}>{t(ACCESS_MODES[m].label)}</option>
                 ))}
               </NativeSelect>
-              <p className="text-xs text-muted-foreground">{t(ACCESS_MODES[mode].help)}</p>
+              <p className="text-xs text-muted-foreground">
+                {t(ACCESS_MODES[mode].help)}{" "}
+                <a href={SUBSCRIPTIONS_DOC} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4 hover:text-foreground">
+                  {t("Learn more about access modes")}
+                </a>
+              </p>
             </div>
 
             <div className="space-y-2 border-t border-border/50 pt-4">
