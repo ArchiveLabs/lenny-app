@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import DashboardPage from "./page"
 import { fetchAdmin } from "@/lib/api-client"
@@ -54,7 +54,7 @@ it("shows loans on loan now and overdue, each linking to the loans behind it", a
   expect(card("Overdue")).toHaveTextContent("2")
   expect(card("Overdue")).toHaveTextContent("Needs a look")
   expect(card("Overdue").querySelector("a")).toHaveAttribute("href", "/loans?status=overdue")
-  expect(card("Imports in progress")).toHaveTextContent("1 failed")
+  expect(card("Imports")).toHaveTextContent("1 failed")
 })
 
 it("compares this week's loans with the week before", async () => {
@@ -79,7 +79,7 @@ it("stays quiet when everything is fine", async () => {
   renderPage()
   expect(await screen.findByText("All services running")).toBeInTheDocument()
   expect(screen.queryByRole("alert")).not.toBeInTheDocument()
-  expect(card("Imports in progress")).toHaveTextContent("Nothing failed")
+  expect(card("Imports")).toHaveTextContent("Nothing failed")
 })
 
 it("shows a dash, not zero, for a part the server couldn't read", async () => {

@@ -113,9 +113,10 @@ export function AreaChartCard({
       </div>
 
       {summary && (
-        <dl className="mt-auto grid grid-cols-2 border-t @2xl/main:grid-cols-4">
-          {summary.map((s, i) => (
-            <div key={s.label} className={i > 0 ? "border-l px-5 py-4 max-@2xl/main:[&:nth-child(3)]:border-l-0 max-@2xl/main:[&:nth-child(n+3)]:border-t" : "px-5 py-4"}>
+        // The 1px gap over the border colour draws the dividers, whether the strip is 2 or 4 across.
+        <dl className="mt-auto grid grid-cols-2 gap-px border-t bg-border @2xl/main:grid-cols-4">
+          {summary.map((s) => (
+            <div key={s.label} className="bg-card px-5 py-4">
               <dt className="text-xs text-muted-foreground">{s.label}</dt>
               <dd className="mt-1 font-semibold tabular-nums">{s.value}</dd>
             </div>

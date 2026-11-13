@@ -34,7 +34,7 @@ export function Panel({
   children: ReactNode
 }) {
   return (
-    <section className={cn(PANEL, "flex min-w-0 flex-col", className)} aria-label={title}>
+    <section className={cn(PANEL, "flex min-w-0 flex-col overflow-hidden", className)} aria-label={title}>
       <header className="flex items-center gap-3 px-5 pt-5">
         <IconTile icon={icon} />
         <div className="min-w-0 flex-1">
@@ -82,12 +82,12 @@ export function KpiTile({
   href?: string
 }) {
   const inner = (
-    <div className="rounded-xl border bg-card p-4 shadow-xs">
-      <div className="flex items-center gap-2.5">
+    <div className="rounded-xl border bg-card p-3 shadow-xs @lg/main:p-4">
+      <div className="flex min-w-0 items-center gap-2.5">
         <IconTile icon={icon} className="size-7 rounded-md" />
-        <p className="text-sm font-medium">{label}</p>
+        <p className="truncate text-sm font-medium">{label}</p>
       </div>
-      <p className={cn("mt-4 text-[1.75rem] leading-none font-semibold tracking-tight tabular-nums", tone === "warn" && "text-amber-700", tone === "bad" && "text-destructive")}>
+      <p className={cn("mt-3 text-2xl leading-none font-semibold tracking-tight tabular-nums @lg/main:mt-4 @lg/main:text-[1.75rem]", tone === "warn" && "text-amber-700", tone === "bad" && "text-destructive")}>
         {value}
       </p>
     </div>
@@ -101,9 +101,10 @@ export function KpiTile({
       ) : (
         inner
       )}
-      <div className="flex min-h-9 items-center justify-between gap-2 px-2.5 pt-2 pb-1 text-sm">
+      <div className="flex min-h-9 items-center justify-between gap-2 px-2 pt-2 pb-1 text-xs @lg/main:px-2.5 @lg/main:text-sm">
         <span className="min-w-0 truncate">{footer}</span>
-        {aside && <span className="shrink-0 text-muted-foreground">{aside}</span>}
+        {/* On a phone's half-width tile the side note doesn't fit; the footer carries the point. */}
+        {aside && <span className="hidden shrink-0 text-muted-foreground @3xl/main:inline">{aside}</span>}
       </div>
     </div>
   )

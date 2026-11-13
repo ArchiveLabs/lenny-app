@@ -102,7 +102,7 @@ export default function StatsPage() {
 
     body = (
       <div className="space-y-4">
-        <div className="grid gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 @5xl/main:grid-cols-4 @5xl/main:gap-4">
           <KpiTile icon={Eye} label={t("Opens")} value={totals.opens.toLocaleString()} footer={<span className="text-muted-foreground">{t("Books opened by members")}</span>} aside={period} />
           <KpiTile icon={Users} label={t("Patrons")} value={totals.patrons.toLocaleString()} footer={<span className="text-muted-foreground">{t("Different members")}</span>} aside={period} />
           <KpiTile icon={BookCopy} label={t("Books read")} value={totals.books_read.toLocaleString()} footer={<span className="text-muted-foreground">{t("Subscription books")}</span>} aside={period} />

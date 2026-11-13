@@ -53,7 +53,7 @@ export default function DashboardPage() {
     return (
       <Page>
         <div className="space-y-4" aria-busy="true" aria-label={t("Loading")}>
-          <div className="grid gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 @5xl/main:grid-cols-4 @5xl/main:gap-4">
             {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-36 rounded-2xl" />)}
           </div>
           <Skeleton className="h-[420px] rounded-2xl" />
@@ -86,7 +86,7 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      <div className="grid gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 @5xl/main:grid-cols-4 @5xl/main:gap-4">
         <KpiTile
           icon={BookOpen}
           label={t("Books")}
@@ -114,7 +114,7 @@ export default function DashboardPage() {
         />
         <KpiTile
           icon={Upload}
-          label={t("Imports in progress")}
+          label={t("Imports")}
           value={imports ? imports.pending.toLocaleString() : UNREAD}
           tone={imports?.failed ? "bad" : undefined}
           href="/import"
@@ -126,7 +126,7 @@ export default function DashboardPage() {
               <span className="text-muted-foreground">{t("Nothing failed")}</span>
             ))
           }
-          aside={t("Import & Redeem")}
+          aside={t("in progress")}
         />
       </div>
 
