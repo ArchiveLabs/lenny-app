@@ -322,3 +322,9 @@ export const SubscriptionPassSchema = z.object({
 export type SubscriptionPass = z.infer<typeof SubscriptionPassSchema>
 export const SubscriptionPassListSchema = z.object({ items: z.array(SubscriptionPassSchema), total: z.number() })
 export type SubscriptionPassList = z.infer<typeof SubscriptionPassListSchema>
+
+// GET /admin/stats/loans?from&to: loans per day for the dashboard chart (days without loans may be missing).
+export const LoanStatsSchema = z.object({
+  by_day: z.array(z.object({ date: z.string(), started: z.number(), returned: z.number() })),
+})
+export type LoanStats = z.infer<typeof LoanStatsSchema>

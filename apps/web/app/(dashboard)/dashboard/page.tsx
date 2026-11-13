@@ -1,21 +1,22 @@
 "use client"
 
-import type { ReactNode } from "react"
+import { useState } from "react"
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
-import { ArrowRight, BookOpen, CircleAlert, CircleCheck, Clock, HeartPulse, Ticket, Upload } from "lucide-react"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { ArrowRight, CircleAlert, CircleCheck, Ticket } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@workspace/ui/components/badge"
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@workspace/ui/components/card"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 import { ErrorState } from "@/components/ErrorState"
+import { AreaChartCard } from "@/components/stats/AreaChartCard"
+import { KPI_GRID, KpiCard, LiveDot } from "@/components/stats/KpiCard"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
-import { ACCESS_MODES, DASHBOARD, rangeFor, STATS } from "@/lib/subscriptions"
-import { AccessMode, ApiError, Dashboard, DashboardSchema, SubscriptionStats, SubscriptionStatsSchema } from "@/types/api"
+import { DASHBOARD, fillDays, rangeFor, STATS } from "@/lib/subscriptions"
+import { ApiError, Dashboard, DashboardSchema, LoanStats, LoanStatsSchema, SubscriptionStats, SubscriptionStatsSchema } from "@/types/api"
 
-const MODE_DOT: Record<AccessMode, string> = { open: "bg-green-500", borrowable: "bg-amber-500", subscription: "bg-sky-500" }
-const OK = "gap-1 border-green-200 bg-green-50 text-green-800"
+const UNREAD = "—" // a part the server couldn't read: never show it as zero
+const SERVICES = { database: "Database", storage: "File storage", reader: "Reader" } as const
 
 export default function DashboardPage() {
   const { t } = useTranslation()
@@ -24,189 +25,125 @@ export default function DashboardPage() {
     queryFn: async () => handleApiResponse<Dashboard>(await fetchAdmin("dashboard"), DashboardSchema),
   })
   const ghost = useGhostSettings()
-  const connected = !!ghost.data?.site_url
 
+  let body
   if (summary.isLoading) {
-    return (
-      <Page>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label={t("Loading")}>
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-52 rounded-xl" />)}
+    body = (
+      <div className="space-y-4" aria-busy="true" aria-label={t("Loading")}>
+        <div className={KPI_GRID}>
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-36 rounded-xl" />)}
         </div>
-      </Page>
+        <Skeleton className="h-80 rounded-xl" />
+      </div>
     )
-  }
-  if (!summary.data) {
+  } else if (!summary.data) {
     const unsupported = summary.error instanceof ApiError && summary.error.status === 404
-    return (
-      <Page>
-        <ErrorState
-          message={unsupported ? t("This Lenny server doesn't have a dashboard yet. Update Lenny, then reload this page.") : summary.error?.message || t("Couldn't load the dashboard.")}
-        />
-      </Page>
+    body = (
+      <ErrorState
+        message={unsupported ? t("This Lenny server doesn't have a dashboard yet. Update Lenny, then reload this page.") : summary.error?.message || t("Couldn't load the dashboard.")}
+      />
     )
-  }
+  } else {
+    const { books, loans, imports, health } = summary.data
+    const down = health ? (Object.keys(SERVICES) as (keyof typeof SERVICES)[]).filter((s) => health[s] !== "ok") : []
+    body = (
+      <div className="space-y-4 md:space-y-6">
+        <div className={KPI_GRID}>
+          <KpiCard
+            label={t("Books")}
+            value={books ? books.total.toLocaleString() : UNREAD}
+            footer={<More href="/library">{t("Open the library")}</More>}
+            hint={books && t("{{open}} open · {{borrowable}} borrowable · {{subscription}} subscription", books)}
+          />
+          <KpiCard
+            label={t("Active loans")}
+            value={loans ? loans.active.toLocaleString() : UNREAD}
+            badge={
+              !!loans?.overdue && (
+                <Badge variant="outline" className="gap-1 border-amber-200 bg-amber-50 text-amber-800">
+                  <CircleAlert aria-hidden />
+                  {t("{{count}} overdue", { count: loans.overdue })}
+                </Badge>
+              )
+            }
+            footer={<More href={loans?.overdue ? "/loans?status=overdue" : "/loans"}>{t(loans?.overdue ? "See overdue loans" : "See loans")}</More>}
+            hint={loans && t("{{count}} started in the last 30 days", { count: loans.started_30d })}
+          />
+          <KpiCard
+            label={t("Imports in progress")}
+            value={imports ? imports.pending.toLocaleString() : UNREAD}
+            badge={!!imports?.failed && <Badge variant="destructive">{t("{{count}} failed", { count: imports.failed })}</Badge>}
+            footer={<More href="/import">{t("Go to Import & Redeem")}</More>}
+            hint={imports && !imports.failed ? t("No failed imports") : undefined}
+          />
+          <KpiCard
+            label={t("Health")}
+            value={!health ? UNREAD : down.length ? t("{{count}} down", { count: down.length }) : t("All up")}
+            badge={
+              health &&
+              (down.length ? (
+                <Badge variant="destructive" className="gap-1">
+                  <CircleAlert aria-hidden />
+                  {t("Check")}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-800">
+                  <CircleCheck aria-hidden />
+                  {t("OK")}
+                </Badge>
+              ))
+            }
+            footer={health && (down.length ? t("Down: {{list}}", { list: down.map((s) => t(SERVICES[s])).join(", ") }) : t("Database, file storage and reader"))}
+            hint={health && t("Lenny {{version}}", { version: health.version })}
+          />
+        </div>
 
-  const { books, loans, imports, health } = summary.data
-  return (
-    <Page>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <Tile title={t("Library")} icon={BookOpen} href="/library" more={t("Open the library")}>
-          {books && (
-            <>
-              <Big value={books.total} label={t(books.total === 1 ? "book" : "books")} />
-              <ul className="mt-4 space-y-2 text-sm">
-                {(Object.keys(ACCESS_MODES) as AccessMode[]).map((m) => (
-                  <li key={m} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className={`size-2 rounded-full ${MODE_DOT[m]}`} aria-hidden />
-                      {t(ACCESS_MODES[m].label)}
-                    </span>
-                    <span className="tabular-nums text-muted-foreground">{books[m].toLocaleString()}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </Tile>
-
-        <Tile title={t("Loans")} icon={Clock} href="/loans" more={t("See active loans")}>
-          {loans && (
-            <>
-              <Big value={loans.active} label={t("active")} />
-              <ul className="mt-4 space-y-2 text-sm">
-                <li className="flex items-center justify-between">
-                  <Link href="/loans?status=overdue" className="underline-offset-4 hover:underline">{t("Overdue")}</Link>
-                  {loans.overdue > 0 ? (
-                    <Badge variant="outline" className="gap-1 border-amber-200 bg-amber-50 text-amber-800 tabular-nums">
-                      <CircleAlert aria-hidden />
-                      {loans.overdue}
-                    </Badge>
-                  ) : (
-                    <span className="tabular-nums text-muted-foreground">0</span>
-                  )}
-                </li>
-                <li className="flex items-center justify-between">
-                  <span>{t("Started in the last 30 days")}</span>
-                  <span className="tabular-nums text-muted-foreground">{loans.started_30d.toLocaleString()}</span>
-                </li>
-              </ul>
-            </>
-          )}
-        </Tile>
-
-        <Tile title={t("Imports")} icon={Upload} href="/import" more={t("Go to Import & Redeem")}>
-          {imports && (
-            <>
-              <Big value={imports.pending} label={t("in progress")} />
-              <ul className="mt-4 space-y-2 text-sm">
-                <li className="flex items-center justify-between">
-                  <span>{t("Failed")}</span>
-                  {imports.failed > 0 ? (
-                    <Badge variant="destructive" className="tabular-nums">{imports.failed}</Badge>
-                  ) : (
-                    <span className="tabular-nums text-muted-foreground">0</span>
-                  )}
-                </li>
-              </ul>
-            </>
-          )}
-        </Tile>
-
-        <Tile title={t("Health")} icon={HeartPulse} description={health ? t("Lenny {{version}}", { version: health.version }) : undefined}>
-          {health && (
-            <ul className="space-y-2 text-sm">
-              {(["database", "storage", "reader"] as const).map((s) => (
-                <li key={s} className="flex items-center justify-between">
-                  <span>{t({ database: "Database", storage: "File storage", reader: "Reader" }[s])}</span>
-                  {health[s] === "ok" ? (
-                    <Badge variant="outline" className={OK}>
-                      <CircleCheck aria-hidden />
-                      {t("Up")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="destructive" className="gap-1">
-                      <CircleAlert aria-hidden />
-                      {t("Down")}
-                    </Badge>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Tile>
+        <LoansChart />
 
         {/* Only libraries that connected a Ghost site see anything about Ghost. */}
-        {connected && <GhostTile />}
+        {ghost.data?.site_url && <GhostSection />}
       </div>
-    </Page>
-  )
-}
+    )
+  }
 
-function Page({ children }: { children: ReactNode }) {
-  const { t } = useTranslation()
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-8">
+    <div className="@container/main mx-auto w-full max-w-7xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{t(DASHBOARD.title)}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("Your Lenny library at a glance.")}</p>
       </div>
-      {children}
+      {body}
     </div>
   )
 }
 
-/** One dashboard card. With no children (the server couldn't read this part) it says so instead of showing zeros. */
-function Tile({
-  title,
-  icon: Icon,
-  description,
-  href,
-  more,
-  children,
-}: {
-  title: string
-  icon: typeof BookOpen
-  description?: string
-  href?: string
-  more?: string
-  children: ReactNode
-}) {
-  const { t } = useTranslation()
+function More({ href, children }: { href: string; children: string }) {
   return (
-    <Card className="gap-4">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
-        <CardAction>
-          <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex-1">
-        {children || <p className="text-sm text-muted-foreground">{t("Lenny couldn't read this right now.")}</p>}
-      </CardContent>
-      {href && more && (
-        <CardFooter>
-          <Link href={href} className="flex items-center gap-1 text-sm font-medium underline-offset-4 hover:underline">
-            {more}
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-        </CardFooter>
-      )}
-    </Card>
+    <Link href={href} className="flex items-center gap-1 underline-offset-4 hover:underline">
+      {children}
+      <ArrowRight className="size-3.5" aria-hidden />
+    </Link>
   )
 }
 
-function Big({ value, label }: { value: number; label: string }) {
-  return (
-    <p className="flex items-baseline gap-2">
-      <span className="text-4xl font-semibold tabular-nums">{value.toLocaleString()}</span>
-      <span className="text-sm text-muted-foreground">{label}</span>
-    </p>
-  )
+/** Loans started per day. Hidden until the server can answer (an older Lenny has no loan stats). */
+function LoansChart() {
+  const { t } = useTranslation()
+  const [days, setDays] = useState(90)
+  const { from, to } = rangeFor(days)
+  const { data } = useQuery({
+    queryKey: ["loan-stats", from, to],
+    queryFn: async () => handleApiResponse<LoanStats>(await fetchAdmin(`stats/loans?${new URLSearchParams({ from, to })}`), LoanStatsSchema),
+    placeholderData: keepPreviousData,
+    retry: false,
+  })
+  if (!data) return null
+  const perDay = fillDays(data.by_day, from, to, { started: 0, returned: 0 }).map((d) => ({ date: d.date, value: d.started }))
+  return <AreaChartCard title={t("Loans started")} label="Loans" data={perDay} days={days} onDays={setDays} />
 }
 
 /** Ghost members over the last 30 days, from the same query (and cache) as the Subscription stats page. */
-function GhostTile() {
+function GhostSection() {
   const { t } = useTranslation()
   const { from, to } = rangeFor(30)
   const { data } = useQuery({
@@ -216,31 +153,32 @@ function GhostTile() {
   })
   const totals = data?.totals
   return (
-    <Tile title={t("Ghost members")} icon={Ticket} description={t("Last 30 days")} href={STATS.route} more={t("See subscription stats")}>
-      {totals && (
-        <>
-          <p className="flex items-center gap-2">
-            {totals.active_now > 0 && (
-              <span className="relative flex size-2.5" aria-hidden>
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-60 motion-reduce:animate-none" />
-                <span className="relative inline-flex size-2.5 rounded-full bg-green-500" />
-              </span>
-            )}
-            <span className="text-4xl font-semibold tabular-nums">{totals.active_now.toLocaleString()}</span>
-            <span className="text-sm text-muted-foreground">{t("reading now")}</span>
-          </p>
-          <ul className="mt-4 space-y-2 text-sm">
-            <li className="flex items-center justify-between">
-              <span>{t("Opens")}</span>
-              <span className="tabular-nums text-muted-foreground">{totals.opens.toLocaleString()}</span>
-            </li>
-            <li className="flex items-center justify-between">
-              <span>{t("Patrons")}</span>
-              <span className="tabular-nums text-muted-foreground">{totals.patrons.toLocaleString()}</span>
-            </li>
-          </ul>
-        </>
-      )}
-    </Tile>
+    <section className="space-y-3" aria-labelledby="ghost-members">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="ghost-members" className="flex items-center gap-2 font-semibold">
+          <Ticket className="size-4 text-muted-foreground" aria-hidden />
+          {t("Ghost members")}
+        </h2>
+        <More href={STATS.route}>{t("See subscription stats")}</More>
+      </div>
+      <div className={KPI_GRID}>
+        <KpiCard
+          label={t("Reading now")}
+          value={totals ? totals.active_now.toLocaleString() : UNREAD}
+          badge={
+            !!totals?.active_now && (
+              <Badge variant="outline" className="gap-1.5">
+                <LiveDot />
+                {t("Live")}
+              </Badge>
+            )
+          }
+          hint={t("Opened in the last 15 min")}
+        />
+        <KpiCard label={t("Opens")} value={totals ? totals.opens.toLocaleString() : UNREAD} hint={t("Last 30 days")} />
+        <KpiCard label={t("Patrons")} value={totals ? totals.patrons.toLocaleString() : UNREAD} hint={t("Last 30 days")} />
+        <KpiCard label={t("Books read")} value={totals ? totals.books_read.toLocaleString() : UNREAD} hint={t("Last 30 days")} />
+      </div>
+    </section>
   )
 }

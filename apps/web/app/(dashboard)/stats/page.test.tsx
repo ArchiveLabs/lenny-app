@@ -37,7 +37,7 @@ describe("dates", () => {
   })
 
   it("fills the days the server left out with zeros, so the chart has no gaps", () => {
-    const days = fillDays([{ date: "2026-11-13", books_read: 1, patrons: 1, opens: 5 }], "2026-11-12", "2026-11-14")
+    const days = fillDays([{ date: "2026-11-13", books_read: 1, patrons: 1, opens: 5 }], "2026-11-12", "2026-11-14", { books_read: 0, patrons: 0, opens: 0 })
     expect(days.map((d) => [d.date, d.opens])).toEqual([["2026-11-12", 0], ["2026-11-13", 5], ["2026-11-14", 0]])
   })
 
@@ -53,7 +53,7 @@ it("says the page is for Ghost and asks to connect a site when none is", async (
   expect(screen.getByText("Ghost")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Set up Ghost" })).toHaveAttribute("href", "/settings/ghost")
   expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("stats/"))).toBe(false)
-  expect(screen.queryByRole("group", { name: "Period" })).not.toBeInTheDocument()
+  expect(screen.queryByText("Opens per day")).not.toBeInTheDocument()
 })
 
 it("treats a server without Ghost settings like an unconnected one", async () => {
@@ -64,18 +64,17 @@ it("treats a server without Ghost settings like an unconnected one", async () =>
   expect(await screen.findByText("Connect a Ghost site to see these stats")).toBeInTheDocument()
 })
 
-it("shows the totals, the day table, the devices and the books", async () => {
+it("shows the totals, the opens chart, the devices and the books", async () => {
   route()
   renderPage()
-  expect((await screen.findByText("Books read")).closest("[data-slot=card]")).toHaveTextContent("3")
-  expect(screen.getByText("Opens", { selector: "dt" }).closest("[data-slot=card]")).toHaveTextContent("42")
-  expect(screen.getByText("opens in total").previousSibling).toHaveTextContent("42")
-  expect(screen.getByText("Reading now").closest("[data-slot=card]")).toHaveTextContent("2Opened in the last 15 min")
+  const card = (label) => screen.getAllByText(label).map((el) => el.closest("[data-slot=card]")).find(Boolean)
+  expect(await screen.findByText("Opens per day")).toBeInTheDocument()
+  expect(card("Books read")).toHaveTextContent("3")
+  expect(card("Different members who read")).toHaveTextContent("5")
+  expect(card("Reading now")).toHaveTextContent("Live")
   expect(screen.getByText(/How members of hydra.test read/)).toBeInTheDocument()
-  expect(screen.getByText("Opens per day")).toBeInTheDocument()
   expect(screen.getByText("Nov 13")).toBeInTheDocument()
   expect(screen.getByText("Phone")).toBeInTheDocument()
-  expect(screen.getByText("20 opens · 3 patrons")).toBeInTheDocument()
   expect(screen.getByText("100%")).toBeInTheDocument()
   expect(await screen.findByText("Sea of Rust")).toBeInTheDocument()
   expect(screen.getByText("Showing 1–20 of 45")).toBeInTheDocument()
@@ -101,11 +100,11 @@ it("says so when nothing was read in the period, and skips the books", async () 
   renderPage()
   expect(await screen.findByText("No reads in this period")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Learn how to add Read buttons to your Ghost posts" })).toHaveAttribute("target", "_blank")
-  expect(screen.queryByText("Opens per day")).not.toBeInTheDocument()
+  expect(screen.getByText("Opens per day")).toBeInTheDocument() // kept, so the period can still change
   expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("stats/subscriptions/books"))).toBe(false)
 })
 
-it("keeps the period picker when the stats fail to load", async () => {
+it("says why when the stats fail to load", async () => {
   const { handleApiResponse } = jest.requireMock("@/lib/api-client")
   route()
   handleApiResponse.mockImplementation(async (res) => {
@@ -115,6 +114,5 @@ it("keeps the period picker when the stats fail to load", async () => {
   })
   renderPage()
   expect(await screen.findByText("The range is too long.")).toBeInTheDocument()
-  expect(screen.getByRole("radio", { name: "Last 30 days" })).toBeChecked()
   handleApiResponse.mockImplementation((res) => res.json())
 })

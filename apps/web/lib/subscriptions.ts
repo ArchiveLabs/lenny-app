@@ -36,15 +36,13 @@ export function rangeFor(days: number, now = new Date()): { from: string; to: st
   return { from: day(new Date(now.getTime() - (days - 1) * 86_400_000)), to: day(now) }
 }
 
-type Day = { date: string; books_read: number; patrons: number; opens: number }
-
-/** Every day from `from` to `to`, with zeros for days the server left out, so the time axis has no gaps. */
-export function fillDays(days: Day[], from: string, to: string): Day[] {
+/** Every day from `from` to `to`, with `zero` for days the server left out, so the time axis has no gaps. */
+export function fillDays<T extends { date: string }>(days: T[], from: string, to: string, zero: Omit<T, "date">): T[] {
   const byDate = new Map(days.map((d) => [d.date, d]))
-  const out: Day[] = []
+  const out: T[] = []
   for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) {
     const date = new Date(t).toISOString().slice(0, 10)
-    out.push(byDate.get(date) ?? { date, books_read: 0, patrons: 0, opens: 0 })
+    out.push(byDate.get(date) ?? ({ ...zero, date } as T))
   }
   return out
 }
