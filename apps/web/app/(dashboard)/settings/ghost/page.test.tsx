@@ -142,6 +142,7 @@ it("gives the snippet, webhook URL and secret with copy buttons, and the Starter
   expect(screen.getByLabelText("Webhook secret")).toHaveValue("s3cret")
   expect(screen.getByLabelText("Webhook secret")).toHaveAttribute("type", "password")
   expect(screen.getByRole("button", { name: "Copy code" })).toBeInTheDocument()
+  expect(screen.getByText(/Code injection → Site header/)).toBeInTheDocument() // in the header the page hides before it draws
   expect(screen.getByRole("button", { name: "Copy webhook secret" })).toBeInTheDocument()
   expect(screen.getByText(/Ghost\(Pro\) Starter doesn't send custom webhooks/)).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Learn more about members-only books" })).toHaveAttribute("rel", "noopener noreferrer")

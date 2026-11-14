@@ -512,7 +512,7 @@ function Setup({ settings }: { settings: GhostSettings }) {
                   : t("Lenny can't check your site. This shows as done once a member opens a book.")
           }
         >
-          <p className="text-sm text-muted-foreground">{t("In Ghost, open Settings → Code injection → Site footer, and paste this code. Paste it again after you update Lenny.")}</p>
+          <p className="text-sm text-muted-foreground">{t("In Ghost, open Settings → Code injection → Site header, and paste this code. Paste it again after you update Lenny.")}</p>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium">{t("Code injection snippet")}</span>
@@ -602,7 +602,7 @@ function Setup({ settings }: { settings: GhostSettings }) {
               : t("No member has opened a book yet. Try a Read button yourself.")}
         >
           <p className="text-sm text-muted-foreground">
-            {t("Open a subscription book in the Library and copy its Read button into a Ghost post. Use the Button card link if the post also goes out as a newsletter: the HTML card works on your website only.")}
+            {t("Open a subscription book in the Library and copy its Read button into a Ghost post, as a Button card link or as HTML card code. Both work on your site and in newsletters.")}
           </p>
           <div className="flex">
             <PanelLink href="/library">{t("Open the Library")}</PanelLink>

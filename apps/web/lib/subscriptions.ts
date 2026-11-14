@@ -30,11 +30,11 @@ export const STATS = {
   title: "Subscription stats",
 } as const
 
-/** The Read button a publisher pastes into a Ghost post. The launch endpoint accepts the OL edition id as is. */
-export const readButtonHtml = (olid: string) => `<button data-lenny-book="${olid}">Read</button>`
-
-/** The same, as a URL for Ghost's Button card. On the site's own address, so it never names the Lenny server. */
+/** A Read link for Ghost's Button card. On the site's own address, so it never names the Lenny server. */
 export const readButtonUrl = (site: string, olid: string) => `${site.replace(/\/$/, "")}/#lenny-book=${olid}`
+
+/** The same link for an HTML card. A link, not a button: it works in newsletters, where no script runs. */
+export const readButtonHtml = (site: string, olid: string) => `<a href="${readButtonUrl(site, olid)}">Read</a>`
 
 /** from/to as YYYY-MM-DD (UTC), the last `days` days including today. */
 export function rangeFor(days: number, now = new Date()): { from: string; to: string } {

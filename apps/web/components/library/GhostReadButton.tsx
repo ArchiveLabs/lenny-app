@@ -40,9 +40,9 @@ export function GhostReadButton({ olid, unsaved }: { olid: string; unsaved: bool
       <CodeField
         id="read-button"
         label={t("Read button: HTML card code")}
-        value={readButtonHtml(olid)}
+        value={readButtonHtml(data.site_url, olid)}
         copyLabel={t("Copy HTML card code")}
-        help={t("Or paste this into an HTML card. Website only: it does nothing in newsletters.")}
+        help={t("Or paste this into an HTML card. Works on your site and in newsletters.")}
       />
       {notes.length > 0 && <p className={FIELD_HELP}>{notes.join(" ")}</p>}
     </div>

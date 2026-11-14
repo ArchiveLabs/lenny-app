@@ -100,14 +100,13 @@ describe("by access mode", () => {
 
   it("puts the Ghost Read button in the Access card, saying it once who can read", () => {
     openBook({ access_mode: "subscription" })
-    expect(screen.getByLabelText("Read button: HTML card code")).toHaveValue('<button data-lenny-book="OL28933309M">Read</button>')
+    expect(screen.getByLabelText("Read button: HTML card code")).toHaveValue('<a href="https://hydra.test/#lenny-book=OL28933309M">Read</a>')
     expect(screen.getByRole("button", { name: "Copy HTML card code" })).toBeInTheDocument()
     // Ghost's Button card takes only a link: one on the Ghost site itself, which the snippet catches.
     expect(screen.getByLabelText("Read button: Button card link")).toHaveValue("https://hydra.test/#lenny-book=OL28933309M")
     expect(screen.getByRole("button", { name: "Copy Button card link" })).toBeInTheDocument()
-    // Newsletters can't run the snippet's click handler, only follow a link.
-    expect(screen.getByText(/Works on your site and in newsletters/)).toBeInTheDocument()
-    expect(screen.getByText(/Website only: it does nothing in newsletters/)).toBeInTheDocument()
+    // Newsletters run no script, so both forms are plain links the site's snippet catches.
+    expect(screen.getAllByText(/Works on your site and in newsletters/)).toHaveLength(2)
     expect(screen.getAllByText(/Only paid members of your Ghost site/)).toHaveLength(1)
   })
 
