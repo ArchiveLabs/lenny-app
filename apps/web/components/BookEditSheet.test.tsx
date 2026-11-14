@@ -192,3 +192,46 @@ describe("copies in the sheet", () => {
     expect(document.body.textContent).not.toMatch(/undefined/)
   })
 })
+
+describe("active loans when the book stops being borrowable", () => {
+  const { toast } = jest.requireMock("sonner")
+  const res = (body) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
+  const withLoans = (n, patch = { openlibrary_edition: 28933309, loans_returned: n }) =>
+    fetchAdmin.mockClear().mockImplementation((path, opts) =>
+      path.startsWith("loans?") ? res({ items: [], total: n, limit: 1, offset: 0 })
+        : opts?.method === "PATCH" ? res(patch)
+        : new Promise(() => {}),
+    )
+  afterEach(() => fetchAdmin.mockImplementation(() => new Promise(() => {})))
+
+  it("warns, asks first, returns the loans and says how many", async () => {
+    withLoans(2)
+    openBook({ encrypted: true })
+    expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("loans?"))).toBe(false) // still borrowable: nothing to ask
+    fireEvent.change(screen.getByLabelText("Access"), { target: { value: "subscription" } })
+    expect(await screen.findByText("2 patrons have this book on loan")).toBeInTheDocument()
+    const q = new URLSearchParams(fetchAdmin.mock.calls.find(([p]) => p.startsWith("loans?"))[0].split("?")[1])
+    expect([q.get("status"), q.get("item")]).toEqual(["active", "OL28933309M"])
+
+    fireEvent.click(screen.getByText("Save changes"))
+    expect(screen.getByText("Return 2 loans?")).toBeInTheDocument()
+    expect(fetchAdmin.mock.calls.some(([, o]) => o?.method === "PATCH")).toBe(false)
+    fireEvent.click(screen.getByText("Return loans and save"))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Book updated. 2 loans returned."))
+  })
+
+  it("flags loans left on a book that is already members only", async () => {
+    withLoans(1)
+    openBook({ access_mode: "subscription" })
+    expect(await screen.findByText("1 patron has this book on loan")).toBeInTheDocument()
+  })
+
+  it("saves straight away when nobody has it on loan", async () => {
+    withLoans(0)
+    openBook({ access_mode: "subscription" })
+    await waitFor(() => expect(fetchAdmin.mock.calls.some(([p]) => p.startsWith("loans?"))).toBe(true))
+    fireEvent.click(screen.getByText("Save changes"))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Book updated"))
+    expect(screen.queryByText(/Return \d+ loans?\?/)).not.toBeInTheDocument()
+  })
+})

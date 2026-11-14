@@ -3,7 +3,8 @@
 import { ReactNode, useCallback, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { BookOpen, Loader2, Trash2, ChevronDown } from "lucide-react"
+import { BookOpen, Loader2, Trash2, ChevronDown, TriangleAlert } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Label } from "@workspace/ui/components/label"
@@ -33,7 +34,7 @@ import { LinkField } from "@/components/library/LinkField"
 import { GhostReadButton } from "@/components/library/GhostReadButton"
 import { FIELD_HELP, FIELD_LABEL } from "@/components/code-field"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
-import { AccessMode, accessModeOf, ApiError, LennyBook, LoanLimitsConfig, LoanLimitsConfigSchema } from "@/types/api"
+import { AccessMode, accessModeOf, ApiError, LennyBook, LoanLimitsConfig, LoanLimitsConfigSchema, PaginatedAdminLoans, PaginatedAdminLoansSchema } from "@/types/api"
 import { ACCESS_MODES, SUBSCRIPTIONS_DOC } from "@/lib/subscriptions"
 import { LIBRARY_QUERY_KEY, removeBooksFromLibraryCache } from "@/lib/query-client"
 import { useTranslation } from "react-i18next"
@@ -53,6 +54,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
   )
   const [newEdition, setNewEdition] = useState("")
   const [reuploadFile, setReuploadFile] = useState<File | null>(null)
+  const [confirmReturn, setConfirmReturn] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Cheap settings call (not the slow /admin/items) — used to cap the per-book
@@ -66,6 +68,17 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
     enabled: open,
     staleTime: 5 * 60_000,
   })
+  // Only a borrowable book is lent: saving any other mode returns this book's active loans.
+  const { data: activeLoans = 0 } = useQuery({
+    queryKey: ["admin-loans", "book", book.olid],
+    queryFn: async () => {
+      const params = new URLSearchParams({ status: "active", item: book.olid, limit: "1" })
+      return (await handleApiResponse<PaginatedAdminLoans>(await fetchAdmin(`loans?${params}`), PaginatedAdminLoansSchema)).total
+    },
+    enabled: open && mode !== "borrowable",
+  })
+  const returnsLoans = mode !== "borrowable" && activeLoans > 0
+
   const maxLoanDays = loanLimits?.max_loan_duration_days
   const loanDurationValue = loanDuration.trim() === "" ? null : Number(loanDuration)
   const loanDurationIsNegative = loanDurationValue !== null && loanDurationValue < 0
@@ -93,7 +106,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      const updated = await handleApiResponse<{ openlibrary_edition: number }>(res)
+      const updated = await handleApiResponse<{ openlibrary_edition: number; loans_returned?: number }>(res)
 
       if (reuploadFile) {
         const formData = new FormData()
@@ -108,10 +121,19 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
           throw new ApiError(errText, uploadRes.status)
         }
       }
+      return updated.loans_returned ?? 0
     },
-    onSuccess: () => {
-      toast.success(t("Book updated"))
+    onSuccess: (returned) => {
+      toast.success(
+        returned === 0 ? t("Book updated")
+          : returned === 1 ? t("Book updated. 1 loan returned.")
+          : t("Book updated. {{count}} loans returned.", { count: returned }),
+      )
       queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY })
+      if (returned > 0) {
+        queryClient.invalidateQueries({ queryKey: ["admin-loans"] })
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      }
       setNewEdition("")
       setReuploadFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -215,6 +237,17 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
                 ))}
               </NativeSelect>
               <p className={FIELD_HELP}>{t(ACCESS_MODES[mode].help)}</p>
+              {returnsLoans && (
+                <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+                  <TriangleAlert aria-hidden />
+                  <AlertTitle>
+                    {activeLoans === 1 ? t("1 patron has this book on loan") : t("{{count}} patrons have this book on loan", { count: activeLoans })}
+                  </AlertTitle>
+                  <AlertDescription className="text-amber-900/80">
+                    {t("Saving returns their loans, and they lose access right away.")}
+                  </AlertDescription>
+                </Alert>
+              )}
               <a href={SUBSCRIPTIONS_DOC} target="_blank" rel="noopener noreferrer" className="inline-block text-[13px] font-medium underline underline-offset-4">
                 {t("Learn more about access modes")}
               </a>
@@ -352,10 +385,28 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
         </div>
 
         <div className="sticky bottom-0 border-t bg-background p-4">
-          <Button onClick={() => save.mutate()} disabled={save.isPending || loanDurationInvalid} className="w-full">
+          <Button onClick={() => (returnsLoans ? setConfirmReturn(true) : save.mutate())} disabled={save.isPending || loanDurationInvalid} className="w-full">
             {save.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {t("Save changes")}
           </Button>
+          <AlertDialog open={confirmReturn} onOpenChange={setConfirmReturn}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {activeLoans === 1 ? t("Return 1 loan?") : t("Return {{count}} loans?", { count: activeLoans })}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("“{{title}}” will no longer be borrowable, so its active loans end now and those patrons lose access.", { title: book.title })}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={() => save.mutate()}>
+                  {t("Return loans and save")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
         </div>
       </SheetContent>
