@@ -10,7 +10,7 @@ import { Skeleton } from "@workspace/ui/components/skeleton"
 import { cn } from "@workspace/ui/lib/utils"
 import { ErrorState } from "@/components/ErrorState"
 import { AreaChartCard } from "@/components/stats/AreaChartCard"
-import { CoverThumb, KpiTile, LiveDot, Panel, PanelLink, Row, SplitBar, Trend } from "@/components/stats/ui"
+import { CoverThumb, KpiTile, Panel, PanelLink, Row, SplitBar, Trend } from "@/components/stats/ui"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
@@ -314,12 +314,7 @@ function GhostPanel() {
   return (
     <Panel icon={Ticket} title={t("Ghost members")} description={t("Last 30 days")} action={<PanelLink href={STATS.route}>{t("Subscription stats")}</PanelLink>}>
       <div className="m-5 mt-4 divide-y rounded-xl border bg-secondary/40 px-4">
-        <Row label={t("Reading now")}>
-          <span className="inline-flex items-center gap-2">
-            {!!totals?.active_now && <LiveDot />}
-            {totals ? totals.active_now.toLocaleString() : UNREAD}
-          </span>
-        </Row>
+        <Row label={t("Readers in the last 15 min")}>{totals ? totals.active_now.toLocaleString() : UNREAD}</Row>
         <Row label={t("Opens")}>{totals ? totals.opens.toLocaleString() : UNREAD}</Row>
         <Row label={t("Patrons")}>{totals ? totals.patrons.toLocaleString() : UNREAD}</Row>
         <Row label={t("Books read")}>{totals ? totals.books_read.toLocaleString() : UNREAD}</Row>

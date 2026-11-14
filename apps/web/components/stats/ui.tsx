@@ -187,16 +187,6 @@ export function CoverThumb({ editionKey, title }: { editionKey?: string | null; 
   )
 }
 
-/** A pulsing green dot: someone is reading right now. Still when the system asks for less motion. */
-export function LiveDot() {
-  return (
-    <span className="relative inline-flex size-2" aria-hidden>
-      <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-500 opacity-60 motion-reduce:animate-none" />
-      <span className="relative inline-flex size-2 rounded-full bg-green-500" />
-    </span>
-  )
-}
-
 /**
  * Parts of a whole as one segmented bar, with a legend naming each part and its count (so colour is
  * never the only cue). Colours are the theme's chart-1/3/4, checked for colour-blind separation on white.

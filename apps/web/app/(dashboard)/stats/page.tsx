@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { BookCopy, BookOpen, CircleAlert, Eye, LineChart, Monitor, Radio, Smartphone, Tablet, Ticket, Users } from "lucide-react"
+import { BookCopy, BookOpen, CircleAlert, Clock, Eye, LineChart, Monitor, Smartphone, Tablet, Ticket, Users } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
 import { Badge } from "@workspace/ui/components/badge"
@@ -14,7 +14,7 @@ import { ErrorState } from "@/components/ErrorState"
 import { NativeSelect } from "@/components/NativeSelect"
 import { Pager } from "@/components/import/Pager"
 import { AreaChartCard } from "@/components/stats/AreaChartCard"
-import { KpiTile, LiveDot, Panel } from "@/components/stats/ui"
+import { KpiTile, Panel } from "@/components/stats/ui"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
@@ -107,20 +107,11 @@ export default function StatsPage() {
           <KpiTile icon={Users} label={t("Patrons")} value={totals.patrons.toLocaleString()} footer={<span className="text-muted-foreground">{t("Different members")}</span>} aside={period} />
           <KpiTile icon={BookCopy} label={t("Books read")} value={totals.books_read.toLocaleString()} footer={<span className="text-muted-foreground">{t("Subscription books")}</span>} aside={period} />
           <KpiTile
-            icon={Radio}
-            label={t("Reading now")}
+            icon={Clock}
+            label={t("Recent readers")}
             value={totals.active_now.toLocaleString()}
-            footer={
-              totals.active_now > 0 ? (
-                <span className="inline-flex items-center gap-2 font-medium text-green-700">
-                  <LiveDot />
-                  {t("Live")}
-                </span>
-              ) : (
-                <span className="text-muted-foreground">{t("Nobody right now")}</span>
-              )
-            }
-            aside={t("last 15 min")}
+            // The server sees a book opened, not a tab closed: this counts opens in the last 15 minutes.
+            footer={<span className="text-muted-foreground">{t("Opened a book in the last 15 min")}</span>}
           />
         </div>
 

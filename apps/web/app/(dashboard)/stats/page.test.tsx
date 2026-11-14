@@ -76,7 +76,7 @@ it("shows the totals, the opens chart, the devices and the books", async () => {
   expect(await screen.findByText("Reading", { selector: "h2" })).toBeInTheDocument()
   expect(card("Books read")).toHaveTextContent("3")
   expect(card("Patrons")).toHaveTextContent("5")
-  expect(card("Reading now")).toHaveTextContent("2Live")
+  expect(card("Recent readers")).toHaveTextContent("2Opened a book in the last 15 min")
   expect(screen.getByText(/How members of hydra.test read/)).toBeInTheDocument()
   expect(screen.getByText("Nov 13")).toBeInTheDocument()
   expect(screen.getByText("Phone")).toBeInTheDocument()
