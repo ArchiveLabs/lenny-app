@@ -280,6 +280,7 @@ export const GhostSettingsSchema = z.object({
   // Setup proof. Older servers omit them (undefined = can't tell); null = not yet.
   last_launch_at: z.string().nullable().optional(), // a member last opened a book from Ghost
   snippet_installed: z.boolean().nullable().optional(), // the current code was found on the site
+  snippet_stale: z.boolean().nullable().optional(), // an older copy is on the site too
   lease_hours: z.number().default(24),
   enabled: z.boolean().default(true), // off pauses Ghost reads; site, tiers and passes stay. Older servers omit it.
 })

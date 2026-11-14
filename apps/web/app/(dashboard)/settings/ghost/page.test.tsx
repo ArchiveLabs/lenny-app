@@ -79,6 +79,14 @@ describe("setup progress", () => {
     expect(screen.queryByRole("button", { name: "Check now" })).not.toBeInTheDocument()
   })
 
+  it("isn't done while an older copy of the code is still on the site", async () => {
+    fetchAdmin.mockReturnValue(ok({ ...settings, snippet_installed: true, snippet_stale: true, last_launch_at: now }))
+    renderPage()
+    expect(await screen.findByText(/An older copy of the Lenny code is still on hydra.test/)).toBeInTheDocument()
+    expect(step("Add the code to Ghost")).toHaveTextContent("Waiting")
+    expect(screen.getByRole("button", { name: "Check now" })).toBeInTheDocument()
+  })
+
   it("on an older server, takes a launch as proof of the code, and never claims what it can't check", async () => {
     fetchAdmin.mockReturnValue(ok(settings)) // no snippet_installed, no last_launch_at
     renderPage()

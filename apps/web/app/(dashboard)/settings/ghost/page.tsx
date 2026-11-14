@@ -46,7 +46,7 @@ export default function GhostSettingsPage() {
   // Each ask re-checks the site for the code (Lenny never caches "not found"), so a paste shows within seconds.
   const { data, isLoading, error } = useGhostSettings({
     refetchInterval: ({ state: { data: d } }) =>
-      d?.site_url && (d.snippet_installed === false || d.last_launch_at === null) ? SETUP_RECHECK_MS : false,
+      d?.site_url && (d.snippet_installed === false || d.snippet_stale || d.last_launch_at === null) ? SETUP_RECHECK_MS : false,
   })
 
   if (isLoading) {
@@ -467,8 +467,10 @@ function Setup({ settings }: { settings: GhostSettings }) {
   const webhook = relativeTime(settings.last_webhook_at)
   const launch = relativeTime(settings.last_launch_at)
   // The site check wins; without it, a member opening a book proves the code works.
-  const code: StepState =
-    settings.snippet_installed != null ? (settings.snippet_installed ? "done" : "todo") : launch ? "done" : "unknown"
+  // A leftover old copy can take the click with an old address, so it blocks done.
+  const code: StepState = settings.snippet_stale
+    ? "todo"
+    : settings.snippet_installed != null ? (settings.snippet_installed ? "done" : "todo") : launch ? "done" : "unknown"
   const hooks: StepState = webhook ? "done" : "todo"
   const button: StepState = launch ? "done" : settings.last_launch_at === undefined ? "unknown" : "todo"
   const steps = [code, hooks, button]
@@ -506,13 +508,14 @@ function Setup({ settings }: { settings: GhostSettings }) {
           title={t("Add the code to Ghost")}
           state={code}
           note={
-            settings.snippet_installed === true ? t("Found on {{site}}.", { site: host })
+            settings.snippet_stale ? t("An older copy of the Lenny code is still on {{site}}. Remove it from Site header and Site footer, and keep only this one.", { site: host })
+              : settings.snippet_installed === true ? t("Found on {{site}}.", { site: host })
               : settings.snippet_installed === false ? t("Not found on {{site}}. Paste it, or paste it again if you updated Lenny.", { site: host })
                 : launch ? t("A member opened a book, so the code works.")
                   : t("Lenny can't check your site. This shows as done once a member opens a book.")
           }
         >
-          <p className="text-sm text-muted-foreground">{t("In Ghost, open Settings → Code injection → Site header, and paste this code. Paste it again after you update Lenny.")}</p>
+          <p className="text-sm text-muted-foreground">{t("In Ghost, open Settings → Code injection → Site header, and paste this code in place of any older Lenny code. Remove any from Site footer too. Paste it again after you update Lenny.")}</p>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium">{t("Code injection snippet")}</span>
