@@ -4,9 +4,9 @@ import Link from "next/link"
 import { useTranslation } from "react-i18next"
 import { CodeField, FIELD_HELP, FIELD_LABEL } from "@/components/code-field"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
-import { GHOST, readButtonHtml } from "@/lib/subscriptions"
+import { GHOST, readButtonHtml, readButtonUrl } from "@/lib/subscriptions"
 
-/** The Read button to paste into a Ghost post, for a subscription book; or the way to connect Ghost first. */
+/** How to put a Read button for a subscription book in a Ghost post; or the way to connect Ghost first. */
 export function GhostReadButton({ olid, unsaved }: { olid: string; unsaved: boolean }) {
   const { t } = useTranslation()
   const { data, isLoading } = useGhostSettings()
@@ -24,16 +24,27 @@ export function GhostReadButton({ olid, unsaved }: { olid: string; unsaved: bool
       </div>
     )
   }
+  const notes = [
+    unsaved && t("Save changes first, or the button won't open this book."),
+    !data.enabled && t("Ghost is turned off, so members can't read it until you turn Ghost back on."),
+  ].filter(Boolean)
   return (
-    <CodeField
-      id="read-button"
-      label={t("Read button for a Ghost post")}
-      value={readButtonHtml(olid)}
-      copyLabel={t("Copy Read button")}
-      help={[
-        unsaved ? t("Save changes first, then paste it into an HTML card in a Ghost post.") : t("Paste it into an HTML card in a Ghost post."),
-        !data.enabled && t("Ghost is turned off, so members can't read it until you turn Ghost back on."),
-      ].filter(Boolean).join(" ")}
-    />
+    <div className="space-y-4">
+      <CodeField
+        id="read-button-url"
+        label={t("Read button: Button card link")}
+        value={readButtonUrl(data.site_url, olid)}
+        copyLabel={t("Copy Button card link")}
+        help={t("In a Ghost post, add a Button card and paste this as its URL.")}
+      />
+      <CodeField
+        id="read-button"
+        label={t("Read button: HTML card code")}
+        value={readButtonHtml(olid)}
+        copyLabel={t("Copy HTML card code")}
+        help={t("Or paste this into an HTML card.")}
+      />
+      {notes.length > 0 && <p className={FIELD_HELP}>{notes.join(" ")}</p>}
+    </div>
   )
 }

@@ -100,8 +100,11 @@ describe("by access mode", () => {
 
   it("puts the Ghost Read button in the Access card, saying it once who can read", () => {
     openBook({ access_mode: "subscription" })
-    expect(screen.getByLabelText("Read button for a Ghost post")).toHaveValue('<button data-lenny-book="OL28933309M">Read</button>')
-    expect(screen.getByRole("button", { name: "Copy Read button" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Read button: HTML card code")).toHaveValue('<button data-lenny-book="OL28933309M">Read</button>')
+    expect(screen.getByRole("button", { name: "Copy HTML card code" })).toBeInTheDocument()
+    // Ghost's Button card takes only a link: one on the Ghost site itself, which the snippet catches.
+    expect(screen.getByLabelText("Read button: Button card link")).toHaveValue("https://hydra.test/#lenny-book=OL28933309M")
+    expect(screen.getByRole("button", { name: "Copy Button card link" })).toBeInTheDocument()
     expect(screen.getAllByText(/Only paid members of your Ghost site/)).toHaveLength(1)
   })
 
@@ -110,14 +113,14 @@ describe("by access mode", () => {
     openBook({ access_mode: "subscription" })
     expect(screen.getByText("Connect your Ghost site first")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Open Ghost settings" })).toHaveAttribute("href", "/settings/ghost")
-    expect(screen.queryByLabelText("Read button for a Ghost post")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Read button: HTML card code")).not.toBeInTheDocument()
     ghost.data = { site_url: "https://hydra.test", enabled: true }
   })
 
   it("marks an open book Open access, with no Read button and no loan duration", () => {
     openBook({})
     expect(screen.getByText("Open access")).toBeInTheDocument()
-    expect(screen.queryByLabelText("Read button for a Ghost post")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Read button: HTML card code")).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Loan duration (days)")).not.toBeInTheDocument()
   })
 
@@ -149,7 +152,7 @@ it("saves the chosen access mode", async () => {
   open()
   fireEvent.change(screen.getByLabelText("Access"), { target: { value: "subscription" } })
   expect(screen.getByText("Only paid members of your Ghost site can read it.")).toBeInTheDocument()
-  expect(screen.getByText("Save changes first, then paste it into an HTML card in a Ghost post.")).toBeInTheDocument()
+  expect(screen.getByText("Save changes first, or the button won't open this book.")).toBeInTheDocument()
   fireEvent.click(screen.getByText("Save changes"))
   await waitFor(() => expect(fetchAdmin).toHaveBeenCalledWith("items/OL28933309M", expect.objectContaining({ method: "PATCH" })))
   const call = fetchAdmin.mock.calls.find(([path]) => path === "items/OL28933309M")
