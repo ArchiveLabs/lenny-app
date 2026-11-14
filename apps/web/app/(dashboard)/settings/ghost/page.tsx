@@ -3,9 +3,10 @@
 import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { BarChart3, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CirclePause, ExternalLink, Loader2, RefreshCw } from "lucide-react"
+import { Activity, ChevronDown, CircleCheck, CircleDashed, CirclePause, ExternalLink, ListChecks, Loader2, Plug, RefreshCw, Users } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
+import { cn } from "@workspace/ui/lib/utils"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
@@ -27,6 +28,7 @@ import {
 import { CodeField, FIELD_HELP } from "@/components/code-field"
 import { CopyButton } from "@/components/copy-button"
 import { ErrorState } from "@/components/ErrorState"
+import { Panel, PanelLink } from "@/components/stats/ui"
 import { TierName } from "@/components/TierName"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
@@ -34,7 +36,8 @@ import { GHOST, STATS, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptio
 import { ApiError, GhostSettings, GhostSettingsSchema } from "@/types/api"
 import { GHOST_SETTINGS_KEY as KEY, useGhostSettings } from "@/hooks/use-ghost-settings"
 
-const CARD = "rounded-xl border bg-card shadow-sm"
+/** The loans page opens on its Ghost members tab with this. */
+const MEMBER_PASSES = "/loans?view=members"
 
 export default function GhostSettingsPage() {
   const { t } = useTranslation()
@@ -82,9 +85,9 @@ function GhostPage({ settings }: { settings: GhostSettings }) {
   const connected = !!settings.site_url
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1 space-y-1">
+    <div className="@container/main mx-auto w-full max-w-6xl space-y-4">
+      <header className="flex flex-wrap items-end justify-between gap-3 pb-2">
+        <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{t(GHOST.title)}</h1>
             <StatusBadge settings={settings} />
@@ -97,21 +100,24 @@ function GhostPage({ settings }: { settings: GhostSettings }) {
           </p>
         </div>
         {connected && (
-          <Button asChild variant="outline" size="sm" className="shrink-0">
-            <Link href={STATS.route}>
-              <BarChart3 aria-hidden />
-              {t("See subscription stats")}
-            </Link>
-          </Button>
+          <nav className="flex gap-2" aria-label={t("Ghost pages")}>
+            <PanelLink href={MEMBER_PASSES}>{t("Member passes")}</PanelLink>
+            <PanelLink href={STATS.route}>{t("See subscription stats")}</PanelLink>
+          </nav>
         )}
       </header>
 
       {connected ? (
-        <>
-          <Overview settings={settings} />
-          <WhoCanRead settings={settings} />
-          <Setup settings={settings} />
-        </>
+        // Wide: what to change on the left, what is live in a rail on the right. Narrow: status first.
+        <div className="grid grid-cols-1 items-start gap-4 @4xl/main:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="space-y-4 @4xl/main:sticky @4xl/main:top-4 @4xl/main:order-2">
+            <Status settings={settings} />
+          </div>
+          <div className="space-y-4 @4xl/main:order-1">
+            <WhoCanRead settings={settings} />
+            <Setup settings={settings} />
+          </div>
+        </div>
       ) : (
         <Connect />
       )}
@@ -149,18 +155,14 @@ function Connect() {
   const save = useSaveGhost()
   const [siteUrl, setSiteUrl] = useState("")
   return (
-    <form
-      className={`${CARD} space-y-4 p-6`}
-      onSubmit={(e) => {
-        e.preventDefault()
-        save.mutate({ body: { site_url: siteUrl.trim() || null }, done: t("Ghost connected.") })
-      }}
-    >
-      <div className="space-y-1">
-        <h2 className="font-semibold">{t("Connect your Ghost site")}</h2>
-        <p className="text-sm text-muted-foreground">{t("Once it's saved, you get the code to paste into Ghost.")}</p>
-      </div>
-      <div className="grid gap-2">
+    <Panel icon={Plug} title={t("Connect your Ghost site")} description={t("Once it's saved, you get the code to paste into Ghost.")} className="max-w-2xl">
+      <form
+        className="grid gap-2 p-5"
+        onSubmit={(e) => {
+          e.preventDefault()
+          save.mutate({ body: { site_url: siteUrl.trim() || null }, done: t("Ghost connected.") })
+        }}
+      >
         <Label htmlFor="site-url">{t("Ghost site URL")}</Label>
         <div className="flex gap-2">
           <Input id="site-url" type="url" required placeholder="https://example.com" aria-describedby="site-url-help"
@@ -171,25 +173,35 @@ function Connect() {
           </Button>
         </div>
         <p id="site-url-help" className={FIELD_HELP}>{t("Your public site address, starting with https://.")}</p>
-      </div>
-    </form>
+      </form>
+    </Panel>
   )
 }
 
-function Row({ title, help, children }: { title: ReactNode; help?: ReactNode; children?: ReactNode }) {
+/** A status dot and word, as the dashboard shows its services. */
+function Dot({ tone, children }: { tone: "good" | "warn"; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 px-6 py-4">
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="text-sm font-medium">{title}</div>
-        {help && <div className="text-[13px] text-muted-foreground">{help}</div>}
-      </div>
+    <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-sm", tone === "good" ? "text-green-700" : "text-amber-700")}>
+      <span className={cn("size-1.5 rounded-full", tone === "good" ? "bg-green-500" : "bg-amber-500")} aria-hidden />
       {children}
+    </span>
+  )
+}
+
+function StatusRow({ label, help, children }: { label: ReactNode; help?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="space-y-1 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-medium">{label}</div>
+        {children}
+      </div>
+      {help && <div className="text-[13px] leading-relaxed text-muted-foreground">{help}</div>}
     </div>
   )
 }
 
 /** What is live right now: reading on or off, which site, whether cancellations reach Lenny. */
-function Overview({ settings }: { settings: GhostSettings }) {
+function Status({ settings }: { settings: GhostSettings }) {
   const { t } = useTranslation()
   const site = settings.site_url!
   const host = site.replace(/^https?:\/\//, "").replace(/\/$/, "") // keeps the path of a Ghost under one
@@ -208,98 +220,94 @@ function Overview({ settings }: { settings: GhostSettings }) {
     )
 
   return (
-    <section className={`${CARD} divide-y`} aria-label={t("Overview")}>
-      <Row
-        title={<Label htmlFor="ghost-enabled">{t("Let Ghost members read subscription books")}</Label>}
-        help={
-          <span id="ghost-enabled-help">
-            {settings.enabled
-              ? t("Turn off to pause Ghost. Your site, tiers and members' passes stay saved.")
-              : t("Off. Members of {{site}} can't read subscription books until you turn it back on.", { site })}
-          </span>
-        }
-      >
-        <Switch
-          id="ghost-enabled"
-          aria-describedby="ghost-enabled-help"
-          checked={settings.enabled}
-          disabled={toggle.isPending}
-          onCheckedChange={(on) => toggle.mutate({ body: { enabled: on }, done: on ? t("Ghost turned on.") : t("Ghost turned off.") })}
-        />
-      </Row>
-
-      {editing ? (
-        <form
-          className="space-y-2 px-6 py-4"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (siteUrl.trim() === site) setEditing(false)
-            else setConfirm(true)
-          }}
-        >
-          <Label htmlFor="site-url">{t("Ghost site URL")}</Label>
-          <div className="flex flex-wrap gap-2">
-            <Input id="site-url" type="url" className="min-w-0 flex-1" aria-describedby="site-url-help" autoFocus
-              value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} />
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending && <Loader2 className="animate-spin" />}
-              {t("Save site")}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => { setSiteUrl(site); setEditing(false) }}>
-              {t("Cancel")}
-            </Button>
-          </div>
-          <p id="site-url-help" className={FIELD_HELP}>{t("Must start with https://. Leave empty to disconnect Ghost.")}</p>
-          <AlertDialog open={confirm} onOpenChange={setConfirm}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t(siteUrl.trim() ? "Change the Ghost site?" : "Disconnect Ghost?")}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t("Members of {{site}} lose access to subscription books right away.", { site })}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-                <AlertDialogAction variant="destructive" onClick={saveSite}>
-                  {t(siteUrl.trim() ? "Change site" : "Disconnect")}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </form>
-      ) : (
-        <Row
-          title={t("Ghost site")}
+    <Panel icon={Activity} title={t("Status")}>
+      <div className="m-5 mt-4 divide-y rounded-xl border bg-secondary/40 px-4">
+        <StatusRow
+          label={<Label htmlFor="ghost-enabled">{t("Members-only reading")}</Label>}
           help={
-            <a href={site} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-foreground hover:underline">
-              {host}
-              <ExternalLink className="h-3 w-3" aria-hidden />
-            </a>
+            <span id="ghost-enabled-help">
+              {settings.enabled
+                ? t("Pausing keeps your site, tiers and members' passes.")
+                : t("Paused. Members of {{site}} can't read subscription books until you turn it back on.", { site: host })}
+            </span>
           }
         >
-          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{t("Change")}</Button>
-        </Row>
-      )}
+          <Switch
+            id="ghost-enabled"
+            aria-describedby="ghost-enabled-help"
+            checked={settings.enabled}
+            disabled={toggle.isPending}
+            onCheckedChange={(on) => toggle.mutate({ body: { enabled: on }, done: on ? t("Ghost turned on.") : t("Ghost turned off.") })}
+          />
+        </StatusRow>
 
-      <Row
-        title={t("Cancellations")}
-        help={lastWebhook
-          ? t("Ghost tells Lenny when a member cancels. Last webhook received {{when}}.", { when: lastWebhook })
-          : t("No webhook received yet. Until step 2 below is done, a member who cancels keeps access until their {{hours}}-hour pass runs out.", { hours: settings.lease_hours })}
-      >
-        {lastWebhook ? (
-          <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-800">
-            <CircleCheck aria-hidden />
-            {t("Working")}
-          </Badge>
+        {editing ? (
+          <form
+            className="grid gap-2 py-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (siteUrl.trim() === site) setEditing(false)
+              else setConfirm(true)
+            }}
+          >
+            <Label htmlFor="site-url">{t("Ghost site URL")}</Label>
+            <Input id="site-url" type="url" aria-describedby="site-url-help" autoFocus className="bg-background"
+              value={siteUrl} onChange={(e) => setSiteUrl(e.target.value)} />
+            <p id="site-url-help" className={FIELD_HELP}>{t("Must start with https://. Leave empty to disconnect Ghost.")}</p>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setSiteUrl(site); setEditing(false) }}>
+                {t("Cancel")}
+              </Button>
+              <Button type="submit" size="sm" disabled={save.isPending}>
+                {save.isPending && <Loader2 className="animate-spin" />}
+                {t("Save site")}
+              </Button>
+            </div>
+            <AlertDialog open={confirm} onOpenChange={setConfirm}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t(siteUrl.trim() ? "Change the Ghost site?" : "Disconnect Ghost?")}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t("Members of {{site}} lose access to subscription books right away.", { site })}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" onClick={saveSite}>
+                    {t(siteUrl.trim() ? "Change site" : "Disconnect")}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </form>
         ) : (
-          <Badge variant="outline" className="gap-1 border-amber-200 bg-amber-50 text-amber-800">
-            <CircleAlert aria-hidden />
-            {t("Not set up")}
-          </Badge>
+          <StatusRow
+            label={t("Ghost site")}
+            help={
+              <a href={site} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 hover:text-foreground hover:underline">
+                <span className="truncate">{host}</span>
+                <ExternalLink className="size-3 shrink-0" aria-hidden />
+              </a>
+            }
+          >
+            <Button variant="outline" size="sm" className="h-7 bg-background" onClick={() => setEditing(true)}>{t("Change")}</Button>
+          </StatusRow>
         )}
-      </Row>
-    </section>
+
+        <StatusRow
+          label={t("Cancellations")}
+          help={lastWebhook
+            ? t("Last webhook received {{when}}.", { when: lastWebhook })
+            : t("Until step 2 is done, a member who cancels keeps access until their {{hours}}-hour pass runs out.", { hours: settings.lease_hours })}
+        >
+          {lastWebhook ? <Dot tone="good">{t("Working")}</Dot> : <Dot tone="warn">{t("Not set up")}</Dot>}
+        </StatusRow>
+
+        <StatusRow label={t("Pass length")}>
+          <span className="text-sm tabular-nums">{t("{{hours}} hours", { hours: settings.lease_hours })}</span>
+        </StatusRow>
+      </div>
+    </Panel>
   )
 }
 
@@ -329,71 +337,77 @@ function WhoCanRead({ settings }: { settings: GhostSettings }) {
       return next
     })
 
-  return (
-    <form
-      className={CARD}
-      onSubmit={(e) => {
-        e.preventDefault()
-        save.mutate({ body: { allowed_tier_ids: allowed }, done: t("Saved.") })
-      }}
+  const option = (value: string, title: string, help: string) => (
+    <label
+      className={cn(
+        "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors",
+        mode === value ? "border-primary/40 bg-primary/5" : "hover:bg-secondary/40",
+      )}
     >
-      <div className="space-y-4 p-6">
-        <div className="space-y-1">
-          <h2 className="font-semibold">{t("Who can read")}</h2>
-          <p className="text-sm text-muted-foreground">{t("Free members never can. Choose which paid members can.")}</p>
-        </div>
-        <RadioGroup value={mode} onValueChange={setMode} aria-label={t("Who can read")}>
-          <label className="flex items-center gap-2 text-sm">
-            <RadioGroupItem value="any" />
-            {t("Any paid member")}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <RadioGroupItem value="tiers" />
-            {t("Only members of these tiers")}
-          </label>
-        </RadioGroup>
+      <RadioGroupItem value={value} className="mt-0.5" aria-label={title} />
+      <span className="space-y-0.5">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="block text-[13px] text-muted-foreground">{help}</span>
+      </span>
+    </label>
+  )
 
-        {mode === "tiers" && (
-          <fieldset className="min-w-0 space-y-3 pl-6">
-            <legend className="sr-only">{t("Allowed tiers")}</legend>
-            {tiers.length > 0 && (
-              <ul className="divide-y rounded-lg border">
-                {tiers.map((tier) => (
-                  <li key={tier.id}>
-                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm">
-                      <Checkbox checked={checked.has(tier.id)} onCheckedChange={(c) => toggleTier(tier.id, !!c)} />
-                      <span className="min-w-0 flex-1 truncate"><TierName id={tier.id} name={names[tier.id]} /></span>
-                      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                        {t(tier.members === 1 ? "1 member" : "{{count}} members", { count: tier.members })}
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <details className="group" open={!tiers.length || !!other}>
-              <summary className="cursor-pointer list-none text-[13px] text-muted-foreground hover:text-foreground">
-                <ChevronDown className="mr-1 inline h-3.5 w-3.5 transition-transform group-open:rotate-180" aria-hidden />
-                {t("Add a tier by ID")}
-              </summary>
-              <div className="mt-2 grid gap-1.5">
-                <Label htmlFor="other-tiers" className="text-xs font-normal text-muted-foreground">
-                  {t("Other tier IDs, separated by commas")}
-                </Label>
-                <Input id="other-tiers" value={other} onChange={(e) => setOther(e.target.value)} className="font-mono text-xs" />
-              </div>
-            </details>
-          </fieldset>
-        )}
-      </div>
-      <div className="flex items-center justify-end gap-3 border-t px-6 py-3">
-        {noneChosen && <p className="text-[13px] text-muted-foreground">{t("Pick at least one tier.")}</p>}
-        <Button type="submit" size="sm" disabled={!dirty || noneChosen || save.isPending}>
-          {save.isPending && <Loader2 className="animate-spin" />}
-          {t("Save")}
-        </Button>
-      </div>
-    </form>
+  return (
+    <Panel icon={Users} title={t("Who can read")} description={t("Free members never can. Choose which paid members can.")}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          save.mutate({ body: { allowed_tier_ids: allowed }, done: t("Saved.") })
+        }}
+      >
+        <div className="space-y-4 p-5">
+          <RadioGroup value={mode} onValueChange={setMode} aria-label={t("Who can read")} className="grid gap-3 @2xl/main:grid-cols-2">
+            {option("any", t("Any paid member"), t("Every paid tier, now and later."))}
+            {option("tiers", t("Only members of these tiers"), t("Pick the tiers below."))}
+          </RadioGroup>
+
+          {mode === "tiers" && (
+            <fieldset className="min-w-0 space-y-3">
+              <legend className="sr-only">{t("Allowed tiers")}</legend>
+              {tiers.length > 0 && (
+                <ul className="divide-y rounded-xl border">
+                  {tiers.map((tier) => (
+                    <li key={tier.id}>
+                      <label className="flex cursor-pointer items-center gap-3 px-4 py-3 text-sm hover:bg-secondary/40">
+                        <Checkbox checked={checked.has(tier.id)} onCheckedChange={(c) => toggleTier(tier.id, !!c)} />
+                        <span className="min-w-0 flex-1 truncate"><TierName id={tier.id} name={names[tier.id]} /></span>
+                        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                          {t(tier.members === 1 ? "1 member" : "{{count}} members", { count: tier.members })}
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <details className="group" open={!tiers.length || !!other}>
+                <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground">
+                  <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" aria-hidden />
+                  {t("Add a tier by ID")}
+                </summary>
+                <div className="mt-2 grid gap-1.5">
+                  <Label htmlFor="other-tiers" className="text-xs font-normal text-muted-foreground">
+                    {t("Other tier IDs, separated by commas")}
+                  </Label>
+                  <Input id="other-tiers" value={other} onChange={(e) => setOther(e.target.value)} className="font-mono text-xs" />
+                </div>
+              </details>
+            </fieldset>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-3 border-t bg-secondary/30 px-5 py-3">
+          {noneChosen && <p className="text-[13px] text-muted-foreground">{t("Pick at least one tier.")}</p>}
+          <Button type="submit" size="sm" disabled={!dirty || noneChosen || save.isPending}>
+            {save.isPending && <Loader2 className="animate-spin" />}
+            {t("Save")}
+          </Button>
+        </div>
+      </form>
+    </Panel>
   )
 }
 
@@ -402,9 +416,12 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
   const { t } = useTranslation()
   return (
     <details className="group" open={!done}>
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-6 py-4">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 hover:bg-secondary/30">
         <span
-          className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${done ? "bg-green-100 text-green-800" : "bg-muted text-foreground"}`}
+          className={cn(
+            "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
+            done ? "border-green-200 bg-green-50 text-green-700" : "bg-background",
+          )}
           aria-hidden
         >
           {done ? <CircleCheck className="size-3.5" /> : n}
@@ -413,9 +430,9 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
           {title}
           {done && <span className="sr-only"> ({t("done")})</span>}
         </span>
-        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+        <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
       </summary>
-      <div className="space-y-4 px-6 pb-6 pl-15">{children}</div>
+      <div className="space-y-4 px-5 pb-5 sm:pl-14">{children}</div>
     </details>
   )
 }
@@ -423,7 +440,7 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
 function Setup({ settings }: { settings: GhostSettings }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  // A webhook only arrives once Ghost is wired up, so it marks the whole setup as done.
+  // A webhook only arrives once Ghost is wired up, so it marks the setup as done.
   const done = !!settings.last_webhook_at
 
   const rotate = useMutation({
@@ -437,12 +454,8 @@ function Setup({ settings }: { settings: GhostSettings }) {
   })
 
   return (
-    <section className={CARD} aria-labelledby="setup-title">
-      <div className="space-y-1 px-6 pt-6 pb-2">
-        <h2 id="setup-title" className="font-semibold">{t("Set up Ghost")}</h2>
-        <p className="text-sm text-muted-foreground">{t("Do these once, in your Ghost admin.")}</p>
-      </div>
-      <div className="divide-y">
+    <Panel icon={ListChecks} title={t("Set up Ghost")} description={t("Do these once, in your Ghost admin.")}>
+      <div className="mt-4 divide-y border-t">
         <Step n={1} title={t("Add the code to Ghost")} done={done}>
           <p className="text-sm text-muted-foreground">{t("In Ghost, open Settings → Code injection → Site footer, and paste this code. Paste it again after you update Lenny.")}</p>
           <div className="space-y-2">
@@ -472,8 +485,8 @@ function Setup({ settings }: { settings: GhostSettings }) {
               <Label htmlFor="webhook-secret">{t("Webhook secret")}</Label>
               <CopyButton value={settings.webhook_secret ?? ""} ariaLabel={t("Copy webhook secret")} />
             </div>
-            <div className="flex gap-2">
-              <Input id="webhook-secret" type="password" readOnly value={settings.webhook_secret ?? ""} className="font-mono text-xs" />
+            <div className="flex flex-wrap gap-2">
+              <Input id="webhook-secret" type="password" readOnly value={settings.webhook_secret ?? ""} className="min-w-0 flex-1 font-mono text-xs" />
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button type="button" variant="outline" disabled={rotate.isPending}>
@@ -508,11 +521,11 @@ function Setup({ settings }: { settings: GhostSettings }) {
           <p className="text-sm text-muted-foreground">
             {t("Open a subscription book in the Library and copy its Read button into a Ghost post. Use the Button card link if the post also goes out as a newsletter: the HTML card works on your website only.")}
           </p>
-          <Button asChild variant="outline" size="sm" className="w-fit">
-            <Link href="/library">{t("Open the Library")}</Link>
-          </Button>
+          <div className="flex">
+            <PanelLink href="/library">{t("Open the Library")}</PanelLink>
+          </div>
         </Step>
       </div>
-    </section>
+    </Panel>
   )
 }

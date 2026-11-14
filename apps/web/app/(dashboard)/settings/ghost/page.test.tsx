@@ -24,6 +24,7 @@ const settings = {
   webhook_secret: "s3cret",
   last_webhook_at: null,
   enabled: true,
+  lease_hours: 24,
 }
 const ok = (body) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
 const renderPage = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><GhostSettingsPage /></QueryClientProvider>)
@@ -33,11 +34,13 @@ beforeEach(() => jest.clearAllMocks())
 it("sums up what is live: reading on, the site, and whether cancellations reach Lenny", async () => {
   fetchAdmin.mockReturnValue(ok(settings))
   renderPage()
-  expect(await screen.findByRole("switch", { name: "Let Ghost members read subscription books" })).toBeChecked()
+  expect(await screen.findByRole("switch", { name: "Members-only reading" })).toBeChecked()
   expect(screen.getByRole("link", { name: "hydra.test" })).toHaveAttribute("href", "https://hydra.test")
   expect(screen.getByText("Not set up")).toBeInTheDocument()
   expect(screen.getByText("Connected")).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "See subscription stats" })).toHaveAttribute("href", "/stats")
+  expect(screen.getByRole("link", { name: "Member passes" })).toHaveAttribute("href", "/loans?view=members")
+  expect(screen.getByText("24 hours")).toBeInTheDocument()
 })
 
 it("says cancellations work once a webhook has arrived, and folds the setup away", async () => {
@@ -202,7 +205,7 @@ describe("the on/off switch", () => {
   it("turns Ghost off without forgetting the site, and says so", async () => {
     fetchAdmin.mockReturnValueOnce(ok(settings)).mockReturnValueOnce(ok({ ...settings, enabled: false }))
     renderPage()
-    const sw = await screen.findByRole("switch", { name: "Let Ghost members read subscription books" })
+    const sw = await screen.findByRole("switch", { name: "Members-only reading" })
     fireEvent.click(sw)
     await waitFor(() => expect(fetchAdmin).toHaveBeenLastCalledWith("settings/ghost", expect.objectContaining({ method: "PUT" })))
     expect(JSON.parse(fetchAdmin.mock.calls.at(-1)[1].body)).toEqual({ enabled: false })

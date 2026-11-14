@@ -772,7 +772,8 @@ function LoansPageContent({ switcher }: { switcher?: ReactNode }) {
 function LoansOrMembers() {
     const { t } = useTranslation()
     const { data: ghost } = useGhostSettings()
-    const [view, setView] = useState<"loans" | "members">("loans")
+    const searchParams = useSearchParams()
+    const [view, setView] = useState<"loans" | "members">(searchParams?.get("view") === "members" ? "members" : "loans")
     if (!ghost?.site_url) return <LoansPageContent />
 
     const switcher = (
