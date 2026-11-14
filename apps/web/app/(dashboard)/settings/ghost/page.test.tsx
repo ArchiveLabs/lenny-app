@@ -67,11 +67,16 @@ describe("setup progress", () => {
     expect(setup.querySelectorAll("details[open]").length).toBe(0)
   })
 
-  it("asks to paste the code again when the site doesn't have it", async () => {
+  it("asks to paste the code again when the site doesn't have it, and checks again on request", async () => {
     fetchAdmin.mockReturnValue(ok({ ...settings, snippet_installed: false, last_launch_at: now }))
     renderPage()
     expect(await screen.findByText(/Not found on hydra.test\. Paste it, or paste it again/)).toBeInTheDocument()
     expect(step("Add the code to Ghost")).toHaveAttribute("open")
+    expect(screen.getByText("Lenny checks your site every 10 seconds while this page is open.")).toBeInTheDocument()
+    fetchAdmin.mockReturnValue(ok({ ...settings, snippet_installed: true, last_launch_at: now }))
+    fireEvent.click(screen.getByRole("button", { name: "Check now" }))
+    expect(await screen.findByText("Found on hydra.test.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Check now" })).not.toBeInTheDocument()
   })
 
   it("on an older server, takes a launch as proof of the code, and never claims what it can't check", async () => {

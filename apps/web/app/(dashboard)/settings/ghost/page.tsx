@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type ReactNode } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useIsFetching, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Activity, ChevronDown, CircleCheck, CircleDashed, CirclePause, ExternalLink, ListChecks, Loader2, Plug, RefreshCw, Users } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
@@ -38,9 +38,16 @@ import { GHOST_SETTINGS_KEY as KEY, useGhostSettings } from "@/hooks/use-ghost-s
 /** The loans page opens on its Ghost members tab with this. */
 const MEMBER_PASSES = "/loans?view=members"
 
+/** How often the page asks again while a setup step waits on Ghost (paused in a hidden tab). */
+export const SETUP_RECHECK_MS = 10_000
+
 export default function GhostSettingsPage() {
   const { t } = useTranslation()
-  const { data, isLoading, error } = useGhostSettings()
+  // Each ask re-checks the site for the code (Lenny never caches "not found"), so a paste shows within seconds.
+  const { data, isLoading, error } = useGhostSettings({
+    refetchInterval: ({ state: { data: d } }) =>
+      d?.site_url && (d.snippet_installed === false || d.last_launch_at === null) ? SETUP_RECHECK_MS : false,
+  })
 
   if (isLoading) {
     return (
@@ -456,6 +463,7 @@ function Setup({ settings }: { settings: GhostSettings }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const host = settings.site_url!.replace(/^https?:\/\//, "").replace(/\/$/, "")
+  const checking = useIsFetching({ queryKey: KEY }) > 0
   const webhook = relativeTime(settings.last_webhook_at)
   const launch = relativeTime(settings.last_launch_at)
   // The site check wins; without it, a member opening a book proves the code works.
@@ -518,6 +526,18 @@ function Setup({ settings }: { settings: GhostSettings }) {
               className="block h-40 w-full resize-y rounded-md border bg-muted/40 px-3 py-2 font-mono text-xs leading-relaxed outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
             />
           </div>
+          {code === "todo" && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-secondary/40 px-3 py-2">
+              <p className="text-[13px] text-muted-foreground" aria-live="polite">
+                {checking ? t("Checking {{site}}…", { site: host }) : t("Lenny checks your site every {{s}} seconds while this page is open.", { s: SETUP_RECHECK_MS / 1000 })}
+              </p>
+              <Button type="button" variant="outline" size="sm" className="bg-background" disabled={checking}
+                onClick={() => queryClient.invalidateQueries({ queryKey: KEY })}>
+                {checking ? <Loader2 className="animate-spin" /> : <RefreshCw aria-hidden />}
+                {t("Check now")}
+              </Button>
+            </div>
+          )}
         </Step>
 
         <Step
