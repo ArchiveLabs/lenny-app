@@ -19,7 +19,7 @@ const summary = {
   imports: { pending: 3, failed: 1 },
   health: { database: "ok", storage: "ok", reader: "down", version: "0.10.0" },
 }
-const ghost = { site_url: "https://hydra.test", allowed_tier_ids: [], seen_tiers: [], snippet: "", webhook_url: "", webhook_secret: null, default_access_mode: "open" }
+const ghost = { site_url: "https://hydra.test", allowed_tier_ids: [], seen_tiers: [], snippet: "", webhook_url: "", webhook_secret: null, enabled: true }
 const stats = { totals: { books_read: 4, patrons: 9, opens: 55, active_now: 2 }, by_day: [], devices: [] }
 const loanStats = { by_day: [{ date: "2026-11-13", started: 4, returned: 1 }] }
 const ok = (body) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) })

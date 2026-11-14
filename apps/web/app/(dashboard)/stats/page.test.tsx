@@ -19,7 +19,7 @@ const stats = {
   devices: [{ device_class: "mobile", patrons: 3, opens: 20 }],
 }
 const books = { items: [{ olid: "OL123M", title: "Sea of Rust", patrons: 4, opens: 30, last_read: null }], total: 45 }
-const ghost = { site_url: "https://hydra.test", allowed_tier_ids: [], seen_tiers: [], snippet: "", webhook_url: "", webhook_secret: null, default_access_mode: "open" }
+const ghost = { site_url: "https://hydra.test", allowed_tier_ids: [], seen_tiers: [], snippet: "", webhook_url: "", webhook_secret: null, enabled: true }
 const ok = (body) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
 const route = ({ s = stats, g = ghost } = {}) =>
   fetchAdmin.mockImplementation((path) =>
