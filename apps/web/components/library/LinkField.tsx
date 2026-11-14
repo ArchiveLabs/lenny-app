@@ -15,7 +15,7 @@ import { readButtonHtml } from "@/lib/subscriptions"
 import type { AccessMode } from "@/types/api"
 
 /** The book's OPDS link in a read-only field with a copy button, for the book sheet. Hidden when links are unavailable. */
-export function LinkField({ olid, mode }: { olid: string | number; mode?: AccessMode }) {
+export function LinkField({ olid, mode, unsaved }: { olid: string | number; mode?: AccessMode; unsaved?: boolean }) {
   const { t } = useTranslation()
   const { data: links } = useLibraryLinks()
   const input = useRef<HTMLInputElement>(null)
@@ -48,7 +48,11 @@ export function LinkField({ olid, mode }: { olid: string | number; mode?: Access
             <Input id="read-button" readOnly value={readButtonHtml(String(olid))} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
             <CopyButton value={readButtonHtml(String(olid))} />
           </div>
-          <p className="text-xs text-muted-foreground">{t("Paste it in an HTML card. Only paid members of your Ghost site can read this book.")}</p>
+          <p className="text-xs text-muted-foreground">
+            {unsaved
+              ? t("Save changes to make this book members-only, then paste the button in an HTML card in Ghost.")
+              : t("Paste it in an HTML card. Only paid members of your Ghost site can read this book.")}
+          </p>
         </div>
       )}
     </div>

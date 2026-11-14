@@ -93,7 +93,7 @@ it("saves the chosen access mode", async () => {
   open()
   fireEvent.change(screen.getByLabelText("Access"), { target: { value: "subscription" } })
   expect(screen.getByText("Only paid members of your Ghost site can read it.")).toBeInTheDocument()
-  expect(linkField).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "open" })) // not saved yet
+  expect(linkField).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "subscription", unsaved: true }))
   fireEvent.click(screen.getByText("Save Changes"))
   await waitFor(() => expect(fetchAdmin).toHaveBeenCalledWith("items/OL28933309M", expect.objectContaining({ method: "PATCH" })))
   const call = fetchAdmin.mock.calls.find(([path]) => path === "items/OL28933309M")

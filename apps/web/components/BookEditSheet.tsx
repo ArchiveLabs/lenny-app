@@ -240,8 +240,8 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
             </div>
           </div>
 
-          {/* The saved mode, not the picker: the note must not promise what is not saved yet. */}
-          <LinkField olid={book.olid} mode={accessModeOf(book.lenny)} />
+          {/* Follows the picker; `unsaved` keeps the note from promising a mode that isn't saved yet. */}
+          <LinkField olid={book.olid} mode={mode} unsaved={mode !== accessModeOf(book.lenny)} />
 
           <details
             className="group rounded-lg border border-border/60"

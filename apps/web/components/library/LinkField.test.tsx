@@ -64,3 +64,17 @@ it("gives a subscription book the Read button to paste into a Ghost post", () =>
   expect(screen.getByLabelText("Read button for a Ghost post")).toHaveValue('<button data-lenny-book="OL123M">Read</button>')
   expect(screen.queryByText(/requires a login/)).not.toBeInTheDocument()
 })
+
+it("shows the Read button only for a members-only book", () => {
+  const { rerender } = render(<LinkField olid="OL123M" mode="borrowable" />)
+  expect(screen.queryByLabelText("Read button for a Ghost post")).not.toBeInTheDocument()
+  rerender(<LinkField olid="OL123M" mode="open" />)
+  expect(screen.queryByLabelText("Read button for a Ghost post")).not.toBeInTheDocument()
+})
+
+it("asks to save first when Subscription is picked but not saved", () => {
+  render(<LinkField olid="OL123M" mode="subscription" unsaved />)
+  expect(screen.getByLabelText("Read button for a Ghost post")).toBeInTheDocument()
+  expect(screen.getByText(/Save changes to make this book members-only/)).toBeInTheDocument()
+  expect(screen.queryByText(/Only paid members of your Ghost site can read this book/)).not.toBeInTheDocument()
+})
