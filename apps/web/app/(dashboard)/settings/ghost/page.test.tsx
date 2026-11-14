@@ -42,20 +42,18 @@ it("shows the saved site, tiers seen at launches, and other tier IDs as text", a
   expect(screen.getByLabelText("Other tier IDs, separated by commas")).toHaveValue("tier-z")
 })
 
-it("saves the site, the ticked and typed tiers, and the default for new books", async () => {
+it("saves the site, the ticked and typed tiers, and nothing else", async () => {
   fetchAdmin.mockReturnValue(ok(settings))
   renderPage()
   await screen.findByLabelText("Ghost site URL")
   fireEvent.click(screen.getAllByRole("checkbox")[1])
   fireEvent.change(screen.getByLabelText("Other tier IDs, separated by commas"), { target: { value: "tier-z, tier-y tier-a" } })
-  fireEvent.change(screen.getByLabelText("Access for new books"), { target: { value: "subscription" } })
   fireEvent.click(screen.getByRole("button", { name: "Save" }))
   await waitFor(() => expect(fetchAdmin).toHaveBeenCalledWith("settings/ghost", expect.objectContaining({ method: "PUT" })))
   const body = JSON.parse(fetchAdmin.mock.calls.find(([, o]) => o?.method === "PUT")[1].body)
   expect(body).toEqual({
     site_url: "https://hydra.test",
     allowed_tier_ids: ["tier-a", "tier-b", "tier-z", "tier-y"],
-    default_access_mode: "subscription",
   })
   await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Saved."))
 })

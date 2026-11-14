@@ -276,7 +276,6 @@ export const GhostSettingsSchema = z.object({
   webhook_url: z.string(),
   webhook_secret: z.string().nullable(),
   last_webhook_at: z.string().nullable().optional(),
-  default_access_mode: AccessModeSchema,
   lease_hours: z.number().default(24),
 })
 export type GhostSettings = z.infer<typeof GhostSettingsSchema>

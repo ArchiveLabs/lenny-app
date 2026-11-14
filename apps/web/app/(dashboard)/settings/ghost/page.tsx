@@ -25,12 +25,11 @@ import {
 } from "@workspace/ui/components/alert-dialog"
 import { CopyButton } from "@/components/copy-button"
 import { ErrorState } from "@/components/ErrorState"
-import { NativeSelect } from "@/components/NativeSelect"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
-import { ACCESS_MODES, GHOST, STATS, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptions"
+import { GHOST, STATS, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptions"
 import Link from "next/link"
-import { AccessMode, ApiError, GhostSettings, GhostSettingsSchema } from "@/types/api"
+import { ApiError, GhostSettings, GhostSettingsSchema } from "@/types/api"
 import { GHOST_SETTINGS_KEY as KEY, useGhostSettings } from "@/hooks/use-ghost-settings"
 
 export default function GhostSettingsPage() {
@@ -62,7 +61,6 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
   const [siteUrl, setSiteUrl] = useState(settings.site_url ?? "")
   const [checked, setChecked] = useState(() => new Set(settings.allowed_tier_ids.filter((id) => seenIds.has(id))))
   const [otherTiers, setOtherTiers] = useState(settings.allowed_tier_ids.filter((id) => !seenIds.has(id)).join(", "))
-  const [defaultMode, setDefaultMode] = useState<AccessMode>(settings.default_access_mode)
   const [confirmSite, setConfirmSite] = useState(false)
   // Saving a different site ends every member's access from the old one (the server drops their passes).
   const siteChanges = !!settings.site_url && siteUrl.trim() !== settings.site_url
@@ -73,7 +71,7 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
       const res = await fetchAdmin("settings/ghost", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ site_url: siteUrl.trim() || null, allowed_tier_ids: allowed, default_access_mode: defaultMode }),
+        body: JSON.stringify({ site_url: siteUrl.trim() || null, allowed_tier_ids: allowed }),
       })
       return handleApiResponse<GhostSettings>(res, GhostSettingsSchema)
     },
@@ -168,16 +166,6 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
           </Label>
           <Input id="other-tiers" value={otherTiers} onChange={(e) => setOtherTiers(e.target.value)} className="font-mono text-xs" />
         </fieldset>
-
-        <div className="grid gap-2 border-t pt-6">
-          <Label htmlFor="default-mode">{t("Access for new books")}</Label>
-          <NativeSelect id="default-mode" className="w-full" value={defaultMode} onChange={(e) => setDefaultMode(e.target.value as AccessMode)}>
-            {(Object.keys(ACCESS_MODES) as AccessMode[]).map((m) => (
-              <option key={m} value={m}>{t(ACCESS_MODES[m].label)}</option>
-            ))}
-          </NativeSelect>
-          <p className="text-xs text-muted-foreground">{t(ACCESS_MODES[defaultMode].help)}</p>
-        </div>
 
         <Button type="submit" disabled={save.isPending}>
           {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
