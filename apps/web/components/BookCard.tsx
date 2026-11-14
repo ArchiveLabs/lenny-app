@@ -66,7 +66,8 @@ export function BookCard({
         )
       }
       hoverAction={
-        selectMode ? undefined : (
+        // Members-only books aren't in OPDS, so there's no link to share.
+        selectMode || accessModeOf(book.lenny) === "subscription" ? undefined : (
           <span className="rounded-md bg-background/90 shadow-sm">
             <ShareButton olid={book.olid} title={book.title} compact />
           </span>

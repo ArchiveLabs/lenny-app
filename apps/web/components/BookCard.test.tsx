@@ -61,6 +61,7 @@ describe("the lock", () => {
     render(<BookCard book={book({}, { access_mode: "subscription" })} />)
     expect(screen.getByText("Members")).toBeInTheDocument()
     expect(screen.queryByText("DRM")).not.toBeInTheDocument()
+    expect(screen.queryByText(/^share /)).not.toBeInTheDocument() // not in OPDS: nothing to share
   })
 })
 

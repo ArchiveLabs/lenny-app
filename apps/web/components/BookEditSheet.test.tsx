@@ -120,6 +120,11 @@ describe("by access mode", () => {
     ghost.data = { site_url: "https://hydra.test", enabled: true }
   })
 
+  it("shows no OPDS share link for a members-only book, which OPDS doesn't list", () => {
+    openBook({ access_mode: "subscription" })
+    expect(screen.queryByText("share link for OL28933309M")).not.toBeInTheDocument()
+  })
+
   it("marks an open book Open access, with no Read button and no loan duration", () => {
     openBook({})
     expect(screen.getByText("Open access")).toBeInTheDocument()

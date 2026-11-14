@@ -290,9 +290,12 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
             )}
           </div>
 
-          <div className="rounded-lg border p-4">
-            <LinkField olid={book.olid} />
-          </div>
+          {/* Members-only books aren't in OPDS (Lenny answers 404), so their share link would lead nowhere. */}
+          {mode !== "subscription" && (
+            <div className="rounded-lg border p-4">
+              <LinkField olid={book.olid} />
+            </div>
+          )}
 
           <details
             className="group rounded-lg border"
