@@ -277,6 +277,9 @@ export const GhostSettingsSchema = z.object({
   webhook_url: z.string(),
   webhook_secret: z.string().nullable(),
   last_webhook_at: z.string().nullable().optional(),
+  // Setup proof. Older servers omit them (undefined = can't tell); null = not yet.
+  last_launch_at: z.string().nullable().optional(), // a member last opened a book from Ghost
+  snippet_installed: z.boolean().nullable().optional(), // the current code was found on the site
   lease_hours: z.number().default(24),
   enabled: z.boolean().default(true), // off pauses Ghost reads; site, tiers and passes stay. Older servers omit it.
 })

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, type ReactNode } from "react"
-import Link from "next/link"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Activity, ChevronDown, CircleCheck, CircleDashed, CirclePause, ExternalLink, ListChecks, Loader2, Plug, RefreshCw, Users } from "lucide-react"
 import { toast } from "sonner"
@@ -179,10 +178,16 @@ function Connect() {
 }
 
 /** A status dot and word, as the dashboard shows its services. */
-function Dot({ tone, children }: { tone: "good" | "warn"; children: ReactNode }) {
+const TONE = {
+  good: ["text-green-700", "bg-green-500"],
+  warn: ["text-amber-700", "bg-amber-500"],
+  muted: ["text-muted-foreground", "bg-muted-foreground/50"],
+} as const
+
+function Dot({ tone, children }: { tone: keyof typeof TONE; children: ReactNode }) {
   return (
-    <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-sm", tone === "good" ? "text-green-700" : "text-amber-700")}>
-      <span className={cn("size-1.5 rounded-full", tone === "good" ? "bg-green-500" : "bg-amber-500")} aria-hidden />
+    <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-sm", TONE[tone][0])}>
+      <span className={cn("size-1.5 rounded-full", TONE[tone][1])} aria-hidden />
       {children}
     </span>
   )
@@ -411,26 +416,36 @@ function WhoCanRead({ settings }: { settings: GhostSettings }) {
   )
 }
 
-/** A setup step that folds away; open while it still needs doing. */
-function Step({ n, title, done, children }: { n: number; title: string; done?: boolean; children: ReactNode }) {
+/** done: Lenny has proof. todo: it has none yet. unknown: this server can't tell. */
+type StepState = "done" | "todo" | "unknown"
+const STEP_STATE: Record<StepState, { label: string; tone: keyof typeof TONE }> = {
+  done: { label: "Done", tone: "good" },
+  todo: { label: "Waiting", tone: "warn" },
+  unknown: { label: "Can't check", tone: "muted" },
+}
+
+/** A setup step with its state and the proof behind it; folds away once done. */
+function Step({ n, title, state, note, children }: { n: number; title: string; state: StepState; note: string; children: ReactNode }) {
   const { t } = useTranslation()
+  const done = state === "done"
   return (
     <details className="group" open={!done}>
-      <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-4 hover:bg-secondary/30">
+      <summary className="flex cursor-pointer list-none items-start gap-3 px-5 py-4 hover:bg-secondary/30">
         <span
           className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
+            "mt-px flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
             done ? "border-green-200 bg-green-50 text-green-700" : "bg-background",
           )}
           aria-hidden
         >
           {done ? <CircleCheck className="size-3.5" /> : n}
         </span>
-        <span className="flex-1 text-sm font-medium">
-          {title}
-          {done && <span className="sr-only"> ({t("done")})</span>}
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{title}</span>
+          <span className="block text-[13px] text-muted-foreground">{note}</span>
         </span>
-        <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+        <Dot tone={STEP_STATE[state].tone}>{t(STEP_STATE[state].label)}</Dot>
+        <ChevronDown className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
       </summary>
       <div className="space-y-4 px-5 pb-5 sm:pl-14">{children}</div>
     </details>
@@ -440,8 +455,16 @@ function Step({ n, title, done, children }: { n: number; title: string; done?: b
 function Setup({ settings }: { settings: GhostSettings }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  // A webhook only arrives once Ghost is wired up, so it marks the setup as done.
-  const done = !!settings.last_webhook_at
+  const host = settings.site_url!.replace(/^https?:\/\//, "").replace(/\/$/, "")
+  const webhook = relativeTime(settings.last_webhook_at)
+  const launch = relativeTime(settings.last_launch_at)
+  // The site check wins; without it, a member opening a book proves the code works.
+  const code: StepState =
+    settings.snippet_installed != null ? (settings.snippet_installed ? "done" : "todo") : launch ? "done" : "unknown"
+  const hooks: StepState = webhook ? "done" : "todo"
+  const button: StepState = launch ? "done" : settings.last_launch_at === undefined ? "unknown" : "todo"
+  const steps = [code, hooks, button]
+  const doneCount = steps.filter((s) => s === "done").length
 
   const rotate = useMutation({
     mutationFn: async () =>
@@ -454,9 +477,33 @@ function Setup({ settings }: { settings: GhostSettings }) {
   })
 
   return (
-    <Panel icon={ListChecks} title={t("Set up Ghost")} description={t("Do these once, in your Ghost admin.")}>
+    <Panel
+      icon={ListChecks}
+      title={t("Set up Ghost")}
+      description={t("Three steps in your Ghost admin.")}
+      action={
+        doneCount === steps.length ? (
+          <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-800">
+            <CircleCheck aria-hidden />
+            {t("All set")}
+          </Badge>
+        ) : (
+          <Badge variant="secondary">{t("{{done}} of {{total}} done", { done: doneCount, total: steps.length })}</Badge>
+        )
+      }
+    >
       <div className="mt-4 divide-y border-t">
-        <Step n={1} title={t("Add the code to Ghost")} done={done}>
+        <Step
+          n={1}
+          title={t("Add the code to Ghost")}
+          state={code}
+          note={
+            settings.snippet_installed === true ? t("Found on {{site}}.", { site: host })
+              : settings.snippet_installed === false ? t("Not found on {{site}}. Paste it, or paste it again if you updated Lenny.", { site: host })
+                : launch ? t("A member opened a book, so the code works.")
+                  : t("Lenny can't check your site. This shows as done once a member opens a book.")
+          }
+        >
           <p className="text-sm text-muted-foreground">{t("In Ghost, open Settings → Code injection → Site footer, and paste this code. Paste it again after you update Lenny.")}</p>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -473,7 +520,14 @@ function Setup({ settings }: { settings: GhostSettings }) {
           </div>
         </Step>
 
-        <Step n={2} title={t("End access when a member cancels")} done={done}>
+        <Step
+          n={2}
+          title={t("End access when a member cancels")}
+          state={hooks}
+          note={webhook
+            ? t("Last webhook received {{when}}.", { when: webhook })
+            : t("Waiting for the first webhook. Ghost sends one when a member's details change.")}
+        >
           <ol className="list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
             <li>{t("In Ghost, open Settings → Integrations → Add custom integration, and name it Lenny.")}</li>
             <li>{t("Add a webhook for the event Member updated, with the URL and secret below.")}</li>
@@ -517,7 +571,16 @@ function Setup({ settings }: { settings: GhostSettings }) {
           </p>
         </Step>
 
-        <Step n={3} title={t("Add a Read button to a post")}>
+        <Step
+          n={3}
+          title={t("Add a Read button to a post")}
+          state={button}
+          note={launch
+            ? t("A member last opened a book {{when}}.", { when: launch })
+            : settings.last_launch_at === undefined
+              ? t("Update Lenny to see when members open books.")
+              : t("No member has opened a book yet. Try a Read button yourself.")}
+        >
           <p className="text-sm text-muted-foreground">
             {t("Open a subscription book in the Library and copy its Read button into a Ghost post. Use the Button card link if the post also goes out as a newsletter: the HTML card works on your website only.")}
           </p>

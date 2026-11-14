@@ -43,12 +43,44 @@ it("sums up what is live: reading on, the site, and whether cancellations reach 
   expect(screen.getByText("24 hours")).toBeInTheDocument()
 })
 
-it("says cancellations work once a webhook has arrived, and folds the setup away", async () => {
-  fetchAdmin.mockReturnValue(ok({ ...settings, last_webhook_at: new Date().toISOString() }))
-  renderPage()
-  expect(await screen.findByText("Working")).toBeInTheDocument()
-  expect(screen.getByText("Add the code to Ghost").closest("details")).not.toHaveAttribute("open")
-  expect(screen.getByText("Add a Read button to a post").closest("details")).toHaveAttribute("open")
+describe("setup progress", () => {
+  const now = new Date().toISOString()
+  const step = (title) => screen.getByText(title).closest("details")
+
+  it("marks each step done only with proof, and folds the done ones away", async () => {
+    fetchAdmin.mockReturnValue(ok({ ...settings, snippet_installed: true, last_webhook_at: now, last_launch_at: null }))
+    renderPage()
+    expect(await screen.findByText("2 of 3 done")).toBeInTheDocument()
+    expect(step("Add the code to Ghost")).toHaveTextContent("Found on hydra.test.")
+    expect(step("Add the code to Ghost")).not.toHaveAttribute("open")
+    expect(step("End access when a member cancels")).toHaveTextContent(/Last webhook received/)
+    expect(step("Add a Read button to a post")).toHaveTextContent("No member has opened a book yet")
+    expect(step("Add a Read button to a post")).toHaveTextContent("Waiting")
+    expect(step("Add a Read button to a post")).toHaveAttribute("open")
+  })
+
+  it("says All set once every step has proof", async () => {
+    fetchAdmin.mockReturnValue(ok({ ...settings, snippet_installed: true, last_webhook_at: now, last_launch_at: now }))
+    renderPage()
+    expect(await screen.findByText("All set")).toBeInTheDocument()
+    const setup = screen.getByRole("region", { name: "Set up Ghost" })
+    expect(setup.querySelectorAll("details[open]").length).toBe(0)
+  })
+
+  it("asks to paste the code again when the site doesn't have it", async () => {
+    fetchAdmin.mockReturnValue(ok({ ...settings, snippet_installed: false, last_launch_at: now }))
+    renderPage()
+    expect(await screen.findByText(/Not found on hydra.test\. Paste it, or paste it again/)).toBeInTheDocument()
+    expect(step("Add the code to Ghost")).toHaveAttribute("open")
+  })
+
+  it("on an older server, takes a launch as proof of the code, and never claims what it can't check", async () => {
+    fetchAdmin.mockReturnValue(ok(settings)) // no snippet_installed, no last_launch_at
+    renderPage()
+    expect(await screen.findByText("0 of 3 done")).toBeInTheDocument()
+    expect(step("Add the code to Ghost")).toHaveTextContent("Can't check")
+    expect(step("Add a Read button to a post")).toHaveTextContent("Update Lenny to see when members open books.")
+  })
 })
 
 it("lists every tier by name, ticks the saved ones, and keeps unknown IDs as text", async () => {
