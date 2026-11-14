@@ -26,6 +26,7 @@ import {
 } from "@workspace/ui/components/alert-dialog"
 import { CopyButton } from "@/components/copy-button"
 import { ErrorState } from "@/components/ErrorState"
+import { TierName } from "@/components/TierName"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
 import { GHOST, STATS, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptions"
@@ -58,10 +59,16 @@ export default function GhostSettingsPage() {
 function GhostForm({ settings }: { settings: GhostSettings }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const seenIds = new Set(settings.seen_tiers.map((s) => s.id))
+  const names = settings.tier_names ?? {}
+  // Every tier on the site, plus any a member holds that the site no longer lists.
+  const tiers = [
+    ...settings.seen_tiers,
+    ...Object.keys(names).filter((id) => !settings.seen_tiers.some((s) => s.id === id)).map((id) => ({ id, members: 0 })),
+  ]
+  const listedIds = new Set(tiers.map((s) => s.id))
   const [siteUrl, setSiteUrl] = useState(settings.site_url ?? "")
-  const [checked, setChecked] = useState(() => new Set(settings.allowed_tier_ids.filter((id) => seenIds.has(id))))
-  const [otherTiers, setOtherTiers] = useState(settings.allowed_tier_ids.filter((id) => !seenIds.has(id)).join(", "))
+  const [checked, setChecked] = useState(() => new Set(settings.allowed_tier_ids.filter((id) => listedIds.has(id))))
+  const [otherTiers, setOtherTiers] = useState(settings.allowed_tier_ids.filter((id) => !listedIds.has(id)).join(", "))
   const [confirmSite, setConfirmSite] = useState(false)
   // Saving a different site ends every member's access from the old one (the server drops their passes).
   const siteChanges = !!settings.site_url && siteUrl.trim() !== settings.site_url
@@ -192,10 +199,10 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
         <fieldset className="grid gap-2">
           <legend className="mb-2 text-sm font-medium">{t("Allowed tiers")}</legend>
           <p className="text-xs text-muted-foreground">{t("Leave all unticked to let any paid member read.")}</p>
-          {settings.seen_tiers.map((tier) => (
+          {tiers.map((tier) => (
             <label key={tier.id} className="flex items-center gap-2 text-sm">
               <Checkbox checked={checked.has(tier.id)} onCheckedChange={(c) => toggleTier(tier.id, !!c)} />
-              <span className="font-mono text-xs">{tier.id}</span>
+              <TierName id={tier.id} name={names[tier.id]} />
               <span className="text-xs text-muted-foreground">
                 {t(tier.members === 1 ? "1 member" : "{{count}} members", { count: tier.members })}
               </span>

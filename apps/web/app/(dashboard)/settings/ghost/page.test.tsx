@@ -42,6 +42,16 @@ it("shows the saved site, tiers seen at launches, and other tier IDs as text", a
   expect(screen.getByLabelText("Other tier IDs, separated by commas")).toHaveValue("tier-z")
 })
 
+it("names every tier on the site, including ones no member holds yet", async () => {
+  fetchAdmin.mockReturnValue(ok({ ...settings, tier_names: { "tier-a": "Gold", "tier-c": "Silver" } }))
+  renderPage()
+  expect(await screen.findByText("Gold")).toHaveAttribute("title", "tier-a")
+  expect(screen.getByText("tier-b")).toBeInTheDocument() // no name: its id
+  expect(screen.getByText("Silver")).toBeInTheDocument()
+  expect(screen.getByText("0 members")).toBeInTheDocument()
+  expect(screen.getAllByRole("checkbox")).toHaveLength(3)
+})
+
 it("saves the site, the ticked and typed tiers, and nothing else", async () => {
   fetchAdmin.mockReturnValue(ok(settings))
   renderPage()

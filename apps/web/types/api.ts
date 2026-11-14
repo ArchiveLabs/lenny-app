@@ -271,7 +271,8 @@ export const accessModeOf = (r: { encrypted: boolean; access_mode?: AccessMode }
 export const GhostSettingsSchema = z.object({
   site_url: z.string().nullable(),
   allowed_tier_ids: z.array(z.string()),
-  seen_tiers: z.array(z.object({ id: z.string(), members: z.number() })).default([]),
+  seen_tiers: z.array(z.object({ id: z.string(), members: z.number(), name: z.string().nullable().optional() })).default([]),
+  tier_names: z.record(z.string(), z.string().nullable()).default({}), // every tier on the site; empty when Lenny can't read them
   snippet: z.string().nullable(), // null until a site URL is saved
   webhook_url: z.string(),
   webhook_secret: z.string().nullable(),
@@ -316,6 +317,7 @@ export const SubscriptionPassSchema = z.object({
   member: z.string(),
   provider: z.string(),
   tier_ids: z.array(z.string()),
+  tiers: z.array(z.object({ id: z.string(), name: z.string().nullable() })).optional(), // null name: Lenny couldn't read it
   expires_at: z.string(),
   renewed_at: z.string().nullable(),
 })

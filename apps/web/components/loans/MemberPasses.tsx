@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Loader2, Ticket, UserX } from "lucide-react"
+import { LogOut, Loader2, Ticket } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
@@ -24,6 +24,7 @@ import {
 } from "@workspace/ui/components/alert-dialog"
 import { ErrorState } from "@/components/ErrorState"
 import { Pager } from "@/components/import/Pager"
+import { TierName } from "@/components/TierName"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
 import { STATS, timeLeft } from "@/lib/subscriptions"
@@ -109,19 +110,20 @@ function PassRow({ pass }: { pass: SubscriptionPass }) {
   const end = useMutation({
     mutationFn: async () => handleApiResponse(await fetchAdmin(`subscriptions/${pass.id}`, { method: "DELETE" })),
     onSuccess: () => {
-      toast.success(t("Pass ended for member {{member}}.", { member: pass.member }))
+      toast.success(t("Member {{member}} signed out.", { member: pass.member }))
       queryClient.invalidateQueries({ queryKey: KEY })
     },
-    onError: (err: Error) => toast.error(err.message || t("Couldn't end this pass.")),
+    onError: (err: Error) => toast.error(err.message || t("Couldn't sign this member out.")),
   })
+  const tiers = pass.tiers ?? pass.tier_ids.map((id) => ({ id, name: null }))
   return (
     <TableRow>
       <TableCell className="pl-4 font-mono text-xs">{pass.member}</TableCell>
       <TableCell>
         <div className="flex flex-wrap gap-1">
-          {pass.tier_ids.length ? (
-            pass.tier_ids.map((id) => (
-              <Badge key={id} variant="outline" className="font-mono">{id}</Badge>
+          {tiers.length ? (
+            tiers.map((tier) => (
+              <Badge key={tier.id} variant="outline"><TierName {...tier} /></Badge>
             ))
           ) : (
             <span className="text-muted-foreground">{t("Paid member")}</span>
@@ -134,20 +136,20 @@ function PassRow({ pass }: { pass: SubscriptionPass }) {
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" size="sm" disabled={end.isPending}>
-              {end.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserX className="h-3.5 w-3.5" />}
-              {t("End pass")}
+              {end.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
+              {t("Sign out now")}
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{t("End the pass for member {{member}}?", { member: pass.member })}</AlertDialogTitle>
+              <AlertDialogTitle>{t("Sign out member {{member}}?", { member: pass.member })}</AlertDialogTitle>
               <AlertDialogDescription>
-                {t("Their books close now. If they are still a paid member, they get a new pass the next time they open a book from your Ghost site. To stop that, change their plan in Ghost.")}
+                {t("Their books close now, and they can't read members-only books until they press Read on your Ghost site again. Their Ghost membership doesn't change. To stop their access for good, cancel or remove them in Ghost.")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
-              <AlertDialogAction variant="destructive" onClick={() => end.mutate()}>{t("End pass")}</AlertDialogAction>
+              <AlertDialogAction variant="destructive" onClick={() => end.mutate()}>{t("Sign out now")}</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

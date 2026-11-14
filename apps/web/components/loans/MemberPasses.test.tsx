@@ -18,7 +18,7 @@ jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }))
 const inHours = (h) => new Date(Date.now() + h * 3_600_000 + 60_000).toISOString()
 const passes = {
   items: [
-    { id: 1, member: "a1b2c3d4", provider: "ghost", tier_ids: ["tier-gold"], expires_at: inHours(5), renewed_at: null },
+    { id: 1, member: "a1b2c3d4", provider: "ghost", tier_ids: ["tier-gold", "tier-x"], tiers: [{ id: "tier-gold", name: "Gold" }, { id: "tier-x", name: null }], expires_at: inHours(5), renewed_at: null },
     { id: 2, member: "ffee0011", provider: "ghost", tier_ids: [], expires_at: inHours(23), renewed_at: null },
   ],
   total: 2,
@@ -41,7 +41,8 @@ it("lists each pass by its short anonymous id, tier and time left, and explains 
   fetchAdmin.mockReturnValue(ok(passes))
   renderIt()
   expect(await screen.findByText("a1b2c3d4")).toBeInTheDocument()
-  expect(screen.getByText("tier-gold")).toBeInTheDocument()
+  expect(screen.getByText("Gold")).toHaveAttribute("title", "tier-gold") // a name when Lenny can read it
+  expect(screen.getByText("tier-x")).toBeInTheDocument() // the id when it can't
   expect(screen.getByText("Paid member")).toBeInTheDocument()
   expect(screen.getByText("in 5 h")).toBeInTheDocument()
   expect(screen.getByText(/24-hour pass/)).toBeInTheDocument()
@@ -49,16 +50,17 @@ it("lists each pass by its short anonymous id, tier and time left, and explains 
   expect(fetchAdmin).toHaveBeenCalledWith("subscriptions?page=1&page_size=20")
 })
 
-it("ends a pass only after confirming", async () => {
+it("signs a member out only after confirming, saying Ghost is unchanged", async () => {
   fetchAdmin.mockImplementation((path, opts) => ok(opts?.method === "DELETE" ? {} : passes))
   renderIt()
   await screen.findByText("a1b2c3d4")
-  fireEvent.click(screen.getAllByRole("button", { name: "End pass" })[0])
-  expect(screen.getByText("End the pass for member a1b2c3d4?")).toBeInTheDocument()
+  fireEvent.click(screen.getAllByRole("button", { name: "Sign out now" })[0])
+  expect(screen.getByText("Sign out member a1b2c3d4?")).toBeInTheDocument()
+  expect(screen.getByText(/Their Ghost membership doesn't change/)).toBeInTheDocument()
   expect(fetchAdmin.mock.calls.some(([, o]) => o?.method === "DELETE")).toBe(false)
-  fireEvent.click(screen.getAllByRole("button", { name: "End pass" }).at(-1))
+  fireEvent.click(screen.getAllByRole("button", { name: "Sign out now" }).at(-1))
   await waitFor(() => expect(fetchAdmin).toHaveBeenCalledWith("subscriptions/1", { method: "DELETE" }))
-  await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Pass ended for member a1b2c3d4."))
+  await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Member a1b2c3d4 signed out."))
 })
 
 it("says so when no member has a pass", async () => {
