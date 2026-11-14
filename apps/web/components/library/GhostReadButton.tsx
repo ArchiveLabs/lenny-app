@@ -30,7 +30,10 @@ export function GhostReadButton({ olid, unsaved }: { olid: string; unsaved: bool
       label={t("Read button for a Ghost post")}
       value={readButtonHtml(olid)}
       copyLabel={t("Copy Read button")}
-      help={unsaved ? t("Save changes first, then paste it into an HTML card in a Ghost post.") : t("Paste it into an HTML card in a Ghost post.")}
+      help={[
+        unsaved ? t("Save changes first, then paste it into an HTML card in a Ghost post.") : t("Paste it into an HTML card in a Ghost post."),
+        !data.enabled && t("Ghost is turned off, so members can't read it until you turn Ghost back on."),
+      ].filter(Boolean).join(" ")}
     />
   )
 }

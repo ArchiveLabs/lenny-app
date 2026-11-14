@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { ArrowRight, CircleCheck, CircleDashed, Info, Loader2, RefreshCw, Unplug } from "lucide-react"
+import { ArrowRight, CircleCheck, CircleDashed, CirclePause, Info, Loader2, RefreshCw, Unplug } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
@@ -11,6 +11,7 @@ import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
+import { Switch } from "@workspace/ui/components/switch"
 import { Textarea } from "@workspace/ui/components/textarea"
 import {
   AlertDialog,
@@ -83,6 +84,20 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
     onError: (err: Error) => toast.error(err.message || t("Couldn't save the Ghost settings.")),
   })
 
+  // Takes effect on flip, apart from the form's Save: pausing keeps the site, tiers and passes.
+  const toggle = useMutation({
+    mutationFn: async (enabled: boolean) =>
+      handleApiResponse<GhostSettings>(
+        await fetchAdmin("settings/ghost", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) }),
+        GhostSettingsSchema,
+      ),
+    onSuccess: (next) => {
+      queryClient.setQueryData(KEY, next)
+      toast.success(next.enabled ? t("Ghost turned on.") : t("Ghost turned off."))
+    },
+    onError: (err: Error) => toast.error(err.message || t("Couldn't change Ghost.")),
+  })
+
   const rotate = useMutation({
     mutationFn: async () =>
       handleApiResponse<{ webhook_secret: string }>(await fetchAdmin("settings/ghost/webhook-secret", { method: "POST" })),
@@ -108,7 +123,12 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">{t(GHOST.title)}</h1>
-          {settings.site_url ? (
+          {settings.site_url && !settings.enabled ? (
+            <Badge variant="outline" className="gap-1 border-amber-200 bg-amber-50 text-amber-800">
+              <CirclePause aria-hidden />
+              {t("Turned off")}
+            </Badge>
+          ) : settings.site_url ? (
             <Badge variant="outline" className="gap-1 border-green-200 bg-green-50 text-green-800">
               <CircleCheck aria-hidden />
               {t("Connected")}
@@ -133,6 +153,26 @@ function GhostForm({ settings }: { settings: GhostSettings }) {
           </Link>
         )}
       </div>
+
+      <section className="flex items-start justify-between gap-4 rounded-xl border bg-card p-6 shadow-sm">
+        <div className="space-y-1">
+          <Label htmlFor="ghost-enabled">{t("Let Ghost members read subscription books")}</Label>
+          <p id="ghost-enabled-help" className="text-xs text-muted-foreground">
+            {!settings.site_url
+              ? t("Save your Ghost site URL below to turn this on.")
+              : settings.enabled
+                ? t("Turn off to pause Ghost. Your site, tiers and members' passes stay saved.")
+                : t("Off. Members of {{site}} can't read subscription books until you turn it back on.", { site: settings.site_url })}
+          </p>
+        </div>
+        <Switch
+          id="ghost-enabled"
+          aria-describedby="ghost-enabled-help"
+          checked={!!settings.site_url && settings.enabled}
+          disabled={!settings.site_url || toggle.isPending}
+          onCheckedChange={(on) => toggle.mutate(on)}
+        />
+      </section>
 
       <form
         className="space-y-6 rounded-xl border bg-card p-6 shadow-sm"

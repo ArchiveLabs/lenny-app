@@ -13,7 +13,7 @@ jest.mock("@/lib/api-client", () => ({
   fetchAdmin: jest.fn(() => new Promise(() => {})), // the loan limits are not what this tests
 }))
 const linkField = jest.fn()
-const ghost = { data: { site_url: "https://hydra.test" }, isLoading: false }
+const ghost = { data: { site_url: "https://hydra.test", enabled: true }, isLoading: false }
 jest.mock("@/hooks/use-ghost-settings", () => ({ useGhostSettings: jest.fn(() => ghost) }))
 jest.mock("@/lib/library/share", () => ({ copyText: jest.fn() }))
 jest.mock("@/components/library/LinkField", () => ({ LinkField: (p) => (linkField(p), <div>share link for {p.olid}</div>) }))
@@ -84,6 +84,13 @@ const openBook = (lenny) => {
 }
 
 describe("by access mode", () => {
+  it("warns on the Read button while Ghost is turned off", () => {
+    ghost.data = { site_url: "https://hydra.test", enabled: false }
+    openBook({ access_mode: "subscription" })
+    expect(screen.getByText(/Ghost is turned off, so members can't read it/)).toBeInTheDocument()
+    ghost.data = { site_url: "https://hydra.test", enabled: true }
+  })
+
   it("marks a subscription book Members only, with no copies and no loan duration", () => {
     openBook({ access_mode: "subscription", available_copies: 0 })
     expect(screen.getByText("Members only")).toBeInTheDocument()
@@ -104,7 +111,7 @@ describe("by access mode", () => {
     expect(screen.getByText("Connect your Ghost site first")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Open Ghost settings" })).toHaveAttribute("href", "/settings/ghost")
     expect(screen.queryByLabelText("Read button for a Ghost post")).not.toBeInTheDocument()
-    ghost.data = { site_url: "https://hydra.test" }
+    ghost.data = { site_url: "https://hydra.test", enabled: true }
   })
 
   it("marks an open book Open access, with no Read button and no loan duration", () => {

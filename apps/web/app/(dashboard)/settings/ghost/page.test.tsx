@@ -23,7 +23,7 @@ const settings = {
   webhook_url: "https://lenny.test/v1/api/subscriptions/ghost/webhook",
   webhook_secret: "s3cret",
   last_webhook_at: null,
-  default_access_mode: "open",
+  enabled: true,
 }
 const ok = (body) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) })
 const renderPage = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><GhostSettingsPage /></QueryClientProvider>)
@@ -128,4 +128,40 @@ it("asks before disconnecting", async () => {
   fireEvent.change(await screen.findByLabelText("Ghost site URL"), { target: { value: "" } })
   fireEvent.click(screen.getByRole("button", { name: "Save" }))
   expect(screen.getByText("Disconnect Ghost?")).toBeInTheDocument()
+})
+
+describe("the on/off switch", () => {
+  it("turns Ghost off without forgetting the site, and says so", async () => {
+    fetchAdmin.mockReturnValueOnce(ok(settings)).mockReturnValueOnce(ok({ ...settings, enabled: false }))
+    renderPage()
+    const sw = await screen.findByRole("switch", { name: "Let Ghost members read subscription books" })
+    expect(sw).toBeChecked()
+    expect(screen.getByText("Connected")).toBeInTheDocument()
+    fireEvent.click(sw)
+    await waitFor(() => expect(fetchAdmin).toHaveBeenLastCalledWith("settings/ghost", expect.objectContaining({ method: "PUT" })))
+    expect(JSON.parse(fetchAdmin.mock.calls.at(-1)[1].body)).toEqual({ enabled: false })
+    expect(await screen.findByText("Turned off")).toBeInTheDocument()
+    expect(sw).not.toBeChecked()
+    expect(screen.getByLabelText("Ghost site URL")).toHaveValue("https://hydra.test")
+    expect(toast.success).toHaveBeenCalledWith("Ghost turned off.")
+  })
+
+  it("turns it back on", async () => {
+    fetchAdmin.mockReturnValueOnce(ok({ ...settings, enabled: false })).mockReturnValueOnce(ok(settings))
+    renderPage()
+    const sw = await screen.findByRole("switch")
+    expect(screen.getByText(/can't read subscription books until you turn it back on/)).toBeInTheDocument()
+    fireEvent.click(sw)
+    await waitFor(() => expect(sw).toBeChecked())
+    expect(JSON.parse(fetchAdmin.mock.calls.at(-1)[1].body)).toEqual({ enabled: true })
+  })
+
+  it("can't be turned on before a site is saved", async () => {
+    fetchAdmin.mockReturnValue(ok({ ...settings, site_url: null, snippet: null }))
+    renderPage()
+    const sw = await screen.findByRole("switch")
+    expect(sw).toBeDisabled()
+    expect(sw).not.toBeChecked()
+    expect(screen.getByText("Save your Ghost site URL below to turn this on.")).toBeInTheDocument()
+  })
 })

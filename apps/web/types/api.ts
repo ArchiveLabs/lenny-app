@@ -277,6 +277,7 @@ export const GhostSettingsSchema = z.object({
   webhook_secret: z.string().nullable(),
   last_webhook_at: z.string().nullable().optional(),
   lease_hours: z.number().default(24),
+  enabled: z.boolean().default(true), // off pauses Ghost reads; site, tiers and passes stay. Older servers omit it.
 })
 export type GhostSettings = z.infer<typeof GhostSettingsSchema>
 
