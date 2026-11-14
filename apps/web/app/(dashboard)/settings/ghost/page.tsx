@@ -444,7 +444,7 @@ function Setup({ settings }: { settings: GhostSettings }) {
       </div>
       <div className="divide-y">
         <Step n={1} title={t("Add the code to Ghost")} done={done}>
-          <p className="text-sm text-muted-foreground">{t("In Ghost, open Settings → Code injection → Site footer, and paste this code.")}</p>
+          <p className="text-sm text-muted-foreground">{t("In Ghost, open Settings → Code injection → Site footer, and paste this code. Paste it again after you update Lenny.")}</p>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium">{t("Code injection snippet")}</span>
@@ -506,7 +506,7 @@ function Setup({ settings }: { settings: GhostSettings }) {
 
         <Step n={3} title={t("Add a Read button to a post")}>
           <p className="text-sm text-muted-foreground">
-            {t("Open a subscription book in the Library and copy its Read button: a link for a Button card, or code for an HTML card. Paste it into any Ghost post.")}
+            {t("Open a subscription book in the Library and copy its Read button into a Ghost post. Use the Button card link if the post also goes out as a newsletter: the HTML card works on your website only.")}
           </p>
           <Button asChild variant="outline" size="sm" className="w-fit">
             <Link href="/library">{t("Open the Library")}</Link>
