@@ -8,7 +8,7 @@ import { copyText } from "@/lib/library/share"
 import { TEAM } from "@/lib/accounts"
 
 /** Copies `value` and says so on the button itself: nothing about the value goes in a toast or the console. */
-export function CopyButton({ value, label = TEAM.copy }: { value: string; label?: string }) {
+export function CopyButton({ value, label = TEAM.copy, ariaLabel }: { value: string; label?: string; ariaLabel?: string }) {
   const { t } = useTranslation()
   const [state, setState] = useState<"idle" | "copied" | "blocked">("idle")
 
@@ -24,6 +24,7 @@ export function CopyButton({ value, label = TEAM.copy }: { value: string; label?
       variant="outline"
       size="sm"
       disabled={!value}
+      aria-label={ariaLabel && (state === "idle" ? ariaLabel : t(state === "copied" ? TEAM.copied : TEAM.copyBlocked))}
       onClick={async () => setState((await copyText(value)) === "copied" ? "copied" : "blocked")}
     >
       {state === "copied" ? <Check className="size-4" /> : <Copy className="size-4" />}

@@ -13,6 +13,9 @@ jest.mock("@/lib/api-client", () => ({
   fetchAdmin: jest.fn(() => new Promise(() => {})), // the loan limits are not what this tests
 }))
 const linkField = jest.fn()
+const ghost = { data: { site_url: "https://hydra.test" }, isLoading: false }
+jest.mock("@/hooks/use-ghost-settings", () => ({ useGhostSettings: jest.fn(() => ghost) }))
+jest.mock("@/lib/library/share", () => ({ copyText: jest.fn() }))
 jest.mock("@/components/library/LinkField", () => ({ LinkField: (p) => (linkField(p), <div>share link for {p.olid}</div>) }))
 const loader = jest.fn()
 jest.mock("@/components/preload/BookInfo", () => ({ BookInfoLoader: (p) => (loader(p), <div>info for {String(p.olid)}</div>) }))
@@ -65,10 +68,56 @@ it("brings the Library list up to date when the book turns out to be gone", () =
   expect(typeof props.onGone).toBe("function")
 })
 
-it("shows the share link, and tells it the book's access mode", () => {
+it("shows the share link", () => {
   open()
   expect(screen.getByText("share link for OL28933309M")).toBeInTheDocument()
-  expect(linkField).toHaveBeenLastCalledWith(expect.objectContaining({ olid: "OL28933309M", mode: "open" }))
+  expect(linkField).toHaveBeenLastCalledWith({ olid: "OL28933309M" })
+})
+
+const openBook = (lenny) => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <BookEditSheet book={{ ...book, lenny: { ...book.lenny, ...lenny } }}><button>open</button></BookEditSheet>
+    </QueryClientProvider>,
+  )
+  fireEvent.click(screen.getByText("open"))
+}
+
+describe("by access mode", () => {
+  it("marks a subscription book Members only, with no copies and no loan duration", () => {
+    openBook({ access_mode: "subscription", available_copies: 0 })
+    expect(screen.getByText("Members only")).toBeInTheDocument()
+    expect(screen.queryByText(/cop(y|ies) available/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Loan duration (days)")).not.toBeInTheDocument()
+  })
+
+  it("puts the Ghost Read button in the Access card, saying it once who can read", () => {
+    openBook({ access_mode: "subscription" })
+    expect(screen.getByLabelText("Read button for a Ghost post")).toHaveValue('<button data-lenny-book="OL28933309M">Read</button>')
+    expect(screen.getByRole("button", { name: "Copy Read button" })).toBeInTheDocument()
+    expect(screen.getAllByText(/Only paid members of your Ghost site/)).toHaveLength(1)
+  })
+
+  it("asks to connect Ghost first when no Ghost site is saved", () => {
+    ghost.data = { site_url: null }
+    openBook({ access_mode: "subscription" })
+    expect(screen.getByText("Connect your Ghost site first")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open Ghost settings" })).toHaveAttribute("href", "/settings/ghost")
+    expect(screen.queryByLabelText("Read button for a Ghost post")).not.toBeInTheDocument()
+    ghost.data = { site_url: "https://hydra.test" }
+  })
+
+  it("marks an open book Open access, with no Read button and no loan duration", () => {
+    openBook({})
+    expect(screen.getByText("Open access")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Read button for a Ghost post")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Loan duration (days)")).not.toBeInTheDocument()
+  })
+
+  it("shows the loan duration only for a borrowable book", () => {
+    openBook({ encrypted: true })
+    expect(screen.getByLabelText("Loan duration (days)")).toBeInTheDocument()
+  })
 })
 
 it("links the access modes to the manual, in a new tab", () => {
@@ -93,15 +142,16 @@ it("saves the chosen access mode", async () => {
   open()
   fireEvent.change(screen.getByLabelText("Access"), { target: { value: "subscription" } })
   expect(screen.getByText("Only paid members of your Ghost site can read it.")).toBeInTheDocument()
-  expect(linkField).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "subscription", unsaved: true }))
-  fireEvent.click(screen.getByText("Save Changes"))
+  expect(screen.getByText("Save changes first, then paste it into an HTML card in a Ghost post.")).toBeInTheDocument()
+  fireEvent.click(screen.getByText("Save changes"))
   await waitFor(() => expect(fetchAdmin).toHaveBeenCalledWith("items/OL28933309M", expect.objectContaining({ method: "PATCH" })))
   const call = fetchAdmin.mock.calls.find(([path]) => path === "items/OL28933309M")
   expect(JSON.parse(call[1].body)).toEqual({ access_mode: "subscription", loan_duration_days: null })
 })
 
 describe("copies in the sheet", () => {
-  const withCopies = (n) => ({ ...book, lenny: { ...book.lenny, available_copies: n } })
+  // Copies only show for a borrowable book.
+  const withCopies = (n) => ({ ...book, lenny: { ...book.lenny, encrypted: true, available_copies: n } })
   const openWith = (b) => {
     render(
       <QueryClientProvider client={new QueryClient()}>
