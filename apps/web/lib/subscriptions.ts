@@ -22,6 +22,9 @@ export const DASHBOARD = {
   title: "Dashboard",
 } as const
 
+/** How often the stats ask again while their tab is open (TanStack Query pauses it in a hidden tab). */
+export const STATS_REFRESH_MS = 30_000
+
 export const STATS = {
   route: "/stats",
   title: "Subscription stats",

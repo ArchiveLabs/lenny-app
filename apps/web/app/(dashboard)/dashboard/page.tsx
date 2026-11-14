@@ -14,7 +14,7 @@ import { CoverThumb, KpiTile, Panel, PanelLink, Row, SplitBar, Trend } from "@/c
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
-import { ACCESS_MODES, byWeek, DASHBOARD, dayLabel, fillDays, rangeFor, STATS } from "@/lib/subscriptions"
+import { ACCESS_MODES, byWeek, DASHBOARD, dayLabel, fillDays, rangeFor, STATS, STATS_REFRESH_MS } from "@/lib/subscriptions"
 import {
   AccessMode,
   AdminLoan,
@@ -309,6 +309,7 @@ function GhostPanel() {
     queryKey: ["subscription-stats", from, to],
     queryFn: async () =>
       handleApiResponse<SubscriptionStats>(await fetchAdmin(`stats/subscriptions?${new URLSearchParams({ from, to })}`), SubscriptionStatsSchema),
+    refetchInterval: STATS_REFRESH_MS,
   })
   const totals = data?.totals
   return (

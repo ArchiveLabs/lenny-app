@@ -18,7 +18,7 @@ import { KpiTile, Panel } from "@/components/stats/ui"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
-import { dayLabel, fillDays, GHOST, rangeFor, STATS, SUBSCRIPTIONS_DOC } from "@/lib/subscriptions"
+import { dayLabel, fillDays, GHOST, rangeFor, STATS, STATS_REFRESH_MS, SUBSCRIPTIONS_DOC } from "@/lib/subscriptions"
 import { ApiError, SubscriptionBookStats, SubscriptionBookStatsSchema, SubscriptionStats, SubscriptionStatsSchema } from "@/types/api"
 
 const PAGE_SIZE = 20
@@ -46,6 +46,7 @@ export default function StatsPage() {
       handleApiResponse<SubscriptionStats>(await fetchAdmin(`stats/subscriptions?${new URLSearchParams({ from, to })}`), SubscriptionStatsSchema),
     enabled: connected,
     placeholderData: keepPreviousData,
+    refetchInterval: STATS_REFRESH_MS,
   })
   const books = useQuery({
     queryKey: ["subscription-stats", "books", from, to, sort, page],
@@ -55,6 +56,7 @@ export default function StatsPage() {
     },
     enabled: connected && !!stats.data?.totals.opens,
     placeholderData: keepPreviousData,
+    refetchInterval: STATS_REFRESH_MS,
   })
 
   const changeDays = (d: number) => {
