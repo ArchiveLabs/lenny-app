@@ -1,11 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { ChevronRight, BookOpen, Settings2, Shield, Clock, Server, PlugZap } from "lucide-react"
+import { ChevronRight, BookOpen, Settings2, Shield, Clock, Server, PlugZap, Ticket } from "lucide-react"
 import { Separator } from "@workspace/ui/components/separator"
 import { useTranslation } from "react-i18next"
 import { useOAuth2Clients } from "@/hooks/use-oauth2-clients"
 import { APP_ACCESS, SIGN_IN_PROVIDER } from "@/lib/app-access"
+import { GHOST } from "@/lib/subscriptions"
 
 const authSettings = [
   {
@@ -46,6 +47,12 @@ const providerSettings = [
     icon: BookOpen,
     title: "OpenLibrary Account",
     description: "Connect OpenLibrary account to enable OL-backed lending",
+  },
+  {
+    href: GHOST.route,
+    icon: Ticket,
+    title: GHOST.title,
+    description: GHOST.description,
   },
 ]
 

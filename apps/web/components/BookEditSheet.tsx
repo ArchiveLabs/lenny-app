@@ -3,7 +3,9 @@
 import { ReactNode, useCallback, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { BookOpen, Loader2, Trash2, ChevronDown } from "lucide-react"
+import { BookOpen, Loader2, Trash2, ChevronDown, TriangleAlert } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@workspace/ui/components/alert"
+import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Label } from "@workspace/ui/components/label"
 import { Input } from "@workspace/ui/components/input"
@@ -13,7 +15,6 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-  SheetFooter,
   SheetTrigger,
 } from "@workspace/ui/components/sheet"
 import {
@@ -27,11 +28,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@workspace/ui/components/alert-dialog"
-import { EncryptionToggle } from "@/components/UploadComponents"
+import { NativeSelect } from "@/components/NativeSelect"
 import { BookInfoLoader } from "@/components/preload/BookInfo"
 import { LinkField } from "@/components/library/LinkField"
+import { GhostReadButton } from "@/components/library/GhostReadButton"
+import { FIELD_HELP, FIELD_LABEL } from "@/components/code-field"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
-import { ApiError, LennyBook, LoanLimitsConfig, LoanLimitsConfigSchema } from "@/types/api"
+import { AccessMode, accessModeOf, ApiError, LennyBook, LoanLimitsConfig, LoanLimitsConfigSchema, PaginatedAdminLoans, PaginatedAdminLoansSchema } from "@/types/api"
+import { ACCESS_MODES, SUBSCRIPTIONS_DOC } from "@/lib/subscriptions"
 import { LIBRARY_QUERY_KEY, removeBooksFromLibraryCache } from "@/lib/query-client"
 import { useTranslation } from "react-i18next"
 
@@ -43,12 +47,14 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
   // The book left the library behind our back (a 404): bring the list in step.
   const refetchLibrary = useCallback(() => queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY }), [queryClient])
   const editionNumber = Number(book.olid.replace(/\D/g, "")) || null
-  const [encrypted, setEncrypted] = useState(book.lenny.encrypted)
+  const savedMode = accessModeOf(book.lenny)
+  const [mode, setMode] = useState<AccessMode>(savedMode)
   const [loanDuration, setLoanDuration] = useState(
     book.lenny.loan_duration_days != null ? String(book.lenny.loan_duration_days) : ""
   )
   const [newEdition, setNewEdition] = useState("")
   const [reuploadFile, setReuploadFile] = useState<File | null>(null)
+  const [confirmReturn, setConfirmReturn] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Cheap settings call (not the slow /admin/items) — used to cap the per-book
@@ -62,14 +68,26 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
     enabled: open,
     staleTime: 5 * 60_000,
   })
+  // Only a borrowable book is lent: saving any other mode returns this book's active loans.
+  const { data: activeLoans = 0 } = useQuery({
+    queryKey: ["admin-loans", "book", book.olid],
+    queryFn: async () => {
+      const params = new URLSearchParams({ status: "active", item: book.olid, limit: "1" })
+      return (await handleApiResponse<PaginatedAdminLoans>(await fetchAdmin(`loans?${params}`), PaginatedAdminLoansSchema)).total
+    },
+    enabled: open && mode !== "borrowable",
+  })
+  const returnsLoans = mode !== "borrowable" && activeLoans > 0
+
   const maxLoanDays = loanLimits?.max_loan_duration_days
   const loanDurationValue = loanDuration.trim() === "" ? null : Number(loanDuration)
   const loanDurationIsNegative = loanDurationValue !== null && loanDurationValue < 0
   const loanDurationExceedsMax =
     !!maxLoanDays && loanDurationValue !== null && loanDurationValue > maxLoanDays
-  const loanDurationInvalid = loanDurationIsNegative || loanDurationExceedsMax
+  // The loan duration only applies to (and is only shown for) a borrowable book.
+  const loanDurationInvalid = mode === "borrowable" && (loanDurationIsNegative || loanDurationExceedsMax)
 
-  // One button, one mutation: settings (encrypted/loan duration) always
+  // One button, one mutation: settings (access mode/loan duration) always
   // apply; edition key and file reupload are optional add-ons layered onto
   // the same PATCH + (if a file was chosen) reupload call. Edition change
   // must land first so a reupload targets the item's final key.
@@ -78,7 +96,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
       const trimmed = loanDuration.trim()
       const digits = newEdition.replace(/\D/g, "")
       const body: Record<string, unknown> = {
-        encrypted,
+        access_mode: mode,
         loan_duration_days: trimmed === "" ? null : Number(trimmed),
       }
       if (digits) body.openlibrary_edition = Number(digits)
@@ -88,12 +106,12 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      const updated = await handleApiResponse<{ openlibrary_edition: number }>(res)
+      const updated = await handleApiResponse<{ openlibrary_edition: number; loans_returned?: number }>(res)
 
       if (reuploadFile) {
         const formData = new FormData()
         formData.append("file", reuploadFile)
-        formData.append("encrypted", encrypted ? "true" : "false")
+        formData.append("access_mode", mode)
         const uploadRes = await fetchAdmin(`items/${updated.openlibrary_edition}/reupload`, {
           method: "POST",
           body: formData,
@@ -103,10 +121,19 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
           throw new ApiError(errText, uploadRes.status)
         }
       }
+      return updated.loans_returned ?? 0
     },
-    onSuccess: () => {
-      toast.success(t("Book updated"))
+    onSuccess: (returned) => {
+      toast.success(
+        returned === 0 ? t("Book updated")
+          : returned === 1 ? t("Book updated. 1 loan returned.")
+          : t("Book updated. {{count}} loans returned.", { count: returned }),
+      )
       queryClient.invalidateQueries({ queryKey: LIBRARY_QUERY_KEY })
+      if (returned > 0) {
+        queryClient.invalidateQueries({ queryKey: ["admin-loans"] })
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      }
       setNewEdition("")
       setReuploadFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -143,7 +170,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
       onOpenChange={(next) => {
         if (next) {
           // Reset to the book's current values each time the sheet opens
-          setEncrypted(book.lenny.encrypted)
+          setMode(accessModeOf(book.lenny))
           setLoanDuration(book.lenny.loan_duration_days != null ? String(book.lenny.loan_duration_days) : "")
           setNewEdition("")
           setReuploadFile(null)
@@ -172,17 +199,22 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
               )}
             </div>
             <div className="min-w-0 pt-0.5">
-              <SheetTitle className="line-clamp-2 text-left">{book.title}</SheetTitle>
+              {/* pr-8 keeps the title clear of the sheet's close button. */}
+              <SheetTitle className="line-clamp-2 pr-8 text-left leading-snug">{book.title}</SheetTitle>
               <SheetDescription className="line-clamp-1 text-left">
                 {book.author_name?.join(", ") || t("Unknown Author")}
               </SheetDescription>
-              <div className="mt-1.5 flex items-center gap-1.5">
-                <span className="rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  {book.olid}
-                </span>
-                {/* Some records come without the count: show it only when it is a number. */}
-                {typeof book.lenny.available_copies === "number" && (
-                  <span className="text-[11px] font-medium text-muted-foreground">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="rounded-md border bg-muted/60 px-1.5 py-0.5 font-mono text-xs text-muted-foreground">{book.olid}</span>
+                {savedMode === "subscription" && (
+                  <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-800">{t("Members only")}</Badge>
+                )}
+                {savedMode === "open" && (
+                  <Badge variant="outline" className="border-green-200 bg-green-50 text-green-800">{t("Open access")}</Badge>
+                )}
+                {/* Copies only mean something for a borrowable book, and some records come without the count. */}
+                {savedMode === "borrowable" && typeof book.lenny.available_copies === "number" && (
+                  <span className="text-xs text-muted-foreground">
                     {book.lenny.available_copies === 1
                       ? t("1 copy available")
                       : t("{{count}} copies available", { count: book.lenny.available_copies })}
@@ -193,18 +225,43 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 space-y-4">
-          <div className="space-y-4 rounded-lg border border-border/60 p-4">
+        {/* The save bar follows the content and sticks to the bottom when it scrolls: no gap, never covering anything. */}
+        <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className="space-y-4 px-4 pb-4">
+          <div className="space-y-4 rounded-lg border p-4">
             <div className="space-y-2">
-              <Label>{t("Access")}</Label>
-              <EncryptionToggle isEncrypted={encrypted} onToggle={() => setEncrypted((v) => !v)} />
-              <p className="text-xs text-muted-foreground">
-                {t("Controls which stored file variant gets served when this book is borrowed.")}
-              </p>
+              <label htmlFor="access-mode" className={FIELD_LABEL}>{t("Access")}</label>
+              <NativeSelect id="access-mode" className="w-full" value={mode} onChange={(e) => setMode(e.target.value as AccessMode)}>
+                {(Object.keys(ACCESS_MODES) as AccessMode[]).map((m) => (
+                  <option key={m} value={m}>{t(ACCESS_MODES[m].label)}</option>
+                ))}
+              </NativeSelect>
+              <p className={FIELD_HELP}>{t(ACCESS_MODES[mode].help)}</p>
+              {returnsLoans && (
+                <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+                  <TriangleAlert aria-hidden />
+                  <AlertTitle>
+                    {activeLoans === 1 ? t("1 patron has this book on loan") : t("{{count}} patrons have this book on loan", { count: activeLoans })}
+                  </AlertTitle>
+                  <AlertDescription className="text-amber-900/80">
+                    {t("Saving returns their loans, and they lose access right away.")}
+                  </AlertDescription>
+                </Alert>
+              )}
+              <a href={SUBSCRIPTIONS_DOC} target="_blank" rel="noopener noreferrer" className="inline-block text-[13px] font-medium underline underline-offset-4">
+                {t("Learn more about access modes")}
+              </a>
             </div>
 
-            <div className="space-y-2 border-t border-border/50 pt-4">
-              <Label htmlFor="loan-duration">{t("Loan duration (days)")}</Label>
+            {mode === "subscription" && (
+              <div className="border-t pt-4">
+                <GhostReadButton olid={book.olid} unsaved={mode !== savedMode} />
+              </div>
+            )}
+
+            {mode === "borrowable" && (
+            <div className="space-y-2 border-t pt-4">
+              <label htmlFor="loan-duration" className={FIELD_LABEL}>{t("Loan duration (days)")}</label>
               <Input
                 id="loan-duration"
                 type="number"
@@ -215,7 +272,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
                 onChange={(e) => setLoanDuration(e.target.value)}
                 aria-invalid={loanDurationInvalid}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className={FIELD_HELP}>
                 {t("Leave blank to use the global loan duration setting.")}
                 {!!maxLoanDays && ` ${t("Site max is {{max}} days.", { max: maxLoanDays })}`}
               </p>
@@ -230,15 +287,18 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
                 </p>
               )}
             </div>
+            )}
           </div>
 
-          <LinkField olid={book.olid} encrypted={encrypted} />
+          <div className="rounded-lg border p-4">
+            <LinkField olid={book.olid} />
+          </div>
 
           <details
-            className="group rounded-lg border border-border/60"
+            className="group rounded-lg border"
             onToggle={(e) => e.currentTarget.open && setDetailsOpened(true)}
           >
-            <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-semibold marker:content-none [&::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden">
               {t("Book details")}
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
             </summary>
@@ -248,15 +308,15 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
             </div>
           </details>
 
-          <details className="group rounded-lg border border-border/60">
-            <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-semibold marker:content-none [&::-webkit-details-marker]:hidden">
+          <details className="group rounded-lg border">
+            <summary className="flex cursor-pointer list-none items-center justify-between p-4 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden">
               {t("Wrong edition or file attached?")}
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
             </summary>
 
             <div className="space-y-4 px-4 pb-4">
               <div className="space-y-2">
-                <Label htmlFor="new-edition" className="text-xs font-normal text-muted-foreground">
+                <Label htmlFor="new-edition" className={FIELD_LABEL}>
                   {t("Correct OpenLibrary edition key")}
                 </Label>
                 <Input
@@ -265,23 +325,24 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
                   value={newEdition}
                   onChange={(e) => setNewEdition(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className={FIELD_HELP}>
                   {t("Moves this book's files to the new key. The item and its loans stay the same.")}
                 </p>
               </div>
 
               <div className="space-y-2 border-t border-border/50 pt-4">
-                <Label className="text-xs font-normal text-muted-foreground">
+                <Label htmlFor="replacement-file" className={FIELD_LABEL}>
                   {t("Replacement file (EPUB or PDF)")}
                 </Label>
                 <input
+                  id="replacement-file"
                   ref={fileInputRef}
                   type="file"
                   accept=".epub,.pdf"
                   onChange={(e) => setReuploadFile(e.target.files?.[0] ?? null)}
                   className="w-full rounded-md border border-input bg-transparent text-xs text-muted-foreground file:mr-2 file:h-full file:border-0 file:border-r file:border-input file:bg-muted file:px-3 file:py-2 file:text-xs file:font-semibold file:text-foreground"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className={FIELD_HELP}>
                   {t("Keeps this item's id and loan history. Only the file changes.")}
                 </p>
               </div>
@@ -289,15 +350,15 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
           </details>
 
           <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-            <Label className="text-destructive">{t("Danger zone")}</Label>
-            <p className="text-xs text-muted-foreground">
+            <p className={`${FIELD_LABEL} text-destructive`}>{t("Danger zone")}</p>
+            <p className={FIELD_HELP}>
               {t("Permanently deletes this book's files and database record. This cannot be undone.")}
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="font-semibold">
+                <Button variant="destructive" size="sm">
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                  {t("Delete Book")}
+                  {t("Delete book")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -315,7 +376,7 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
                     onClick={() => deleteBook.mutate()}
                   >
                     {deleteBook.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {t("Delete Permanently")}
+                    {t("Delete permanently")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -323,12 +384,31 @@ export function BookEditSheet({ book, children }: { book: LennyBook; children: R
           </div>
         </div>
 
-        <SheetFooter>
-          <Button onClick={() => save.mutate()} disabled={save.isPending || loanDurationInvalid} className="w-full font-semibold">
+        <div className="sticky bottom-0 border-t bg-background p-4">
+          <Button onClick={() => (returnsLoans ? setConfirmReturn(true) : save.mutate())} disabled={save.isPending || loanDurationInvalid} className="w-full">
             {save.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {t("Save Changes")}
+            {t("Save changes")}
           </Button>
-        </SheetFooter>
+          <AlertDialog open={confirmReturn} onOpenChange={setConfirmReturn}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {activeLoans === 1 ? t("Return 1 loan?") : t("Return {{count}} loans?", { count: activeLoans })}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("“{{title}}” will no longer be borrowable, so its active loans end now and those patrons lose access.", { title: book.title })}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={() => save.mutate()}>
+                  {t("Return loans and save")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+        </div>
       </SheetContent>
     </Sheet>
   )

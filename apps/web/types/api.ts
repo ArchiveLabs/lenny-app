@@ -1,9 +1,13 @@
 import { z } from "zod"
 
+export const AccessModeSchema = z.enum(["open", "borrowable", "subscription"])
+export type AccessMode = z.infer<typeof AccessModeSchema>
+
 export const LennyRecordSchema = z.object({
   id: z.number(),
   openlibrary_edition: z.number(),
-  encrypted: z.boolean(),
+  encrypted: z.boolean(), // read-only; access_mode is the field to read and write
+  access_mode: AccessModeSchema.optional(),
   formats: z.string(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -258,3 +262,69 @@ export type Librarian = z.infer<typeof LibrarianSchema>
 
 export const LibrarianListSchema = z.object({ librarians: z.array(LibrarianSchema) })
 export type LibrarianList = z.infer<typeof LibrarianListSchema>
+
+/** A book's access mode. Servers from before subscriptions send only `encrypted`. */
+export const accessModeOf = (r: { encrypted: boolean; access_mode?: AccessMode }): AccessMode =>
+  r.access_mode ?? (r.encrypted ? "borrowable" : "open")
+
+// GET/PUT /admin/settings/ghost. Sent with no-store: it carries the webhook secret.
+export const GhostSettingsSchema = z.object({
+  site_url: z.string().nullable(),
+  allowed_tier_ids: z.array(z.string()),
+  seen_tiers: z.array(z.object({ id: z.string(), members: z.number() })).default([]),
+  snippet: z.string().nullable(), // null until a site URL is saved
+  webhook_url: z.string(),
+  webhook_secret: z.string().nullable(),
+  last_webhook_at: z.string().nullable().optional(),
+  lease_hours: z.number().default(24),
+  enabled: z.boolean().default(true), // off pauses Ghost reads; site, tiers and passes stay. Older servers omit it.
+})
+export type GhostSettings = z.infer<typeof GhostSettingsSchema>
+
+// GET /admin/stats/subscriptions?from&to
+export const SubscriptionStatsSchema = z.object({
+  totals: z.object({ books_read: z.number(), patrons: z.number(), opens: z.number(), active_now: z.number() }),
+  by_day: z.array(z.object({ date: z.string(), books_read: z.number(), patrons: z.number(), opens: z.number() })),
+  devices: z.array(z.object({ device_class: z.string(), patrons: z.number(), opens: z.number() })),
+})
+export type SubscriptionStats = z.infer<typeof SubscriptionStatsSchema>
+
+// GET /admin/stats/subscriptions/books?from&to&page&page_size&sort
+export const SubscriptionBookStatsSchema = z.object({
+  items: z.array(
+    z.object({ olid: z.union([z.string(), z.number()]), title: z.string().nullable(), patrons: z.number(), opens: z.number(), last_read: z.string().nullable() })
+  ),
+  total: z.number(),
+})
+export type SubscriptionBookStats = z.infer<typeof SubscriptionBookStatsSchema>
+
+// GET /admin/dashboard: one summary for the home page. A part the server couldn't read comes back null.
+const ServiceStatusSchema = z.enum(["ok", "down"])
+export const DashboardSchema = z.object({
+  books: z.object({ total: z.number(), open: z.number(), borrowable: z.number(), subscription: z.number() }).nullable(),
+  loans: z.object({ active: z.number(), overdue: z.number(), started_30d: z.number() }).nullable(),
+  imports: z.object({ pending: z.number(), failed: z.number() }).nullable(),
+  health: z
+    .object({ database: ServiceStatusSchema, storage: ServiceStatusSchema, reader: ServiceStatusSchema, version: z.string() })
+    .nullable(),
+})
+export type Dashboard = z.infer<typeof DashboardSchema>
+
+// GET /admin/subscriptions: active Ghost passes. `member` is a short id from the email hash, never the email.
+export const SubscriptionPassSchema = z.object({
+  id: z.number(),
+  member: z.string(),
+  provider: z.string(),
+  tier_ids: z.array(z.string()),
+  expires_at: z.string(),
+  renewed_at: z.string().nullable(),
+})
+export type SubscriptionPass = z.infer<typeof SubscriptionPassSchema>
+export const SubscriptionPassListSchema = z.object({ items: z.array(SubscriptionPassSchema), total: z.number() })
+export type SubscriptionPassList = z.infer<typeof SubscriptionPassListSchema>
+
+// GET /admin/stats/loans?from&to: loans per day for the dashboard chart (days without loans may be missing).
+export const LoanStatsSchema = z.object({
+  by_day: z.array(z.object({ date: z.string(), started: z.number(), returned: z.number() })),
+})
+export type LoanStats = z.infer<typeof LoanStatsSchema>
