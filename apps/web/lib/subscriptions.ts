@@ -30,6 +30,9 @@ export const STATS = {
   title: "Subscription stats",
 } as const
 
+/** Only an edition id may go into a Read link; anything else would be pasted into a publisher's post. */
+export const isEditionOlid = (olid: string) => /^OL\d+M$/.test(olid)
+
 /** A Read link for Ghost's Button card. On the site's own address, so it never names the Lenny server. */
 export const readButtonUrl = (site: string, olid: string) => `${site.replace(/\/$/, "")}/#lenny-book=${olid}`
 

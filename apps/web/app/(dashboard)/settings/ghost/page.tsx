@@ -32,6 +32,7 @@ import { TierName } from "@/components/TierName"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
 import { GHOST, STATS, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptions"
+import { isHttpUrl } from "@/lib/safe-url"
 import { ApiError, GhostSettings, GhostSettingsSchema } from "@/types/api"
 import { GHOST_SETTINGS_KEY as KEY, useGhostSettings } from "@/hooks/use-ghost-settings"
 
@@ -296,10 +297,13 @@ function Status({ settings }: { settings: GhostSettings }) {
           <StatusRow
             label={t("Ghost site")}
             help={
-              <a href={site} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 hover:text-foreground hover:underline">
-                <span className="truncate">{host}</span>
-                <ExternalLink className="size-3 shrink-0" aria-hidden />
-              </a>
+              // The URL came from the server; only an http(s) one becomes a link.
+              isHttpUrl(site) ? (
+                <a href={site} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 hover:text-foreground hover:underline">
+                  <span className="truncate">{host}</span>
+                  <ExternalLink className="size-3 shrink-0" aria-hidden />
+                </a>
+              ) : <span className="truncate">{host}</span>
             }
           >
             <Button variant="outline" size="sm" className="h-7 bg-background" onClick={() => setEditing(true)}>{t("Change")}</Button>
@@ -508,14 +512,14 @@ function Setup({ settings }: { settings: GhostSettings }) {
           title={t("Add the code to Ghost")}
           state={code}
           note={
-            settings.snippet_stale ? t("An older copy of the Lenny code is on {{site}}. Remove every older copy from Site header and Site footer, and paste this one into Site header.", { site: host })
+            settings.snippet_stale ? t("An older copy of the Lenny code is on {{site}}. Remove every older copy from Site header and Site footer now: an old copy sends members' sign-in tokens to an address Lenny no longer uses, and whoever gets that address later could use them. Then paste this one into Site header.", { site: host })
               : settings.snippet_installed === true ? t("Found on {{site}}.", { site: host })
               : settings.snippet_installed === false ? t("Not found on {{site}}. Paste it, or paste it again if you updated Lenny.", { site: host })
                 : launch ? t("A member opened a book, so the code works.")
                   : t("Lenny can't check your site. This shows as done once a member opens a book.")
           }
         >
-          <p className="text-sm text-muted-foreground">{t("In Ghost, open Settings → Code injection → Site header, and paste this code in place of any older Lenny code. Remove any from Site footer too. Paste it again after you update Lenny.")}</p>
+          <p className="text-sm text-muted-foreground">{t("In Ghost, open Settings → Code injection → Site header, and paste this code in place of any older Lenny code. Remove any from Site footer too. Paste it again after you update Lenny, and whenever Lenny's address changes.")}</p>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium">{t("Code injection snippet")}</span>

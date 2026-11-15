@@ -82,7 +82,7 @@ describe("setup progress", () => {
   it("isn't done while an older copy of the code is still on the site", async () => {
     fetchAdmin.mockReturnValue(ok({ ...settings, snippet_installed: true, snippet_stale: true, last_launch_at: now }))
     renderPage()
-    expect(await screen.findByText(/An older copy of the Lenny code is on hydra.test\. Remove every older copy .* and paste this one into Site header/)).toBeInTheDocument()
+    expect(await screen.findByText(/An older copy of the Lenny code is on hydra.test\. Remove every older copy .*sign-in tokens.* paste this one into Site header/)).toBeInTheDocument()
     expect(step("Add the code to Ghost")).toHaveTextContent("Waiting")
     expect(screen.getByRole("button", { name: "Check now" })).toBeInTheDocument()
   })

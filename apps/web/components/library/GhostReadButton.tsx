@@ -4,7 +4,8 @@ import Link from "next/link"
 import { useTranslation } from "react-i18next"
 import { CodeField, FIELD_HELP, FIELD_LABEL } from "@/components/code-field"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
-import { GHOST, readButtonHtml, readButtonUrl } from "@/lib/subscriptions"
+import { GHOST, isEditionOlid, readButtonHtml, readButtonUrl } from "@/lib/subscriptions"
+import { isHttpUrl } from "@/lib/safe-url"
 
 /** How to put a Read button for a subscription book in a Ghost post; or the way to connect Ghost first. */
 export function GhostReadButton({ olid, unsaved }: { olid: string; unsaved: boolean }) {
@@ -24,6 +25,8 @@ export function GhostReadButton({ olid, unsaved }: { olid: string; unsaved: bool
       </div>
     )
   }
+  // Lenny validates both; a bad value still never becomes a link a publisher pastes.
+  if (!isHttpUrl(data.site_url) || !isEditionOlid(olid)) return null
   const notes = [
     unsaved && t("Save changes first, or the button won't open this book."),
     !data.enabled && t("Ghost is turned off, so members can't read it until you turn Ghost back on."),

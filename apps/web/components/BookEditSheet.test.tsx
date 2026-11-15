@@ -110,6 +110,13 @@ describe("by access mode", () => {
     expect(screen.getAllByText(/Only paid members of your Ghost site/)).toHaveLength(1)
   })
 
+  it("never builds a Read link from a bad site URL or book id", () => {
+    ghost.data = { site_url: "javascript:alert(1)", enabled: true }
+    openBook({ access_mode: "subscription" })
+    expect(screen.queryByLabelText("Read button: Button card link")).not.toBeInTheDocument()
+    ghost.data = { site_url: "https://hydra.test", enabled: true }
+  })
+
   it("asks to connect Ghost first when no Ghost site is saved", () => {
     ghost.data = { site_url: null }
     openBook({ access_mode: "subscription" })
