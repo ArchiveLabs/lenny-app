@@ -4,8 +4,6 @@ export const APP_ACCESS = {
   title: "App Access",
   description: "Choose which reading apps and catalogs may sign in your patrons and borrow for them.",
   add: "Add an app",
-  section: "Apps & readers",
-  sectionHelp: "Reading apps and catalogs that use this library.",
   flow: "Reading app → your library (Lenny) → patron signs in",
   empty: "No apps yet. Add the reader or catalog your patrons use so it can sign them in.",
   developersTitle: "Connect an app to this library",
