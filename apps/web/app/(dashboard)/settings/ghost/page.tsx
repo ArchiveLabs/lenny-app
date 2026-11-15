@@ -31,13 +31,10 @@ import { Panel, PanelLink } from "@/components/stats/ui"
 import { TierName } from "@/components/TierName"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
-import { GHOST, STATS, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptions"
+import { GHOST, MEMBER_PASSES, STATS, SUBSCRIPTIONS_DOC, WEBHOOKS_DOC } from "@/lib/subscriptions"
 import { isHttpUrl } from "@/lib/safe-url"
 import { ApiError, GhostSettings, GhostSettingsSchema } from "@/types/api"
 import { GHOST_SETTINGS_KEY as KEY, useGhostSettings } from "@/hooks/use-ghost-settings"
-
-/** The loans page opens on its Ghost members tab with this. */
-const MEMBER_PASSES = "/loans?view=members"
 
 /** How often the page asks again while a setup step waits on Ghost (paused in a hidden tab). */
 export const SETUP_RECHECK_MS = 10_000

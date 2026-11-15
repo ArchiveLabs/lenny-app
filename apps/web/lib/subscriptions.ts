@@ -25,6 +25,9 @@ export const DASHBOARD = {
 /** How often the stats ask again while their tab is open (TanStack Query pauses it in a hidden tab). */
 export const STATS_REFRESH_MS = 30_000
 
+/** The loans page, opened on its Ghost members tab. */
+export const MEMBER_PASSES = "/loans?view=members"
+
 export const STATS = {
   route: "/stats",
   title: "Subscription stats",

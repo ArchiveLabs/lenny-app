@@ -120,6 +120,7 @@ it("shows Ghost members only when a Ghost site is connected", async () => {
   expect(await screen.findByText("Ghost members")).toBeInTheDocument()
   await waitFor(() => expect(screen.getByText("Opens").closest("div")).toHaveTextContent("55"))
   expect(screen.getByRole("link", { name: "Subscription stats" })).toHaveAttribute("href", "/stats")
+  expect(screen.getByRole("link", { name: "See passes" })).toHaveAttribute("href", "/loans?view=members") // the Ghost members tab, not Loans
   unmount()
 
   jest.clearAllMocks()

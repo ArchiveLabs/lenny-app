@@ -14,7 +14,7 @@ import { CoverThumb, KpiTile, Panel, PanelLink, Row, SplitBar, Trend } from "@/c
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
-import { ACCESS_MODES, byWeek, DASHBOARD, dayLabel, fillDays, rangeFor, STATS, STATS_REFRESH_MS } from "@/lib/subscriptions"
+import { ACCESS_MODES, byWeek, DASHBOARD, dayLabel, fillDays, MEMBER_PASSES, rangeFor, STATS, STATS_REFRESH_MS } from "@/lib/subscriptions"
 import {
   AccessMode,
   AdminLoan,
@@ -322,7 +322,7 @@ function GhostPanel() {
       </div>
       <p className="px-5 pb-5 text-xs text-muted-foreground">
         {t("Members read on passes, not loans.")}{" "}
-        <Link href="/loans" className={LINK}>{t("See passes")}</Link>
+        <Link href={MEMBER_PASSES} className={LINK}>{t("See passes")}</Link>
       </p>
     </Panel>
   )
