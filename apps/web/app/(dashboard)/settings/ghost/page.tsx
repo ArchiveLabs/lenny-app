@@ -508,7 +508,7 @@ function Setup({ settings }: { settings: GhostSettings }) {
           title={t("Add the code to Ghost")}
           state={code}
           note={
-            settings.snippet_stale ? t("An older copy of the Lenny code is still on {{site}}. Remove it from Site header and Site footer, and keep only this one.", { site: host })
+            settings.snippet_stale ? t("An older copy of the Lenny code is on {{site}}. Remove every older copy from Site header and Site footer, and paste this one into Site header.", { site: host })
               : settings.snippet_installed === true ? t("Found on {{site}}.", { site: host })
               : settings.snippet_installed === false ? t("Not found on {{site}}. Paste it, or paste it again if you updated Lenny.", { site: host })
                 : launch ? t("A member opened a book, so the code works.")
@@ -531,8 +531,9 @@ function Setup({ settings }: { settings: GhostSettings }) {
           </div>
           {code === "todo" && (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-secondary/40 px-3 py-2">
-              <p className="text-[13px] text-muted-foreground" aria-live="polite">
-                {checking ? t("Checking {{site}}…", { site: host }) : t("Lenny checks your site every {{s}} seconds while this page is open.", { s: SETUP_RECHECK_MS / 1000 })}
+              {/* Not a live region: background checks run every few seconds and would be read out each time. */}
+              <p className="text-[13px] text-muted-foreground">
+                {t("Lenny checks your site every {{s}} seconds while this page is open.", { s: SETUP_RECHECK_MS / 1000 })}
               </p>
               <Button type="button" variant="outline" size="sm" className="bg-background" disabled={checking}
                 onClick={() => queryClient.invalidateQueries({ queryKey: KEY })}>
