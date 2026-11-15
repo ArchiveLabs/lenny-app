@@ -85,6 +85,28 @@ it("shows the totals, the opens chart, the devices and the books", async () => {
   expect(screen.getByText("Showing 1–20 of 45")).toBeInTheDocument()
 })
 
+it("compares each total with the period before, and splits patrons into new and returning", async () => {
+  route({ s: { ...stats, previous: { books_read: 3, patrons: 2, opens: 50 }, readers: { new: 4, returning: 1 } } })
+  renderPage()
+  const card = (label) => screen.getAllByText(label, { selector: "p" })[0].closest(".rounded-2xl")
+  await screen.findByText("Reading", { selector: "h2" })
+  expect(card("Opens")).toHaveTextContent("-8") // 42 against 50
+  expect(card("Books read")).toHaveTextContent("0")
+  expect(card("Patrons")).toHaveTextContent("4 new, 1 returning")
+  expect(card("Patrons")).toHaveTextContent("+3")
+  expect(card("Opens")).toHaveTextContent("vs previous 30 days")
+})
+
+it("keeps the plain notes on a server without the comparison", async () => {
+  route()
+  renderPage()
+  const card = (label) => screen.getAllByText(label, { selector: "p" })[0].closest(".rounded-2xl")
+  await screen.findByText("Reading", { selector: "h2" })
+  expect(card("Opens")).toHaveTextContent("Books opened by members")
+  expect(card("Patrons")).toHaveTextContent("Different members")
+  expect(document.body.textContent).not.toMatch(/undefined|NaN/)
+})
+
 it("asks the server again for a new period, sort or page", async () => {
   route()
   renderPage()

@@ -14,7 +14,7 @@ import { ErrorState } from "@/components/ErrorState"
 import { NativeSelect } from "@/components/NativeSelect"
 import { Pager } from "@/components/import/Pager"
 import { AreaChartCard } from "@/components/stats/AreaChartCard"
-import { KpiTile, Panel } from "@/components/stats/ui"
+import { KpiTile, Panel, Trend } from "@/components/stats/ui"
 import { useGhostSettings } from "@/hooks/use-ghost-settings"
 import { fetchAdmin, handleApiResponse } from "@/lib/api-client"
 import { relativeTime } from "@/lib/preload/time"
@@ -98,16 +98,28 @@ export default function StatsPage() {
       />
     )
   } else {
-    const { totals, by_day, devices } = stats.data
+    const { totals, by_day, devices, previous, readers } = stats.data
+    const vsBefore = t("vs previous {{count}} days", { count: days })
+    // The change against the period before, or the plain note on a server that doesn't send it.
+    const change = (key: "opens" | "patrons" | "books_read", note: string) =>
+      previous ? <Trend diff={totals[key] - previous[key]} label={vsBefore} /> : <span className="text-muted-foreground">{note}</span>
     const perDay = fillDays(by_day, from, to, { books_read: 0, patrons: 0, opens: 0 })
     const deviceOpens = devices.reduce((n, d) => n + d.opens, 0) || 1
 
     body = (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3 @5xl/main:grid-cols-4 @5xl/main:gap-4">
-          <KpiTile icon={Eye} label={t("Opens")} value={totals.opens.toLocaleString()} footer={<span className="text-muted-foreground">{t("Books opened by members")}</span>} aside={period} />
-          <KpiTile icon={Users} label={t("Patrons")} value={totals.patrons.toLocaleString()} footer={<span className="text-muted-foreground">{t("Different members")}</span>} aside={period} />
-          <KpiTile icon={BookCopy} label={t("Books read")} value={totals.books_read.toLocaleString()} footer={<span className="text-muted-foreground">{t("Subscription books")}</span>} aside={period} />
+          <KpiTile icon={Eye} label={t("Opens")} value={totals.opens.toLocaleString()} footer={change("opens", t("Books opened by members"))} aside={previous ? vsBefore : period} />
+          <KpiTile
+            icon={Users}
+            label={t("Patrons")}
+            value={totals.patrons.toLocaleString()}
+            footer={readers
+              ? <span className="text-muted-foreground">{t("{{new}} new, {{returning}} returning", readers)}</span>
+              : change("patrons", t("Different members"))}
+            aside={readers && previous ? <Trend diff={totals.patrons - previous.patrons} label={vsBefore} /> : previous ? vsBefore : period}
+          />
+          <KpiTile icon={BookCopy} label={t("Books read")} value={totals.books_read.toLocaleString()} footer={change("books_read", t("Subscription books"))} aside={previous ? vsBefore : period} />
           <KpiTile
             icon={Clock}
             label={t("Recent readers")}

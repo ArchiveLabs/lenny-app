@@ -291,6 +291,9 @@ export const SubscriptionStatsSchema = z.object({
   totals: z.object({ books_read: z.number(), patrons: z.number(), opens: z.number(), active_now: z.number() }),
   by_day: z.array(z.object({ date: z.string(), books_read: z.number(), patrons: z.number(), opens: z.number() })),
   devices: z.array(z.object({ device_class: z.string(), patrons: z.number(), opens: z.number() })),
+  // Older servers omit these. previous: the same totals for the equally long period just before.
+  previous: z.object({ books_read: z.number(), patrons: z.number(), opens: z.number() }).optional(),
+  readers: z.object({ new: z.number(), returning: z.number() }).optional(), // first read ever in the period, or before it
 })
 export type SubscriptionStats = z.infer<typeof SubscriptionStatsSchema>
 
