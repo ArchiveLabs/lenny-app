@@ -16,6 +16,11 @@ describe("parseItems", () => {
     expect(b.lenny.available_copies).toBe(0) // zero is a count: it is on loan
   })
 
+  it("folds the top-level access mode into the record, for the card and the sheet", () => {
+    const [b] = parseItems({ "1": record({ access_mode: "subscription" }) })
+    expect(b.lenny.access_mode).toBe("subscription")
+  })
+
   it("keeps a count that is already inside lenny{}", () => {
     const [b] = parseItems({ "1": record({ lenny: { ...record().lenny, available_copies: 2 } }) })
     expect(b.lenny.available_copies).toBe(2)

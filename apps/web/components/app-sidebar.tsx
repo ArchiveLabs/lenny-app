@@ -9,6 +9,7 @@ import {
   IconServer,
   IconUser,
   IconUsers,
+  IconLayoutDashboard,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/nav-main"
@@ -26,9 +27,15 @@ import {
 import { useTranslation } from "react-i18next"
 import { useMe } from "@/hooks/use-accounts"
 import { ACCOUNT, TEAM } from "@/lib/accounts"
+import { DASHBOARD } from "@/lib/subscriptions"
 
 const data = {
   navMain: [
+    {
+      title: DASHBOARD.title,
+      url: DASHBOARD.route,
+      icon: IconLayoutDashboard,
+    },
     {
       title: "Import & Redeem",
       url: "/import",

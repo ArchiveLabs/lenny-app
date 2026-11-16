@@ -56,6 +56,13 @@ describe("the lock", () => {
     rerender(<BookCard book={book({}, { encrypted: true })} />)
     expect(screen.getByText("DRM")).toBeInTheDocument()
   })
+
+  it("flags a subscription book for members", () => {
+    render(<BookCard book={book({}, { access_mode: "subscription" })} />)
+    expect(screen.getByText("Members")).toBeInTheDocument()
+    expect(screen.queryByText("DRM")).not.toBeInTheDocument()
+    expect(screen.queryByText(/^share /)).not.toBeInTheDocument() // not in OPDS: nothing to share
+  })
 })
 
 describe("availability", () => {
