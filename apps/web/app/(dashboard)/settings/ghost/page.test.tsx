@@ -223,11 +223,12 @@ describe("changing the site", () => {
     fetchAdmin.mockReturnValue(ok(settings))
     renderPage()
     await edit("https://other.test")
-    expect(screen.getByText("Members of https://hydra.test lose access to subscription books right away.")).toBeInTheDocument()
+    expect(screen.getByText(/Members of https:\/\/hydra.test lose access to subscription books right away\. The webhook secret changes too/)).toBeInTheDocument()
     expect(fetchAdmin).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole("button", { name: "Change site" }))
     await waitFor(() => expect(fetchAdmin).toHaveBeenCalledWith("settings/ghost", expect.objectContaining({ method: "PUT" })))
     expect(JSON.parse(fetchAdmin.mock.calls.at(-1)[1].body)).toEqual({ site_url: "https://other.test" })
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Ghost site changed. Paste the new webhook secret into both Ghost webhooks."))
   })
 
   it("asks before disconnecting", async () => {
@@ -235,6 +236,7 @@ describe("changing the site", () => {
     renderPage()
     await edit("")
     expect(screen.getByText("Disconnect Ghost?")).toBeInTheDocument()
+    expect(screen.queryByText(/webhook secret changes/)).not.toBeInTheDocument() // no new site, no new secret
   })
 
   it("saves nothing when the site is unchanged", async () => {
