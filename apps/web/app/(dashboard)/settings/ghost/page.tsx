@@ -225,7 +225,7 @@ function Status({ settings }: { settings: GhostSettings }) {
   // Saving a different site, or none, ends every member's access from this one (the server drops their passes).
   const saveSite = () =>
     save.mutate(
-      { body: { site_url: siteUrl.trim() || null }, done: t(siteUrl.trim() ? "Ghost site changed." : "Ghost disconnected.") },
+      { body: { site_url: siteUrl.trim() || null }, done: t(siteUrl.trim() ? "Ghost site changed. Paste the new webhook secret into both Ghost webhooks." : "Ghost disconnected.") },
       { onSuccess: () => setEditing(false) },
     )
 
@@ -279,6 +279,8 @@ function Status({ settings }: { settings: GhostSettings }) {
                   <AlertDialogTitle>{t(siteUrl.trim() ? "Change the Ghost site?" : "Disconnect Ghost?")}</AlertDialogTitle>
                   <AlertDialogDescription>
                     {t("Members of {{site}} lose access to subscription books right away.", { site })}
+                    {/* Lenny issues a new secret with a new site: the old site must not sign for it. */}
+                    {siteUrl.trim() && ` ${t("The webhook secret changes too, so paste the new one into both Ghost webhooks.")}`}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
